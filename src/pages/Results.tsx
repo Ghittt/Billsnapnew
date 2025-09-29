@@ -75,7 +75,7 @@ const ResultsPage = () => {
       setAnnualKwh(consumption);
       setCurrentCost(estimatedCurrentCost);
 
-      // DB-FIRST: fetch active offers to avoid empty UI, then try server functions to refine
+      // DB-FIRST: fetch active offers to avoid empty UI
       let finalPayload: OffersPayload | null = null;
 
       const mapOffer = (o: any) => ({
@@ -97,8 +97,7 @@ const ResultsPage = () => {
         last_checked: o.last_update || o.updated_at || o.created_at || new Date().toISOString(),
       });
 
-      // 1) Try DB (commodity power), then relax filter if empty
-      let dbOffers: any[] = [];
+      // Fetch from DB (commodity power), then relax filter if empty
       const { data: dbOffersPower, error: dbErrPower } = await supabase
         .from('offers')
         .select('*')
@@ -106,26 +105,27 @@ const ResultsPage = () => {
         .eq('commodity', 'power')
         .order('created_at', { ascending: false });
 
+      let activeOffers: any[] = [];
       if (!dbErrPower && Array.isArray(dbOffersPower) && dbOffersPower.length > 0) {
-        dbOffers = dbOffersPower;
+        activeOffers = dbOffersPower;
       } else {
         const { data: dbOffersAny } = await supabase
           .from('offers')
           .select('*')
           .eq('is_active', true)
           .order('created_at', { ascending: false });
-        dbOffers = Array.isArray(dbOffersAny) ? dbOffersAny : [];
+        activeOffers = Array.isArray(dbOffersAny) ? dbOffersAny : [];
       }
 
-      if (dbOffers.length > 0) {
-        const mapped = dbOffers.map(mapOffer);
+      if (activeOffers.length > 0) {
+        const mapped = activeOffers.map(mapOffer);
         mapped.sort((a, b) => a.offer_annual_cost_eur - b.offer_annual_cost_eur);
         finalPayload = { best_offer: mapped[0], offers: mapped };
         // Set immediately so UI never shows an empty state when DB has data
         setOffersData(finalPayload);
       }
 
-      // 2) Try verified offers (may override DB payload if available)
+      // Try verified offers (may override DB payload if available)
       const { data: offersResponse, error: offersError } = await supabase.functions.invoke(
         'get-verified-offers',
         { body: { annual_kwh: consumption } }
@@ -133,21 +133,6 @@ const ResultsPage = () => {
 
       if (!offersError && (offersResponse as any)?.best_offer) {
         finalPayload = offersResponse as OffersPayload;
-      } else {
-        // 3) Fallback to robust function
-        const { data: bestResp, error: bestErr } = await supabase.functions.invoke(
-          'get-best-offer',
-          { body: { commodity: 'power', annualKwh: consumption, annualSmc: 0 } }
-        );
-
-        if (!bestErr && (bestResp as any)?.best_offer) {
-          const best = mapOffer((bestResp as any).best_offer);
-          const list = (((bestResp as any).offers || (bestResp as any).allOffersResponse || []) as any[]).map(mapOffer);
-          finalPayload = { best_offer: best, offers: list };
-        }
-      }
-
-      if (finalPayload) {
         setOffersData(finalPayload);
       }
 
