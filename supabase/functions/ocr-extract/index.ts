@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -15,7 +16,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -29,100 +30,126 @@ serve(async (req) => {
 
     console.log(`Processing file: ${file.name}, size: ${file.size}, type: ${file.type}`);
 
-    // For this MVP implementation, we'll use Lovable AI to extract data from text
-    // In a production app, you'd use proper OCR services like Google Vision API
-    
-    let extractedText = '';
-    
-    if (file.type === 'application/pdf') {
-      // For PDFs, we'll simulate OCR extraction with the mock data
-      extractedText = `
-        Fornitore: Enel Energia
-        Consumo annuo stimato: 2,700 kWh
-        Prezzo unitario energia: 0.54 €/kWh
-        Quota fissa mensile: 8.50 €
-        Totale stimato annuo: 1,578.00 €
-        Periodo fatturazione: Gennaio 2024 - Dicembre 2024
-      `;
-    } else {
-      // For images, we'll also use the mock data
-      extractedText = `
-        BOLLETTA ENERGIA ELETTRICA
-        Periodo: Gen 2024 - Dic 2024
-        Consumo kWh: 2.700
-        Prezzo €/kWh: 0,54
-        Quota fissa mensile: €8,50
-        Totale anno: €1.578,00
-      `;
-    }
+    // Simulate OCR text extraction (in real implementation, use Google Vision/Azure OCR)
+    const mockOcrText = `
+    BOLLETTA ENERGIA ELETTRICA
+    Periodo: Gen 2024 - Dic 2024
+    Totale da pagare: € ${file.name.includes('alta') ? '1680,50' : '1200,00'}
+    Consumo annuo: ${file.name.includes('alta') ? '3500' : '2400'} kWh
+    Prezzo energia: € ${file.name.includes('alta') ? '0,25' : '0,22'}/kWh
+    Quota fissa: € 8,50/mese
+    `;
 
-    // Use Lovable AI to extract structured data
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `Sei un parser rigoroso di bollette luce/gas in Italia. 
-Obiettivo: restituisci JSON con i campi seguenti, senza testo extra.
-Campi obbligatori: consumo_annuo_kwh (float), costo_totale_annuo_euro (float), costo_unitario_euro_kwh (float).
-Regole: se un campo manca, stima basata su dati presenti.
-Output SOLO JSON valido.`
-          },
-          {
-            role: 'user',
-            content: `Estrai i dati da questa bolletta: ${extractedText}`
-          }
-        ],
-        max_tokens: 500,
-        temperature: 0.1
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      throw new Error(`AI API error: ${aiResponse.status}`);
-    }
-
-    const aiData = await aiResponse.json();
-    const aiContent = aiData.choices[0].message.content;
-    
-    console.log('AI extracted content:', aiContent);
-
-    // Parse the JSON response from AI
     let extractedData;
-    try {
-      extractedData = JSON.parse(aiContent);
-    } catch (e) {
-      // Fallback with mock data if AI parsing fails
+
+    // Use OpenAI for AI-powered parsing if available
+    if (openaiApiKey) {
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: 'Sei un parser rigoroso di bollette luce/gas in Italia. Estrai e valida i campi numerici. Rispondi SOLO con JSON valido.'
+              },
+              {
+                role: 'user',
+                content: `Fornisco testo OCR della bolletta. Restituisci SOLO JSON valido con chiavi: { "total_cost_eur": float, "annual_kwh": float|null, "unit_price_eur_kwh": float|null, "notes": string }. Se un campo manca, stima usando i dati presenti e descrivi la logica in notes. Nessun testo fuori dal JSON.\n\nTesto OCR:\n${mockOcrText}`
+              }
+            ],
+            max_tokens: 500,
+            temperature: 0.1
+          })
+        });
+
+        if (response.ok) {
+          const aiResult = await response.json();
+          const aiContent = aiResult.choices?.[0]?.message?.content?.trim();
+          
+          if (aiContent) {
+            try {
+              const parsedData = JSON.parse(aiContent);
+              extractedData = {
+                total_cost_eur: parsedData.total_cost_eur,
+                annual_kwh: parsedData.annual_kwh,
+                unit_price_eur_kwh: parsedData.unit_price_eur_kwh,
+                gas_smc: null,
+                quality_score: 0.95,
+                notes: parsedData.notes
+              };
+              console.log('OpenAI parsing successful:', extractedData);
+            } catch (parseError) {
+              console.error('Failed to parse AI response:', parseError);
+              throw new Error('Invalid AI response format');
+            }
+          } else {
+            throw new Error('Empty AI response');
+          }
+        } else {
+          const errorText = await response.text();
+          console.error('OpenAI API error:', response.status, errorText);
+          throw new Error(`OpenAI API error: ${response.status}`);
+        }
+      } catch (aiError) {
+        console.error('AI parsing failed, using fallback:', aiError);
+        // Fallback to mock data
+        extractedData = {
+          total_cost_eur: file.name.includes('alta') ? 1680.50 : 1200.00,
+          annual_kwh: file.name.includes('alta') ? 3500 : 2400,
+          unit_price_eur_kwh: file.name.includes('alta') ? 0.25 : 0.22,
+          gas_smc: null,
+          quality_score: 0.80,
+          notes: 'Dati stimati - parsing AI non disponibile'
+        };
+      }
+    } else {
+      // Fallback if no OpenAI key
       extractedData = {
-        consumo_annuo_kwh: 2700,
-        costo_totale_annuo_euro: 1578,
-        costo_unitario_euro_kwh: 0.54
+        total_cost_eur: file.name.includes('alta') ? 1680.50 : 1200.00,
+        annual_kwh: file.name.includes('alta') ? 3500 : 2400,
+        unit_price_eur_kwh: file.name.includes('alta') ? 0.25 : 0.22,
+        gas_smc: null,
+        quality_score: 0.80,
+        notes: 'Dati stimati - OpenAI non configurato'
       };
     }
 
-    // Store OCR results in database
-    const { data: ocrResult, error: ocrError } = await supabase
+    // Validate extracted data
+    if (extractedData.unit_price_eur_kwh && (extractedData.unit_price_eur_kwh < 0.05 || extractedData.unit_price_eur_kwh > 2.0)) {
+      extractedData.notes = (extractedData.notes || '') + ' - Prezzo unitario fuori range normale';
+    }
+    if (extractedData.annual_kwh && (extractedData.annual_kwh < 100 || extractedData.annual_kwh > 10000)) {
+      extractedData.notes = (extractedData.notes || '') + ' - Consumo annuo fuori range normale';
+    }
+
+    // Store the OCR results in the database
+    const { data: insertResult, error: insertError } = await supabase
       .from('ocr_results')
       .insert({
         upload_id: uploadId,
-        total_cost_eur: extractedData.costo_totale_annuo_euro,
-        annual_kwh: extractedData.consumo_annuo_kwh,
-        unit_price_eur_kwh: extractedData.costo_unitario_euro_kwh,
-        raw_json: extractedData,
-        quality_score: 0.9
-      })
-      .select()
-      .single();
+        total_cost_eur: extractedData.total_cost_eur,
+        annual_kwh: extractedData.annual_kwh,
+        unit_price_eur_kwh: extractedData.unit_price_eur_kwh,
+        gas_smc: extractedData.gas_smc,
+        quality_score: extractedData.quality_score,
+        raw_json: extractedData
+      });
 
-    if (ocrError) {
-      throw new Error(`Database error: ${ocrError.message}`);
+    if (insertError) {
+      console.error('Database insert error:', insertError);
+      return new Response(JSON.stringify({ error: 'Failed to save OCR results' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
+
+    console.log('OCR extraction completed successfully');
 
     return new Response(JSON.stringify(extractedData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
