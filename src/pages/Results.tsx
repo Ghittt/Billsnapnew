@@ -70,31 +70,54 @@ const ResultsPage = () => {
       setAnnualKwh(consumption);
       setCurrentCost(estimatedCurrentCost);
 
-      // Fetch verified offers
+      // Fetch verified offers (primary)
       const { data: offersResponse, error: offersError } = await supabase.functions.invoke(
         'get-verified-offers',
-        {
-          body: {
-            annual_kwh: consumption,
-          }
-        }
+        { body: { annual_kwh: consumption } }
       );
 
-      console.log('Offers response:', offersResponse, offersError);
+      let finalPayload: OffersPayload | null = null;
 
-      if (offersError || !offersResponse?.best_offer) {
-        console.error('Offers error:', offersError, offersResponse);
-        throw new Error('NO_OFFERS');
+      if (!offersError && offersResponse?.best_offer) {
+        finalPayload = offersResponse as OffersPayload;
+      } else {
+        // Fallback to robust function if primary fails
+        const { data: bestResp, error: bestErr } = await supabase.functions.invoke(
+          'get-best-offer',
+          { body: { commodity: 'power', annualKwh: consumption, annualSmc: 0 } }
+        );
+
+        if (bestErr || !bestResp?.best_offer) {
+          console.error('Fallback get-best-offer failed:', bestErr, bestResp);
+          throw new Error('NO_OFFERS');
+        }
+
+        const mapOffer = (o: any) => ({
+          id: o.id || o.offer_id || crypto.randomUUID(),
+          provider: o.provider,
+          offer_name: o.plan_name,
+          price_kwh: o.unit_price_eur_kwh ?? o.price_kwh ?? 0,
+          fixed_fee_month: o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0,
+          fixed_fee_year: (o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0) * 12,
+          offer_annual_cost_eur: o.offer_annual_cost_eur ?? Math.round(consumption * (o.unit_price_eur_kwh || 0) + (o.fixed_fee_eur_mo || 0) * 12),
+          source_url: o.redirect_url || o.source || o.terms_url || '',
+          terms_url: o.terms_url || undefined,
+          last_checked: o.last_update || o.updated_at || new Date().toISOString(),
+        });
+
+        const best = mapOffer(bestResp.best_offer);
+        const list = (bestResp.offers || bestResp.allOffersResponse || []).map(mapOffer);
+        finalPayload = { best_offer: best, offers: list };
       }
 
-      setOffersData(offersResponse);
+      setOffersData(finalPayload);
 
       // Track analytics
-      if (typeof gtag !== 'undefined') {
+      if (typeof gtag !== 'undefined' && finalPayload?.best_offer) {
         gtag('event', 'result_shown', {
           event_category: 'engagement',
           annual_kwh: consumption,
-          best_offer_provider: offersResponse.best_offer?.provider
+          best_offer_provider: finalPayload.best_offer.provider
         });
       }
 
