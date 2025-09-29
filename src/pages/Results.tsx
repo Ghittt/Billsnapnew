@@ -1,191 +1,342 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '@/components/layout/Header';
-import SavingsCard from '@/components/results/SavingsCard';
+import { BestOfferCard } from '@/components/results/BestOfferCard';
+import { AlternativeOfferCard } from '@/components/results/AlternativeOfferCard';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, FileText, Zap, TrendingUp } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { ArrowLeft, Zap, Loader2, AlertCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import '@/types/analytics';
+
+interface Offer {
+  provider: string;
+  plan_name: string;
+  unit_price_eur_kwh: number;
+  fixed_fee_eur_mo: number;
+  offer_annual_cost_eur: number;
+  terms_url: string;
+  redirect_url: string;
+  source: string;
+  last_update: string;
+  offer_id: string;
+}
+
+interface OffersPayload {
+  best_offer: Offer;
+  offers: Offer[];
+  calculation: {
+    annual_consumption: number;
+    unit: string;
+  };
+}
 
 const ResultsPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const uploadId = searchParams.get('uploadId');
+  const { toast } = useToast();
 
-  // Mock data - in real app this would come from OCR + AI analysis
-  const analysisData = {
-    currentCost: 1680,
-    currentConsumption: 3500, // kWh/year
-    currentUnitPrice: 0.25,
-    bestOffer: {
-      provider: "Enel Energia",
-      plan: "E-Light Luce",
-      annualCost: 1420,
-      unitPrice: 0.22,
-    },
-    annualSaving: 260,
-    copyMessage: "Ti ho trovato un'offerta che ti fa risparmiare 260 €/anno rispetto alla tua bolletta attuale."
-  };
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [offersData, setOffersData] = useState<OffersPayload | null>(null);
+  const [currentCost, setCurrentCost] = useState<number>(0);
+  const [annualKwh, setAnnualKwh] = useState<number>(2700);
+  const [loadingOfferId, setLoadingOfferId] = useState<string | null>(null);
 
-  // Show different message based on savings amount
-  const getSavingsMessage = () => {
-    if (analysisData.annualSaving < 50) {
-      return "La tua offerta è già tra le migliori. Risparmio potenziale minimo (€30/anno).";
+  useEffect(() => {
+    if (!uploadId) {
+      setError('ID upload mancante');
+      setIsLoading(false);
+      return;
     }
-    return `Ti ho trovato un'offerta che ti fa risparmiare €${analysisData.annualSaving}/anno rispetto alla tua bolletta attuale.`;
+
+    fetchResults();
+  }, [uploadId]);
+
+  const fetchResults = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Fetch OCR results to get consumption data
+      const { data: ocrData, error: ocrError } = await supabase
+        .from('ocr_results')
+        .select('*')
+        .eq('upload_id', uploadId)
+        .single();
+
+      if (ocrError) throw ocrError;
+
+      const consumption = ocrData.annual_kwh || 2700;
+      const estimatedCurrentCost = ocrData.total_cost_eur || consumption * 0.30;
+      const commodity = ocrData.gas_smc > 0 ? 'gas' : 'power';
+      
+      setAnnualKwh(consumption);
+      setCurrentCost(estimatedCurrentCost);
+
+      // Fetch best offer and all offers
+      const { data: offersResponse, error: offersError } = await supabase.functions.invoke(
+        'get-best-offer',
+        {
+          body: {
+            commodity: commodity,
+            annual_kwh: consumption,
+            annual_smc: ocrData.gas_smc || 0,
+          }
+        }
+      );
+
+      if (offersError) throw offersError;
+
+      setOffersData(offersResponse);
+
+      // Track analytics
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'result_shown', {
+          event_category: 'engagement',
+          annual_kwh: consumption,
+          best_offer_provider: offersResponse.best_offer?.provider
+        });
+      }
+
+    } catch (err) {
+      console.error('Error fetching results:', err);
+      setError('Errore nel caricamento dei risultati');
+      toast({
+        title: 'Errore',
+        description: 'Non riesco a caricare i risultati. Riprova.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const handleActivateOffer = async (offer: Offer, isAlternative = false) => {
+    if (!uploadId) {
+      toast({
+        title: 'Errore',
+        description: 'Dati di sessione mancanti',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!offer.redirect_url && !offer.source) {
+      toast({
+        title: 'Link non disponibile',
+        description: 'Link offerta non disponibile al momento',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setLoadingOfferId(offer.offer_id);
+
+    try {
+      // Detect device
+      const userAgent = navigator.userAgent.toLowerCase();
+      let device = 'web';
+      if (userAgent.includes('mobile') || userAgent.includes('android')) device = 'mobile';
+      if (userAgent.includes('iphone') || userAgent.includes('ipad')) device = 'ios';
+
+      // Extract UTM parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const utmSource = urlParams.get('utm_source') || 'organic';
+
+      const annualSaving = currentCost - offer.offer_annual_cost_eur;
+
+      // Save lead (non-blocking)
+      const leadPayload = {
+        upload_id: uploadId,
+        offer_id: offer.offer_id,
+        provider: offer.provider,
+        annual_saving_eur: annualSaving,
+        current_annual_cost_eur: currentCost,
+        offer_annual_cost_eur: offer.offer_annual_cost_eur,
+        redirect_url: offer.redirect_url || offer.source,
+        utm_source: utmSource,
+        device: device
+      };
+
+      // Don't wait for lead save, redirect immediately
+      supabase.functions.invoke('save-lead', { body: leadPayload }).catch(console.error);
+
+      // Track analytics
+      if (typeof gtag !== 'undefined') {
+        gtag('event', isAlternative ? 'alt_offer_clicked' : 'cta_clicked', {
+          event_category: 'conversion',
+          provider: offer.provider,
+          plan: offer.plan_name,
+          annual_saving: annualSaving
+        });
+      }
+
+      // Immediate redirect
+      window.location.href = offer.redirect_url || offer.source;
+
+    } catch (err) {
+      console.error('Error activating offer:', err);
+      toast({
+        title: 'Errore',
+        description: 'Non riesco ad aprire la pagina del fornitore',
+        variant: 'destructive'
+      });
+      setLoadingOfferId(null);
+    }
+  };
+
+  // Calculate savings
+  const annualSaving = offersData?.best_offer 
+    ? currentCost - offersData.best_offer.offer_annual_cost_eur 
+    : 0;
+
+  const getSavingsMessage = () => {
+    if (annualSaving < 50) {
+      return `La tua offerta è già tra le migliori (risparmio minimo €${Math.round(annualSaving)}/anno)`;
+    }
+    return `Ti ho trovato un'offerta che ti fa risparmiare €${Math.round(annualSaving)}/anno rispetto alla tua bolletta attuale.`;
+  };
+
+  // Get alternative offers (exclude best offer, show max 5)
+  const alternativeOffers = offersData?.offers
+    ?.filter(o => o.offer_id !== offersData.best_offer.offer_id)
+    ?.slice(0, 5) || [];
+
+  const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(n);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground">Caricamento risultati...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !offersData?.best_offer) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-md mx-auto text-center space-y-4">
+            <AlertCircle className="w-16 h-16 text-destructive mx-auto" />
+            <h2 className="text-2xl font-bold">Offerte temporaneamente non disponibili</h2>
+            <p className="text-muted-foreground">
+              Non riusciamo a recuperare le offerte al momento. Riprova tra qualche minuto.
+            </p>
+            <Button onClick={() => navigate('/')}>
+              Torna alla home
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
+    <div className="min-h-screen bg-gradient-subtle pb-24 md:pb-8">
       <Header />
       
       <div className="container mx-auto px-4 py-4 md:py-8">
-        <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
+        <div className="max-w-5xl mx-auto space-y-6 md:space-y-8">
           
           {/* Header */}
           <div className="flex items-center justify-between">
             <Button 
               variant="ghost" 
               onClick={() => navigate('/')}
-              className="flex items-center gap-2 text-sm md:text-base"
+              className="flex items-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
               Nuova analisi
             </Button>
           </div>
 
-          {/* Essential 3-block layout */}
-          <div className="space-y-6">
-            
-            {/* AI Message with clear savings communication */}
-            <div className="text-center space-y-4">
-              <div className="flex items-center justify-center gap-2 text-primary mb-4">
-                <Zap className="w-6 h-6" />
-                <span className="font-medium">Analisi completata</span>
-              </div>
-              <p className="text-lg md:text-xl text-foreground font-medium max-w-2xl mx-auto">
-                {getSavingsMessage()}
-              </p>
+          {/* A) Savings message */}
+          <div className="text-center space-y-4">
+            <div className="flex items-center justify-center gap-2 text-primary mb-4">
+              <Zap className="w-6 h-6" />
+              <span className="font-medium">Analisi completata</span>
             </div>
-
-            {/* 3 Fixed Blocks: Current Cost | Best Offer | Annual Savings */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-              
-              {/* Block 1: Current Annual Cost */}
-              <Card className="text-center p-4 md:p-6">
-                <CardContent className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Costo attuale</p>
-                  <p className="text-2xl md:text-3xl font-bold text-foreground">
-                    €{analysisData.currentCost}
-                  </p>
-                  <p className="text-xs text-muted-foreground">all'anno</p>
-                </CardContent>
-              </Card>
-              
-              {/* Block 2: Best Offer Annual Cost */}
-              <Card className="text-center p-4 md:p-6 border-primary/20 bg-primary/5">
-                <CardContent className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Miglior offerta</p>
-                  <p className="text-2xl md:text-3xl font-bold text-primary">
-                    €{analysisData.bestOffer.annualCost}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {analysisData.bestOffer.provider} - {analysisData.bestOffer.plan}
-                  </p>
-                </CardContent>
-              </Card>
-              
-              {/* Block 3: Annual Savings (Big & Green) */}
-              <Card className="text-center p-4 md:p-6 border-success/30 bg-success/10">
-                <CardContent className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Risparmio</p>
-                  <p className="text-3xl md:text-4xl font-bold text-success">
-                    €{analysisData.annualSaving}
-                  </p>
-                  <p className="text-xs text-muted-foreground">all'anno</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Single CTA */}
-            <div className="text-center space-y-4">
-              <SavingsCard
-                currentCost={analysisData.currentCost}
-                bestOffer={{
-                  ...analysisData.bestOffer,
-                  id: "enel-e-light-luce"
-                }}
-                annualSaving={analysisData.annualSaving}
-                copyMessage=""
-                uploadId={uploadId || undefined}
-              />
-            </div>
+            <p className="text-xl md:text-2xl font-semibold max-w-2xl mx-auto">
+              {getSavingsMessage()}
+            </p>
           </div>
 
-          {/* Minimal additional details - collapsed on mobile */}
-          <details className="space-y-4">
-            <summary className="cursor-pointer text-center text-sm text-muted-foreground hover:text-primary">
-              Vedi dettagli completi
-            </summary>
-            
-            <div className="grid md:grid-cols-2 gap-4 md:gap-6 mt-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-primary" />
-                    Dettagli bolletta
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Consumo annuo</span>
-                    <span className="font-medium">{analysisData.currentConsumption.toLocaleString()} kWh</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Prezzo unitario</span>
-                    <span className="font-medium">€{analysisData.currentUnitPrice.toFixed(4)}/kWh</span>
-                  </div>
-                </CardContent>
-              </Card>
+          {/* B) Current cost card */}
+          <Card className="text-center p-6">
+            <CardContent className="space-y-2">
+              <p className="text-sm text-muted-foreground">Costo attuale stimato</p>
+              <p className="text-4xl font-bold text-foreground">{fmt(currentCost)}</p>
+              <p className="text-xs text-muted-foreground">all'anno ({annualKwh.toLocaleString()} kWh)</p>
+            </CardContent>
+          </Card>
 
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-success" />
-                    Vantaggi del cambio
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Risparmio mensile</span>
-                    <span className="font-medium text-success">€{(analysisData.annualSaving / 12).toFixed(0)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tempo per il cambio</span>
-                    <span className="font-medium">5-10 minuti</span>
-                  </div>
-                </CardContent>
-              </Card>
+          {/* C) Best offer card with CTA */}
+          <BestOfferCard
+            provider={offersData.best_offer.provider}
+            offerName={offersData.best_offer.plan_name}
+            priceKwh={offersData.best_offer.unit_price_eur_kwh}
+            fixedFeeYear={offersData.best_offer.fixed_fee_eur_mo * 12}
+            annualCost={offersData.best_offer.offer_annual_cost_eur}
+            lastUpdate={offersData.best_offer.last_update}
+            source={offersData.best_offer.source}
+            onActivate={() => handleActivateOffer(offersData.best_offer)}
+            isLoading={loadingOfferId === offersData.best_offer.offer_id}
+          />
+
+          {/* D) Alternative offers */}
+          {alternativeOffers.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Altre offerte competitive</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {alternativeOffers.map((offer) => (
+                  <AlternativeOfferCard
+                    key={offer.offer_id}
+                    provider={offer.provider}
+                    offerName={offer.plan_name}
+                    priceKwh={offer.unit_price_eur_kwh}
+                    fixedFeeYear={offer.fixed_fee_eur_mo * 12}
+                    annualCost={offer.offer_annual_cost_eur}
+                    source={offer.source}
+                    onSelect={() => handleActivateOffer(offer, true)}
+                    isLoading={loadingOfferId === offer.offer_id}
+                  />
+                ))}
+              </div>
             </div>
-          </details>
+          )}
+
+          {/* E) Transparency notes */}
+          <div className="text-center text-sm text-muted-foreground space-y-2 pt-4 border-t">
+            <p>Costi stimati in base ai tuoi consumi. Verifica sempre le condizioni ufficiali del fornitore.</p>
+            <p>Ultimo aggiornamento prezzi: {new Date(offersData.best_offer.last_update).toLocaleDateString('it-IT')}</p>
+          </div>
         </div>
       </div>
 
       {/* Mobile sticky CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border md:hidden">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t md:hidden">
         <Button 
           className="w-full h-12 text-lg font-semibold"
-          onClick={() => {
-            // Same CTA action as SavingsCard
-            if (typeof gtag !== 'undefined') {
-              gtag('event', 'cta_clicked', {
-                'event_category': 'conversion',
-                'value': analysisData.annualSaving
-              });
-            }
-          }}
+          onClick={() => handleActivateOffer(offersData.best_offer)}
+          disabled={loadingOfferId === offersData.best_offer.offer_id}
         >
-          Attiva subito e risparmia €{analysisData.annualSaving}
+          {loadingOfferId === offersData.best_offer.offer_id ? (
+            'Reindirizzamento...'
+          ) : (
+            `Attiva e risparmia ${fmt(annualSaving)}`
+          )}
         </Button>
       </div>
     </div>

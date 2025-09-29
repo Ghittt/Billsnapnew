@@ -74,6 +74,7 @@ serve(async (req) => {
     // Calculate annual cost for each offer and find the best one
     let bestOffer = null;
     let lowestCost = Infinity;
+    const allOffersWithCost = [];
 
     for (const offer of offers) {
       let annualCost = 0;
@@ -88,11 +89,17 @@ serve(async (req) => {
 
       console.log(`${offer.provider} ${offer.plan_name}: €${annualCost.toFixed(2)}/year`);
 
+      const offerWithCost = { ...offer, offer_annual_cost_eur: annualCost };
+      allOffersWithCost.push(offerWithCost);
+
       if (annualCost < lowestCost) {
         lowestCost = annualCost;
-        bestOffer = { ...offer, offer_annual_cost_eur: annualCost };
+        bestOffer = offerWithCost;
       }
     }
+
+    // Sort all offers by annual cost
+    allOffersWithCost.sort((a, b) => a.offer_annual_cost_eur - b.offer_annual_cost_eur);
 
     if (!bestOffer) {
       return new Response(JSON.stringify({ error: 'No suitable offer found' }), {
@@ -101,8 +108,8 @@ serve(async (req) => {
       });
     }
 
-    // Prepare response with best offer details
-    const response = {
+    // Prepare response with best offer and all offers
+    const bestOfferResponse = {
       provider: bestOffer.provider,
       plan_name: bestOffer.plan_name,
       commodity: bestOffer.commodity,
@@ -113,8 +120,31 @@ serve(async (req) => {
       pricing_type: bestOffer.pricing_type,
       terms_url: bestOffer.terms_url,
       redirect_url: bestOffer.redirect_url,
+      source: bestOffer.terms_url || bestOffer.redirect_url,
+      last_update: bestOffer.last_updated || bestOffer.created_at,
       notes: bestOffer.notes || 'Stima basata su consumo fornito',
       offer_id: bestOffer.id,
+    };
+
+    const allOffersResponse = allOffersWithCost.map(offer => ({
+      provider: offer.provider,
+      plan_name: offer.plan_name,
+      commodity: offer.commodity,
+      unit_price_eur_kwh: offer.unit_price_eur_kwh,
+      unit_price_eur_smc: offer.unit_price_eur_smc,
+      fixed_fee_eur_mo: offer.fixed_fee_eur_mo,
+      offer_annual_cost_eur: offer.offer_annual_cost_eur,
+      pricing_type: offer.pricing_type,
+      terms_url: offer.terms_url,
+      redirect_url: offer.redirect_url,
+      source: offer.terms_url || offer.redirect_url,
+      last_update: offer.last_updated || offer.created_at,
+      offer_id: offer.id,
+    }));
+
+    const response = {
+      best_offer: bestOfferResponse,
+      offers: allOffersResponse,
       calculation: {
         annual_consumption: commodity === 'power' ? annualKwh : annualSmc,
         unit: commodity === 'power' ? 'kWh' : 'Smc',
@@ -127,7 +157,8 @@ serve(async (req) => {
       }
     };
 
-    console.log('Best offer found:', response);
+    console.log(`Best offer found: ${response.best_offer.provider} - ${response.best_offer.plan_name}`);
+    console.log(`Total offers returned: ${response.offers.length}`);
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
