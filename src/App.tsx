@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Upload from "./pages/Upload";
 import Results from "./pages/Results";
+import OfferDetail from "./pages/OfferDetail";
 import QA from "./pages/QA";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="/results" element={<Results />} />
+            <Route path="/offer/:id" element={<OfferDetail />} />
             <Route path="/profile" element={
               <ProtectedRoute>
                 <Profile />

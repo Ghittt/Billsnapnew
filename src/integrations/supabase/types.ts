@@ -233,6 +233,7 @@ export type Database = {
           fixed_fee_eur_mo: number
           id: string
           is_active: boolean
+          is_green: boolean | null
           notes: string | null
           plan_name: string
           pricing_type: string
@@ -253,6 +254,7 @@ export type Database = {
           fixed_fee_eur_mo?: number
           id?: string
           is_active?: boolean
+          is_green?: boolean | null
           notes?: string | null
           plan_name: string
           pricing_type: string
@@ -273,6 +275,7 @@ export type Database = {
           fixed_fee_eur_mo?: number
           id?: string
           is_active?: boolean
+          is_green?: boolean | null
           notes?: string | null
           plan_name?: string
           pricing_type?: string

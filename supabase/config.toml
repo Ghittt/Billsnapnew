@@ -80,6 +80,12 @@ verify_jwt = false
 [functions.health-check]
 verify_jwt = false
 
+[functions.get-verified-offers]
+verify_jwt = false
+
+[functions.ai-best-offer]
+verify_jwt = false
+
 [edge-runtime]
 enabled = true
 ip_version = "ipv6"
