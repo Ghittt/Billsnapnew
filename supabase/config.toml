@@ -74,6 +74,9 @@ verify_jwt = false
 [functions.get-best-offer]
 verify_jwt = false
 
+[functions.scrape-offers]
+verify_jwt = false
+
 [edge-runtime]
 enabled = true
 ip_version = "ipv6"
