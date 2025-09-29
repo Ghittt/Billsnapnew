@@ -61,24 +61,14 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
 
         {/* Action button */}
         <Button 
-          variant="outline"
+          variant="default"
           className="w-full"
           onClick={onSelect}
           disabled={isLoading}
         >
-          <ExternalLink className="w-4 h-4" />
+          <ExternalLink className="w-4 h-4 mr-2" />
           Vedi offerta
         </Button>
-
-        {/* Source link */}
-        <a 
-          href={source}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-muted-foreground hover:text-primary underline block text-center"
-        >
-          Condizioni ufficiali
-        </a>
       </CardContent>
     </Card>
   );
