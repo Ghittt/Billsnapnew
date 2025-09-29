@@ -8,7 +8,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -16,7 +15,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -30,150 +29,140 @@ serve(async (req) => {
 
     console.log(`Processing file: ${file.name}, size: ${file.size}, type: ${file.type}`);
 
-    let extractedData;
+    if (!lovableApiKey) {
+      throw new Error('LOVABLE_API_KEY not configured');
+    }
 
-    // Use OpenAI Vision to read the actual bill
-    if (openaiApiKey) {
-      try {
-        // Read file as base64
-        const arrayBuffer = await file.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-        
-        // Determine mime type
-        const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-        
-        console.log(`Processing with OpenAI Vision, mime: ${mimeType}`);
-        
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [
+    // Read file as base64
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    
+    // Determine mime type
+    let mimeType = file.type;
+    if (!mimeType) {
+      const ext = file.name.toLowerCase().split('.').pop();
+      mimeType = ext === 'pdf' ? 'application/pdf' : 'image/jpeg';
+    }
+    
+    console.log(`Processing with Lovable AI (Gemini), mime: ${mimeType}`);
+    
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${lovableApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'user',
+            content: [
               {
-                role: 'system',
-                content: 'Sei un esperto nell\'analisi di bollette energetiche italiane. Estrai con precisione TUTTI i dati dalla bolletta. Rispondi SOLO con JSON valido, nessun testo aggiuntivo.'
+                type: 'text',
+                text: `Analizza questa bolletta energia/gas italiana ed estrai con precisione TUTTI i dati. Sei un esperto nell'analisi di bollette energetiche italiane.
+
+Estrai questi dati:
+1. "total_cost_eur" (numero): Importo totale da pagare in euro (cerca "Totale da pagare", "Quanto devo pagare", "Importo")
+2. "annual_kwh" (numero o null): Consumo annuale in kWh per LUCE. Se vedi solo consumo bimestrale (es. 575 kWh per 2 mesi), calcola annual_kwh = consumo_bimestrale * 6
+3. "unit_price_eur_kwh" (numero o null): Prezzo unitario energia in €/kWh
+4. "gas_smc" (numero o null): Consumo annuale GAS in Smc se presente
+5. "billing_period_start" (string "YYYY-MM-DD" o null): Data inizio periodo
+6. "billing_period_end" (string "YYYY-MM-DD" o null): Data fine periodo
+7. "provider" (string): Nome del fornitore (es. "A2A", "Enel", "Edison")
+8. "notes" (string): Note su calcoli fatti
+
+ESEMPI:
+- Se leggi "consumo 575 kWh" e "dal 01 Gennaio 2025 al 28 Febbraio 2025", allora annual_kwh = 575 * 6 = 3450
+- Se leggi "267,00 euro" come importo, total_cost_eur = 267.00
+- Leggi le date esatte dal documento
+
+Rispondi SOLO con JSON valido (no markdown, no testo extra):
+{
+  "total_cost_eur": 267.00,
+  "annual_kwh": 3450,
+  "unit_price_eur_kwh": 0.25,
+  "gas_smc": null,
+  "billing_period_start": "2025-01-01",
+  "billing_period_end": "2025-02-28",
+  "provider": "A2A",
+  "notes": "Consumo bimestrale 575 kWh moltiplicato x6 per annuale"
+}`
               },
               {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: `Analizza questa bolletta energia/gas italiana ed estrai i seguenti dati con massima precisione:
-
-1. "total_cost_eur" (float): Importo totale da pagare in euro (cerca "Totale da pagare", "Quanto devo pagare", "Importo da pagare")
-2. "annual_kwh" (float o null): Consumo annuale in kWh per LUCE (cerca "consumo", "kWh", se presente solo consumo bimestrale moltiplicalo x6)
-3. "unit_price_eur_kwh" (float o null): Prezzo unitario energia in €/kWh per LUCE
-4. "gas_smc" (float o null): Consumo annuale GAS in Smc (Standard metri cubi) se presente
-5. "billing_period_start" (string YYYY-MM-DD o null): Data inizio periodo fatturazione
-6. "billing_period_end" (string YYYY-MM-DD o null): Data fine periodo fatturazione
-7. "notes" (string): Note esplicative su calcoli fatti, dati mancanti o assunzioni
-
-IMPORTANTE:
-- Se vedi solo consumo bimestrale (es. 575 kWh per 2 mesi), calcola annual_kwh moltiplicando x6
-- Cerca il periodo di riferimento (es. "dal 01 Gennaio 2025 al 28 Febbraio 2025")
-- Il total_cost_eur è l'importo finale evidenziato, NON la somma delle voci
-- Se mancano dati, metti null e spiega in notes
-
-Restituisci SOLO questo JSON (nessun testo prima o dopo):
-{
-  "total_cost_eur": float,
-  "annual_kwh": float or null,
-  "unit_price_eur_kwh": float or null,
-  "gas_smc": float or null,
-  "billing_period_start": "YYYY-MM-DD" or null,
-  "billing_period_end": "YYYY-MM-DD" or null,
-  "notes": "string con spiegazioni"
-}`
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: `data:${mimeType};base64,${base64}`
-                    }
-                  }
-                ]
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64}`
+                }
               }
-            ],
-            max_tokens: 1000,
-            temperature: 0.1
-          })
-        });
-
-        if (response.ok) {
-          const aiResult = await response.json();
-          const aiContent = aiResult.choices?.[0]?.message?.content?.trim();
-          
-          if (aiContent) {
-            try {
-              const parsedData = JSON.parse(aiContent);
-              extractedData = {
-                total_cost_eur: parsedData.total_cost_eur,
-                annual_kwh: parsedData.annual_kwh,
-                unit_price_eur_kwh: parsedData.unit_price_eur_kwh,
-                gas_smc: parsedData.gas_smc,
-                billing_period_start: parsedData.billing_period_start,
-                billing_period_end: parsedData.billing_period_end,
-                quality_score: 0.95,
-                notes: parsedData.notes
-              };
-              console.log('OpenAI Vision parsing successful:', extractedData);
-            } catch (parseError) {
-              console.error('Failed to parse AI response:', parseError);
-              throw new Error('Invalid AI response format');
-            }
-          } else {
-            throw new Error('Empty AI response');
+            ]
           }
-        } else {
-          const errorText = await response.text();
-          console.error('OpenAI API error:', response.status, errorText);
-          throw new Error(`OpenAI API error: ${response.status}`);
-        }
-      } catch (aiError) {
-        console.error('AI parsing failed, using fallback:', aiError);
-        // Fallback to mock data
-        extractedData = {
-          total_cost_eur: file.name.includes('alta') ? 1680.50 : 1200.00,
-          annual_kwh: file.name.includes('alta') ? 3500 : 2400,
-          unit_price_eur_kwh: file.name.includes('alta') ? 0.25 : 0.22,
-          gas_smc: null,
-          quality_score: 0.80,
-          notes: 'Dati stimati - parsing AI non disponibile'
-        };
-      }
-    } else {
-      // Fallback if no OpenAI key
-      extractedData = {
-        total_cost_eur: file.name.includes('alta') ? 1680.50 : 1200.00,
-        annual_kwh: file.name.includes('alta') ? 3500 : 2400,
-        unit_price_eur_kwh: file.name.includes('alta') ? 0.25 : 0.22,
-        gas_smc: null,
-        quality_score: 0.80,
-        notes: 'Dati stimati - OpenAI non configurato'
-      };
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Lovable AI error:', response.status, errorText);
+      throw new Error(`AI API error: ${response.status} - ${errorText}`);
     }
+
+    const aiResult = await response.json();
+    const aiContent = aiResult.choices?.[0]?.message?.content?.trim();
+    
+    if (!aiContent) {
+      throw new Error('Empty AI response');
+    }
+
+    console.log('Raw AI response:', aiContent);
+
+    // Clean JSON response (remove markdown if present)
+    let jsonStr = aiContent;
+    if (jsonStr.includes('```json')) {
+      jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    }
+    jsonStr = jsonStr.trim();
+
+    const parsedData = JSON.parse(jsonStr);
+    
+    const extractedData = {
+      total_cost_eur: parsedData.total_cost_eur,
+      annual_kwh: parsedData.annual_kwh,
+      unit_price_eur_kwh: parsedData.unit_price_eur_kwh,
+      gas_smc: parsedData.gas_smc || null,
+      quality_score: 0.95,
+      notes: parsedData.notes || '',
+      provider: parsedData.provider || null,
+      billing_period_start: parsedData.billing_period_start || null,
+      billing_period_end: parsedData.billing_period_end || null
+    };
+
+    console.log('Extracted data:', extractedData);
 
     // Validate extracted data
-    if (extractedData.unit_price_eur_kwh && (extractedData.unit_price_eur_kwh < 0.05 || extractedData.unit_price_eur_kwh > 2.0)) {
-      extractedData.notes = (extractedData.notes || '') + ' - Prezzo unitario fuori range normale';
+    if (!extractedData.total_cost_eur || extractedData.total_cost_eur <= 0) {
+      throw new Error('Impossibile estrarre l\'importo dalla bolletta');
     }
-    if (extractedData.annual_kwh && (extractedData.annual_kwh < 100 || extractedData.annual_kwh > 10000)) {
-      extractedData.notes = (extractedData.notes || '') + ' - Consumo annuo fuori range normale';
+    
+    if (extractedData.unit_price_eur_kwh && (extractedData.unit_price_eur_kwh < 0.05 || extractedData.unit_price_eur_kwh > 2.0)) {
+      extractedData.notes += ' - Prezzo unitario fuori range normale (0.05-2.0 €/kWh)';
+      extractedData.quality_score = 0.70;
+    }
+    
+    if (extractedData.annual_kwh && (extractedData.annual_kwh < 100 || extractedData.annual_kwh > 15000)) {
+      extractedData.notes += ' - Consumo annuo fuori range normale (100-15000 kWh)';
+      extractedData.quality_score = 0.70;
     }
 
-    // Get user_id from the upload record
+    // Get user_id from upload record
     const { data: uploadRecord } = await supabase
       .from('uploads')
       .select('user_id')
       .eq('id', uploadId)
       .single();
 
-    // Store the OCR results in the database
-    const { data: insertResult, error: insertError } = await supabase
+    // Store OCR results
+    const { error: insertError } = await supabase
       .from('ocr_results')
       .insert({
         upload_id: uploadId,
@@ -188,10 +177,7 @@ Restituisci SOLO questo JSON (nessun testo prima o dopo):
 
     if (insertError) {
       console.error('Database insert error:', insertError);
-      return new Response(JSON.stringify({ error: 'Failed to save OCR results' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new Error('Failed to save OCR results');
     }
 
     console.log('OCR extraction completed successfully');
@@ -201,10 +187,16 @@ Restituisci SOLO questo JSON (nessun testo prima o dopo):
     });
 
   } catch (error) {
-    console.error('Error in ocr-extract function:', error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('Error in ocr-extract:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error instanceof Error ? error.stack : undefined
+      }), 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });
