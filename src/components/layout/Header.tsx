@@ -1,4 +1,4 @@
-import { Zap, MessageSquare } from "lucide-react";
+import { Zap, MessageSquare, User } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Header = () => {
@@ -12,6 +12,13 @@ const Header = () => {
           <span className="text-xl font-bold text-foreground">BillSnap</span>
         </div>
         <div className="flex items-center gap-4">
+          <Link 
+            to="/profile" 
+            className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+          >
+            <User className="w-4 h-4" />
+            Profilo
+          </Link>
           <Link 
             to="/feedback" 
             className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
