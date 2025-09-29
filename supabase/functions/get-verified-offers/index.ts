@@ -17,8 +17,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    const url = new URL(req.url);
-    const annual_kwh = parseFloat(url.searchParams.get('annual_kwh') || '2700');
+    // Get annual_kwh from body instead of query params
+    const { annual_kwh } = await req.json();
+    const annualKwh = annual_kwh || 2700;
+
+    console.log('Fetching verified offers for', annualKwh, 'kWh/year');
 
     // Fetch active offers from database
     const { data: offers, error } = await supabase
@@ -41,7 +44,7 @@ serve(async (req) => {
       const unit_price = parseFloat(String(o.unit_price_eur_kwh || 0));
       const fixed_fee_monthly = parseFloat(String(o.fixed_fee_eur_mo || 0));
       const fixed_fee_yearly = fixed_fee_monthly * 12;
-      const annual_cost = Math.round(annual_kwh * unit_price + fixed_fee_yearly);
+      const annual_cost = Math.round(annualKwh * unit_price + fixed_fee_yearly);
 
       return {
         id: o.id,

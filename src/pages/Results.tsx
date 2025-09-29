@@ -80,7 +80,10 @@ const ResultsPage = () => {
         }
       );
 
+      console.log('Offers response:', offersResponse, offersError);
+
       if (offersError || !offersResponse?.best_offer) {
+        console.error('Offers error:', offersError, offersResponse);
         throw new Error('NO_OFFERS');
       }
 
