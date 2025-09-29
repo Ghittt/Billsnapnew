@@ -137,13 +137,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "leads_offer_id_fkey"
-            columns: ["offer_id"]
-            isOneToOne: false
-            referencedRelation: "offers"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "leads_upload_id_fkey"
             columns: ["upload_id"]
             isOneToOne: false
@@ -234,31 +227,64 @@ export type Database = {
       }
       offers: {
         Row: {
+          area: string | null
+          commodity: string
+          created_at: string | null
           fixed_fee_eur_mo: number
           id: string
+          is_active: boolean
+          notes: string | null
           plan_name: string
+          pricing_type: string
           provider: string
-          terms_json: Json | null
-          unit_price_eur_kwh: number
-          updated_at: string
+          redirect_url: string | null
+          source: string | null
+          terms_url: string | null
+          unit_price_eur_kwh: number | null
+          unit_price_eur_smc: number | null
+          updated_at: string | null
+          valid_from: string
+          valid_to: string | null
         }
         Insert: {
-          fixed_fee_eur_mo: number
-          id?: string
-          plan_name: string
-          provider: string
-          terms_json?: Json | null
-          unit_price_eur_kwh: number
-          updated_at?: string
-        }
-        Update: {
+          area?: string | null
+          commodity: string
+          created_at?: string | null
           fixed_fee_eur_mo?: number
           id?: string
+          is_active?: boolean
+          notes?: string | null
+          plan_name: string
+          pricing_type: string
+          provider: string
+          redirect_url?: string | null
+          source?: string | null
+          terms_url?: string | null
+          unit_price_eur_kwh?: number | null
+          unit_price_eur_smc?: number | null
+          updated_at?: string | null
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Update: {
+          area?: string | null
+          commodity?: string
+          created_at?: string | null
+          fixed_fee_eur_mo?: number
+          id?: string
+          is_active?: boolean
+          notes?: string | null
           plan_name?: string
+          pricing_type?: string
           provider?: string
-          terms_json?: Json | null
-          unit_price_eur_kwh?: number
-          updated_at?: string
+          redirect_url?: string | null
+          source?: string | null
+          terms_url?: string | null
+          unit_price_eur_kwh?: number | null
+          unit_price_eur_smc?: number | null
+          updated_at?: string | null
+          valid_from?: string
+          valid_to?: string | null
         }
         Relationships: []
       }
@@ -330,13 +356,6 @@ export type Database = {
           upload_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "quotes_offer_id_fkey"
-            columns: ["offer_id"]
-            isOneToOne: false
-            referencedRelation: "offers"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "quotes_upload_id_fkey"
             columns: ["upload_id"]
