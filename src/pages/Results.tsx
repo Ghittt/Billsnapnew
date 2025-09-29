@@ -39,7 +39,6 @@ const ResultsPage = () => {
   const [offersData, setOffersData] = useState<OffersPayload | null>(null);
   const [currentCost, setCurrentCost] = useState<number>(0);
   const [annualKwh, setAnnualKwh] = useState<number>(2700);
-  const [loadingOfferId, setLoadingOfferId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!uploadId) {
@@ -109,78 +108,8 @@ const ResultsPage = () => {
     }
   };
 
-  const handleActivateOffer = async (offer: Offer, isAlternative = false) => {
-    if (!uploadId) {
-      toast({
-        title: 'Errore',
-        description: 'Dati di sessione mancanti',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    if (!offer.source_url) {
-      toast({
-        title: 'Link non disponibile',
-        description: 'Link offerta non disponibile al momento',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    setLoadingOfferId(offer.id);
-
-    try {
-      // Detect device
-      const userAgent = navigator.userAgent.toLowerCase();
-      let device = 'web';
-      if (userAgent.includes('mobile') || userAgent.includes('android')) device = 'mobile';
-      if (userAgent.includes('iphone') || userAgent.includes('ipad')) device = 'ios';
-
-      // Extract UTM parameters
-      const urlParams = new URLSearchParams(window.location.search);
-      const utmSource = urlParams.get('utm_source') || 'organic';
-
-      const annualSaving = currentCost - offer.offer_annual_cost_eur;
-
-      // Save lead (non-blocking)
-      const leadPayload = {
-        upload_id: uploadId,
-        offer_id: offer.id,
-        provider: offer.provider,
-        annual_saving_eur: annualSaving,
-        current_annual_cost_eur: currentCost,
-        offer_annual_cost_eur: offer.offer_annual_cost_eur,
-        redirect_url: offer.source_url,
-        utm_source: utmSource,
-        device: device
-      };
-
-      // Don't wait for lead save, redirect immediately
-      supabase.functions.invoke('save-lead', { body: leadPayload }).catch(console.error);
-
-      // Track analytics
-      if (typeof gtag !== 'undefined') {
-        gtag('event', isAlternative ? 'alt_offer_clicked' : 'cta_clicked', {
-          event_category: 'conversion',
-          provider: offer.provider,
-          plan: offer.offer_name,
-          annual_saving: annualSaving
-        });
-      }
-
-      // Immediate redirect
-      window.location.href = offer.source_url;
-
-    } catch (err) {
-      console.error('Error activating offer:', err);
-      toast({
-        title: 'Errore',
-        description: 'Non riesco ad aprire la pagina del fornitore',
-        variant: 'destructive'
-      });
-      setLoadingOfferId(null);
-    }
+  const handleViewOffer = (offerId: string) => {
+    navigate(`/offer/${offerId}`);
   };
 
   // Calculate savings
@@ -287,8 +216,8 @@ const ResultsPage = () => {
             lastUpdate={offersData.best_offer.last_checked}
             source={offersData.best_offer.source_url}
             termsUrl={offersData.best_offer.terms_url}
-            onActivate={() => handleActivateOffer(offersData.best_offer)}
-            isLoading={loadingOfferId === offersData.best_offer.id}
+            onActivate={() => handleViewOffer(offersData.best_offer.id)}
+            isLoading={false}
           />
 
           {/* D) Alternative offers */}
@@ -305,8 +234,8 @@ const ResultsPage = () => {
                     fixedFeeYear={offer.fixed_fee_year}
                     annualCost={offer.offer_annual_cost_eur}
                     source={offer.source_url}
-                    onSelect={() => handleActivateOffer(offer, true)}
-                    isLoading={loadingOfferId === offer.id}
+                    onSelect={() => handleViewOffer(offer.id)}
+                    isLoading={false}
                   />
                 ))}
               </div>
@@ -325,14 +254,9 @@ const ResultsPage = () => {
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t md:hidden">
         <Button 
           className="w-full h-12 text-lg font-semibold"
-          onClick={() => handleActivateOffer(offersData.best_offer)}
-          disabled={loadingOfferId === offersData.best_offer.id}
+          onClick={() => handleViewOffer(offersData.best_offer.id)}
         >
-          {loadingOfferId === offersData.best_offer.id ? (
-            'Reindirizzamento...'
-          ) : (
-            `Attiva e risparmia ${fmt(annualSaving)}`
-          )}
+          {`Vedi offerta e risparmia ${fmt(annualSaving)}`}
         </Button>
       </div>
     </div>
