@@ -30,21 +30,20 @@ serve(async (req) => {
 
     console.log(`Processing file: ${file.name}, size: ${file.size}, type: ${file.type}`);
 
-    // Simulate OCR text extraction (in real implementation, use Google Vision/Azure OCR)
-    const mockOcrText = `
-    BOLLETTA ENERGIA ELETTRICA
-    Periodo: Gen 2024 - Dic 2024
-    Totale da pagare: € ${file.name.includes('alta') ? '1680,50' : '1200,00'}
-    Consumo annuo: ${file.name.includes('alta') ? '3500' : '2400'} kWh
-    Prezzo energia: € ${file.name.includes('alta') ? '0,25' : '0,22'}/kWh
-    Quota fissa: € 8,50/mese
-    `;
-
     let extractedData;
 
-    // Use OpenAI for AI-powered parsing if available
+    // Use OpenAI Vision to read the actual bill
     if (openaiApiKey) {
       try {
+        // Read file as base64
+        const arrayBuffer = await file.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        
+        // Determine mime type
+        const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+        
+        console.log(`Processing with OpenAI Vision, mime: ${mimeType}`);
+        
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -52,18 +51,54 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'gpt-4o',
             messages: [
               {
                 role: 'system',
-                content: 'Sei un parser rigoroso di bollette luce/gas in Italia. Estrai e valida i campi numerici. Rispondi SOLO con JSON valido.'
+                content: 'Sei un esperto nell\'analisi di bollette energetiche italiane. Estrai con precisione TUTTI i dati dalla bolletta. Rispondi SOLO con JSON valido, nessun testo aggiuntivo.'
               },
               {
                 role: 'user',
-                content: `Fornisco testo OCR della bolletta. Restituisci SOLO JSON valido con chiavi: { "total_cost_eur": float, "annual_kwh": float|null, "unit_price_eur_kwh": float|null, "notes": string }. Se un campo manca, stima usando i dati presenti e descrivi la logica in notes. Nessun testo fuori dal JSON.\n\nTesto OCR:\n${mockOcrText}`
+                content: [
+                  {
+                    type: 'text',
+                    text: `Analizza questa bolletta energia/gas italiana ed estrai i seguenti dati con massima precisione:
+
+1. "total_cost_eur" (float): Importo totale da pagare in euro (cerca "Totale da pagare", "Quanto devo pagare", "Importo da pagare")
+2. "annual_kwh" (float o null): Consumo annuale in kWh per LUCE (cerca "consumo", "kWh", se presente solo consumo bimestrale moltiplicalo x6)
+3. "unit_price_eur_kwh" (float o null): Prezzo unitario energia in €/kWh per LUCE
+4. "gas_smc" (float o null): Consumo annuale GAS in Smc (Standard metri cubi) se presente
+5. "billing_period_start" (string YYYY-MM-DD o null): Data inizio periodo fatturazione
+6. "billing_period_end" (string YYYY-MM-DD o null): Data fine periodo fatturazione
+7. "notes" (string): Note esplicative su calcoli fatti, dati mancanti o assunzioni
+
+IMPORTANTE:
+- Se vedi solo consumo bimestrale (es. 575 kWh per 2 mesi), calcola annual_kwh moltiplicando x6
+- Cerca il periodo di riferimento (es. "dal 01 Gennaio 2025 al 28 Febbraio 2025")
+- Il total_cost_eur è l'importo finale evidenziato, NON la somma delle voci
+- Se mancano dati, metti null e spiega in notes
+
+Restituisci SOLO questo JSON (nessun testo prima o dopo):
+{
+  "total_cost_eur": float,
+  "annual_kwh": float or null,
+  "unit_price_eur_kwh": float or null,
+  "gas_smc": float or null,
+  "billing_period_start": "YYYY-MM-DD" or null,
+  "billing_period_end": "YYYY-MM-DD" or null,
+  "notes": "string con spiegazioni"
+}`
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:${mimeType};base64,${base64}`
+                    }
+                  }
+                ]
               }
             ],
-            max_tokens: 500,
+            max_tokens: 1000,
             temperature: 0.1
           })
         });
@@ -79,11 +114,13 @@ serve(async (req) => {
                 total_cost_eur: parsedData.total_cost_eur,
                 annual_kwh: parsedData.annual_kwh,
                 unit_price_eur_kwh: parsedData.unit_price_eur_kwh,
-                gas_smc: null,
+                gas_smc: parsedData.gas_smc,
+                billing_period_start: parsedData.billing_period_start,
+                billing_period_end: parsedData.billing_period_end,
                 quality_score: 0.95,
                 notes: parsedData.notes
               };
-              console.log('OpenAI parsing successful:', extractedData);
+              console.log('OpenAI Vision parsing successful:', extractedData);
             } catch (parseError) {
               console.error('Failed to parse AI response:', parseError);
               throw new Error('Invalid AI response format');
