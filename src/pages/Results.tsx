@@ -78,26 +78,6 @@ const ResultsPage = () => {
       // DB-FIRST: fetch active offers to avoid empty UI
       let finalPayload: OffersPayload | null = null;
 
-      // Verify user has access to this upload
-      const { data: { user } } = await supabase.auth.getUser();
-      if (uploadId && user) {
-        const { data: uploadCheck } = await supabase
-          .from('uploads')
-          .select('user_id')
-          .eq('id', uploadId)
-          .single();
-
-        if (uploadCheck && uploadCheck.user_id !== user.id) {
-          toast({
-            title: "Accesso negato",
-            description: "Non hai accesso a questo upload",
-            variant: "destructive",
-          });
-          navigate('/');
-          return;
-        }
-      }
-
       const mapOffer = (o: any) => ({
         id: o.id || o.offer_id || crypto.randomUUID(),
         provider: o.provider,
