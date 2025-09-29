@@ -128,11 +128,19 @@ serve(async (req) => {
       extractedData.notes = (extractedData.notes || '') + ' - Consumo annuo fuori range normale';
     }
 
+    // Get user_id from the upload record
+    const { data: uploadRecord } = await supabase
+      .from('uploads')
+      .select('user_id')
+      .eq('id', uploadId)
+      .single();
+
     // Store the OCR results in the database
     const { data: insertResult, error: insertError } = await supabase
       .from('ocr_results')
       .insert({
         upload_id: uploadId,
+        user_id: uploadRecord?.user_id,
         total_cost_eur: extractedData.total_cost_eur,
         annual_kwh: extractedData.annual_kwh,
         unit_price_eur_kwh: extractedData.unit_price_eur_kwh,

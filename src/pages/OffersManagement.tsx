@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Loader2, Plus, Pencil, Trash2, Leaf } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/layout/Header';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,10 +34,13 @@ interface Offer {
 }
 
 const OffersManagement = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -55,8 +60,32 @@ const OffersManagement = () => {
   });
 
   useEffect(() => {
-    fetchOffers();
-  }, []);
+    const checkAdminStatus = async () => {
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('is_admin', { 
+        check_user_id: user.id 
+      });
+
+      if (error || !data) {
+        toast({
+          title: "Accesso negato",
+          description: "Non hai i permessi per accedere a questa pagina",
+          variant: "destructive",
+        });
+        navigate('/');
+        return;
+      }
+
+      setIsAdmin(true);
+      fetchOffers();
+    };
+
+    checkAdminStatus();
+  }, [user, navigate]);
 
   const fetchOffers = async () => {
     try {

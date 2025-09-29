@@ -81,9 +81,19 @@ serve(async (req) => {
       );
     }
 
+    // Get user_id from upload record
+    const { data: uploadRecord } = await supabase
+      .from('uploads')
+      .select('user_id')
+      .eq('id', payload.upload_id)
+      .single();
+
+    const userId = uploadRecord?.user_id;
+
     // Insert new lead record
     const leadData = {
       upload_id: payload.upload_id,
+      user_id: userId,
       offer_id: payload.offer_id,
       provider: payload.provider,
       annual_saving_eur: payload.annual_saving_eur,
