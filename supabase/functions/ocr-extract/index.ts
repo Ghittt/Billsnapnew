@@ -1,24 +1,17 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { encode as b64encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Process base64 in chunks to prevent stack overflow on large files
+// Helper to base64-encode ArrayBuffer using Deno std to avoid call stack issues
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
-  const chunkSize = 32768; // Process 32KB at a time
-  let binary = '';
-  
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-    binary += String.fromCharCode.apply(null, Array.from(chunk));
-  }
-  
-  return btoa(binary);
+  return b64encode(bytes.buffer);
 }
 
 serve(async (req) => {
@@ -30,6 +23,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -130,23 +124,53 @@ FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no 
       })
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenAI API error:', response.status, errorText);
-      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-    }
+    let aiContent: string | undefined;
 
-    const aiResult = await response.json();
-    const aiContent = aiResult.choices?.[0]?.message?.content?.trim();
-    
-    if (!aiContent) {
-      throw new Error('Empty AI response from OpenAI');
-    }
+    try {
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      }
+      const aiResult = await response.json();
+      aiContent = aiResult.choices?.[0]?.message?.content?.trim();
+      if (!aiContent) throw new Error('Empty AI response from OpenAI');
+      console.log('Raw OpenAI response:', aiContent);
+    } catch (openAiErr) {
+      console.error('OpenAI Vision failed. Falling back to Lovable AI Gemini:', openAiErr);
+      if (!lovableApiKey) throw openAiErr;
 
-    console.log('Raw OpenAI response:', aiContent);
+      const geminiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${lovableApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-pro',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Esegui lo stesso compito di estrazione dati della bolletta come sopra. Rispondi SOLO con JSON valido.' },
+                { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } }
+              ]
+            }
+          ]
+        })
+      });
+
+      if (!geminiResp.ok) {
+        const t = await geminiResp.text();
+        throw new Error(`Gemini fallback error: ${geminiResp.status} - ${t}`);
+      }
+      const geminiData = await geminiResp.json();
+      aiContent = geminiData.choices?.[0]?.message?.content?.trim();
+      if (!aiContent) throw new Error('Empty response from Gemini fallback');
+      console.log('Raw Gemini response:', aiContent);
+    }
 
     // Clean JSON response (remove markdown if present)
-    let jsonStr = aiContent;
+    let jsonStr = aiContent as string;
     if (jsonStr.includes('```json')) {
       jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
     }
@@ -155,14 +179,14 @@ FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no 
     }
     jsonStr = jsonStr.trim();
 
-    let parsedData;
+    let parsedData: any;
     try {
       parsedData = JSON.parse(jsonStr);
     } catch (parseError) {
       console.error('Failed to parse JSON:', jsonStr);
-      throw new Error('Invalid JSON response from OpenAI');
+      throw new Error('Invalid JSON response from OCR AI');
     }
-    
+
     const extractedData = {
       total_cost_eur: parsedData.total_cost_eur,
       annual_kwh: parsedData.annual_kwh,
