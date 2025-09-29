@@ -55,7 +55,7 @@ const ResultsPage = () => {
     fetchResults();
   }, [uploadId]);
 
-  const fetchResults = async () => {
+  const fetchResults = async (retryWithScrape = true) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -88,7 +88,25 @@ const ResultsPage = () => {
         }
       );
 
-      if (offersError) throw offersError;
+      // If no offers found and we can retry, trigger scraper and retry once
+      if ((!offersResponse?.best_offer || offersError) && retryWithScrape) {
+        console.log('No offers found, triggering scraper...');
+        
+        // Trigger scraper (non-blocking, don't wait for completion)
+        supabase.functions.invoke('scrape-offers').catch(err => 
+          console.error('Scraper error:', err)
+        );
+
+        // Wait a bit for scraper to populate some data
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // Retry fetch once
+        return fetchResults(false);
+      }
+
+      if (offersError || !offersResponse?.best_offer) {
+        throw new Error('NO_OFFERS');
+      }
 
       setOffersData(offersResponse);
 
