@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Analytics from "@/components/analytics/Analytics";
+import Index from "./pages/Index";
 import Upload from "./pages/Upload";
 import Results from "./pages/Results";
 import QA from "./pages/QA";
@@ -20,8 +22,10 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <Analytics />
         <Routes>
-          <Route path="/" element={<Upload />} />
+          <Route path="/" element={<Index />} />
+          <Route path="/upload" element={<Upload />} />
           <Route path="/results" element={<Results />} />
           <Route path="/qa" element={<QA />} />
           <Route path="/privacy" element={<Privacy />} />

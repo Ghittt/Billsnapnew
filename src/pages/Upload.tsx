@@ -1,27 +1,55 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import Header from '@/components/layout/Header';
 import UploadZone from '@/components/upload/UploadZone';
+import ProgressIndicator from '@/components/upload/ProgressIndicator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Clock, Upload } from 'lucide-react';
+import { CheckCircle, Clock, Upload, AlertTriangle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import heroImage from '@/assets/hero-bg.jpg';
 import billIcon from '@/assets/bill-icon.png';
+import '@/types/analytics';
 
 const UploadPage = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [currentStep, setCurrentStep] = useState<'upload' | 'ocr' | 'calculate' | 'complete'>('upload');
+  const [retryCount, setRetryCount] = useState(0);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Handle files passed from Index page
+  useEffect(() => {
+    if (location.state?.files) {
+      handleFileUpload(location.state.files);
+    }
+  }, [location.state]);
 
   const handleFileUpload = async (files: File[]) => {
     setIsUploading(true);
+    setCurrentStep('upload');
+    setRetryCount(0);
+    
+    // Track analytics event
+    if (typeof gtag !== 'undefined') {
+      gtag('event', 'upload_started', {
+        'event_category': 'engagement',
+        'event_label': files[0]?.type || 'unknown'
+      });
+    }
     
     try {
       const file = files[0]; // Process first file for MVP
       
-      // Upload file to storage
+      // Validate file
+      if (file.size > 20 * 1024 * 1024) {
+        throw new Error('File troppo grande. Massimo 20MB consentiti.');
+      }
+
+      // Step 1: Upload file
+      setCurrentStep('upload');
       const formData = new FormData();
       formData.append('file', file);
       
@@ -50,7 +78,15 @@ const UploadPage = () => {
 
       if (uploadError) throw uploadError;
 
-      // Process with OCR
+      // Track upload success
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'upload_succeeded', {
+          'event_category': 'engagement'
+        });
+      }
+
+      // Step 2: OCR Processing
+      setCurrentStep('ocr');
       const ocrFormData = new FormData();
       ocrFormData.append('file', file);
       ocrFormData.append('uploadId', uploadData.id);
@@ -64,13 +100,20 @@ const UploadPage = () => {
       });
 
       if (!ocrResponse.ok) {
-        throw new Error('OCR processing failed');
+        throw new Error('Non riusciamo a leggere bene questa bolletta. Prova con un PDF o una foto più nitida.');
       }
 
       const ocrData = await ocrResponse.json();
-      console.log('OCR Data:', ocrData);
+      
+      // Track OCR completion
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'ocr_completed', {
+          'event_category': 'engagement'
+        });
+      }
 
-      // Calculate savings
+      // Step 3: Calculate savings
+      setCurrentStep('calculate');
       const savingsResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-savings`, {
         method: 'POST',
         headers: {
@@ -86,27 +129,59 @@ const UploadPage = () => {
 
       const savingsData = await savingsResponse.json();
       
+      // Step 4: Complete
+      setCurrentStep('complete');
       setUploadedFiles(files);
-      toast({
-        title: "Analisi completata!",
-        description: `Bolletta analizzata con successo`,
-      });
       
-      // Navigate to results with data
-      navigate('/results', { 
-        state: { 
-          savingsData,
-          uploadId: uploadData.id 
-        } 
-      });
+      // Track result shown
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'result_shown', {
+          'event_category': 'engagement',
+          'value': savingsData.annualSaving || 0
+        });
+      }
+      
+      setTimeout(() => {
+        navigate('/results', { 
+          state: { 
+            savingsData,
+            uploadId: uploadData.id 
+          } 
+        });
+      }, 1000);
       
     } catch (error) {
       console.error('Upload error:', error);
-      toast({
-        title: "Errore nell'analisi",
-        description: "Si è verificato un errore durante l'analisi della bolletta. Riprova.",
-        variant: "destructive",
-      });
+      
+      const errorMessage = error instanceof Error ? error.message : 
+        "Si è verificato un errore durante l'analisi della bolletta.";
+      
+      // Show appropriate error message
+      if (errorMessage.includes('leggere')) {
+        toast({
+          title: "Bolletta non leggibile",
+          description: errorMessage,
+          variant: "destructive",
+          action: retryCount < 2 ? (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                setRetryCount(prev => prev + 1);
+                handleFileUpload(files);
+              }}
+            >
+              Riprova
+            </Button>
+          ) : undefined
+        });
+      } else {
+        toast({
+          title: "Errore nell'analisi",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsUploading(false);
     }
@@ -116,106 +191,63 @@ const UploadPage = () => {
     <div className="min-h-screen bg-gradient-subtle">
       <Header />
       
-      {/* Hero Section */}
-      <section className="relative py-16 overflow-hidden">
-        <div 
-          className="absolute inset-0 bg-cover bg-center opacity-10"
-          style={{ backgroundImage: `url(${heroImage})` }}
-        />
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="max-w-3xl mx-auto text-center space-y-6">
-            <div className="flex justify-center">
-              <img src={billIcon} alt="BillSnap" className="w-20 h-20" />
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground">
-              Trova l'offerta luce e gas
-              <span className="text-primary"> più conveniente</span>
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              Carica le tue bollette e scopri quanto puoi risparmiare con l'analisi AI di BillSnap
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Upload Section */}
-      <section className="py-12">
-        <div className="container mx-auto px-4">
-          <div className="max-w-2xl mx-auto space-y-8">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold text-foreground">Inizia l'analisi</h2>
-              <p className="text-muted-foreground">
-                Supportiamo bollette in formato JPG, PNG, HEIC e PDF
-              </p>
-            </div>
-
-            <UploadZone onFileUpload={handleFileUpload} isUploading={isUploading} />
-
-            {uploadedFiles.length > 0 && (
-              <Card className="border-success bg-success/5">
-                <CardHeader>
-                  <CardTitle className="text-success flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5" />
-                    File caricati
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {uploadedFiles.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-background rounded-md">
-                        <span className="text-sm font-medium">{file.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {(file.size / (1024 * 1024)).toFixed(1)} MB
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="py-16 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold text-center text-foreground mb-12">
-              Come funziona
-            </h2>
-            <div className="grid md:grid-cols-3 gap-8">
-              <div className="text-center space-y-4">
-                <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mx-auto">
-                  <Upload className="w-6 h-6 text-primary-foreground" />
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto space-y-8">
+          
+          {!isUploading && uploadedFiles.length === 0 && (
+            <>
+              {/* Simple upload interface */}
+              <div className="text-center space-y-6">
+                <div className="flex justify-center">
+                  <img src={billIcon} alt="BillSnap" className="w-16 h-16" />
                 </div>
-                <h3 className="font-semibold text-foreground">1. Carica</h3>
-                <p className="text-sm text-muted-foreground">
-                  Carica le tue bollette luce e gas in qualsiasi formato
+                <h1 className="text-3xl md:text-4xl font-bold text-foreground">
+                  Analizza la tua bolletta
+                </h1>
+                <p className="text-lg text-muted-foreground">
+                  Carica una foto o un PDF della tua bolletta. Niente moduli, niente attese complicate.
                 </p>
               </div>
-              <div className="text-center space-y-4">
-                <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mx-auto">
-                  <Clock className="w-6 h-6 text-primary-foreground" />
-                </div>
-                <h3 className="font-semibold text-foreground">2. Analizza</h3>
-                <p className="text-sm text-muted-foreground">
-                  La nostra AI estrae automaticamente i dati principali
+
+              <UploadZone onFileUpload={handleFileUpload} isUploading={false} />
+              
+              {/* Trust indicator */}
+              <div className="text-center text-sm text-muted-foreground">
+                🛡️ Dati cancellati dopo l'analisi · <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>
+              </div>
+            </>
+          )}
+
+          {/* Progress indicator during upload */}
+          {isUploading && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-foreground mb-2">
+                  Analisi in corso
+                </h2>
+                <p className="text-muted-foreground">
+                  Non chiudere questa pagina
                 </p>
               </div>
-              <div className="text-center space-y-4">
-                <div className="w-12 h-12 bg-gradient-savings rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle className="w-6 h-6 text-primary-foreground" />
-                </div>
-                <h3 className="font-semibold text-foreground">3. Risparmia</h3>
-                <p className="text-sm text-muted-foreground">
-                  Confronta le migliori offerte e cambia fornitore
-                </p>
-              </div>
+              
+              <ProgressIndicator currentStep={currentStep} />
             </div>
-          </div>
+          )}
+
+          {/* Success state - brief before redirect */}
+          {uploadedFiles.length > 0 && !isUploading && (
+            <Card className="border-success bg-success/5">
+              <CardContent className="p-6 text-center space-y-4">
+                <CheckCircle className="w-12 h-12 text-success mx-auto" />
+                <h3 className="text-xl font-bold text-success">Analisi completata!</h3>
+                <p className="text-muted-foreground">
+                  Reindirizzamento ai risultati...
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
-      </section>
+      </div>
     </div>
   );
 };
