@@ -1,0 +1,102 @@
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+interface BestOfferCardProps {
+  provider: string;
+  offerName: string;
+  priceKwh: number;
+  fixedFeeYear: number;
+  annualCost: number;
+  lastUpdate: string;
+  source: string;
+  onActivate: () => void;
+  isLoading?: boolean;
+}
+
+export const BestOfferCard: React.FC<BestOfferCardProps> = ({
+  provider,
+  offerName,
+  priceKwh,
+  fixedFeeYear,
+  annualCost,
+  lastUpdate,
+  source,
+  onActivate,
+  isLoading = false
+}) => {
+  const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(n);
+
+  return (
+    <Card className="border-primary/30 bg-primary/5 shadow-lg">
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="w-5 h-5 text-success" />
+              <span className="text-sm font-medium text-success">Migliore offerta</span>
+            </div>
+            <CardTitle className="text-xl md:text-2xl">{provider}</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">{offerName}</p>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {/* Price details grid */}
+        <div className="grid grid-cols-2 gap-4 p-4 bg-background/50 rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground">Prezzo energia</p>
+            <p className="text-lg font-bold">{priceKwh.toFixed(4)} €/kWh</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Quota fissa</p>
+            <p className="text-lg font-bold">{fmt(fixedFeeYear / 12)}/mese</p>
+          </div>
+        </div>
+
+        {/* Annual cost highlight */}
+        <div className="text-center p-4 bg-primary/10 rounded-lg">
+          <p className="text-sm text-muted-foreground mb-1">Costo annuo stimato</p>
+          <p className="text-3xl font-bold text-primary">{fmt(annualCost)}</p>
+        </div>
+
+        {/* CTA Button */}
+        <Button 
+          size="lg"
+          className="w-full text-lg font-semibold"
+          onClick={onActivate}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>Reindirizzamento...</>
+          ) : (
+            <>
+              <ExternalLink className="w-5 h-5" />
+              Attiva subito e risparmia
+            </>
+          )}
+        </Button>
+
+        {/* Meta info */}
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
+          <span>Aggiornato: {new Date(lastUpdate).toLocaleDateString('it-IT')}</span>
+          <a 
+            href={source}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-primary underline"
+          >
+            Vedi condizioni
+          </a>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
