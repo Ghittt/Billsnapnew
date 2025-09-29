@@ -13,13 +13,8 @@ const Index = () => {
   const { user } = useAuth();
 
   const handleFileUpload = (files: File[]) => {
-    if (user) {
-      // Navigate to upload page with files
-      navigate('/upload', { state: { files } });
-    } else {
-      // Redirect to auth page first
-      navigate('/auth');
-    }
+    // Navigate to upload page with files (no login required)
+    navigate('/upload', { state: { files } });
   };
 
   return (
@@ -41,7 +36,7 @@ const Index = () => {
                 <img src={billIcon} alt="BillSnap" className="w-16 h-16 md:w-20 md:h-20" />
               </div>
               <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
-                  {user ? 'Carica la tua bolletta' : 'Inizia gratis - Carica bolletta'}
+                Carica la tua bolletta
                 <span className="block text-primary mt-2">Risparmia subito</span>
               </h1>
               <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
