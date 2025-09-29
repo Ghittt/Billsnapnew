@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      badges: {
+        Row: {
+          created_at: string
+          criteria_json: Json
+          description: string
+          icon: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          criteria_json: Json
+          description: string
+          icon: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          criteria_json?: Json
+          description?: string
+          icon?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       feedback: {
         Row: {
           category: string
@@ -125,6 +152,42 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          clicked_at: string | null
+          data: Json | null
+          id: string
+          message: string
+          opened_at: string | null
+          sent_at: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          clicked_at?: string | null
+          data?: Json | null
+          id?: string
+          message: string
+          opened_at?: string | null
+          sent_at?: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          clicked_at?: string | null
+          data?: Json | null
+          id?: string
+          message?: string
+          opened_at?: string | null
+          sent_at?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ocr_results: {
         Row: {
           annual_kwh: number | null
@@ -199,6 +262,48 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          created_at: string
+          device_tokens: Json | null
+          display_name: string | null
+          email: string | null
+          id: string
+          is_premium: boolean | null
+          notification_preferences: Json | null
+          premium_expires_at: string | null
+          total_savings_eur: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_tokens?: Json | null
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          is_premium?: boolean | null
+          notification_preferences?: Json | null
+          premium_expires_at?: string | null
+          total_savings_eur?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_tokens?: Json | null
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          is_premium?: boolean | null
+          notification_preferences?: Json | null
+          premium_expires_at?: string | null
+          total_savings_eur?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       quotes: {
         Row: {
           annual_cost_offer: number
@@ -241,6 +346,78 @@ export type Database = {
           },
         ]
       }
+      referrals: {
+        Row: {
+          bonus_eur: number | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          referral_code: string
+          referred_email: string | null
+          referred_user_id: string | null
+          referrer_user_id: string
+          status: string
+        }
+        Insert: {
+          bonus_eur?: number | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          referral_code: string
+          referred_email?: string | null
+          referred_user_id?: string | null
+          referrer_user_id: string
+          status?: string
+        }
+        Update: {
+          bonus_eur?: number | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          referral_code?: string
+          referred_email?: string | null
+          referred_user_id?: string | null
+          referrer_user_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          plan_type: string
+          price_eur: number | null
+          started_at: string
+          status: string
+          stripe_subscription_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          plan_type: string
+          price_eur?: number | null
+          started_at?: string
+          status: string
+          stripe_subscription_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          plan_type?: string
+          price_eur?: number | null
+          started_at?: string
+          status?: string
+          stripe_subscription_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       uploads: {
         Row: {
           created_at: string
@@ -267,6 +444,35 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      user_badges: {
+        Row: {
+          badge_id: string
+          earned_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          badge_id: string
+          earned_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          badge_id?: string
+          earned_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
