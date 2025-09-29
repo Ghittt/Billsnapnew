@@ -7,6 +7,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Process base64 in chunks to prevent stack overflow on large files
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 32768; // Process 32KB at a time
+  let binary = '';
+  
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+  
+  return btoa(binary);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -15,7 +29,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -29,64 +43,77 @@ serve(async (req) => {
 
     console.log(`Processing file: ${file.name}, size: ${file.size}, type: ${file.type}`);
 
-    if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    if (!openaiApiKey) {
+      throw new Error('OPENAI_API_KEY not configured');
     }
 
-    // Read file as base64
+    // Read file and convert to base64 safely
     const arrayBuffer = await file.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    console.log('File loaded into memory, converting to base64...');
+    
+    const base64 = arrayBufferToBase64(arrayBuffer);
+    console.log('Base64 conversion completed');
     
     // Determine mime type
     let mimeType = file.type;
     if (!mimeType) {
       const ext = file.name.toLowerCase().split('.').pop();
-      mimeType = ext === 'pdf' ? 'application/pdf' : 'image/jpeg';
+      if (ext === 'pdf') {
+        mimeType = 'application/pdf';
+      } else if (ext === 'png') {
+        mimeType = 'image/png';
+      } else if (ext === 'jpg' || ext === 'jpeg') {
+        mimeType = 'image/jpeg';
+      } else {
+        mimeType = 'image/jpeg'; // default
+      }
     }
     
-    console.log(`Processing with Lovable AI (Gemini), mime: ${mimeType}`);
+    console.log(`Calling OpenAI Vision API with mime type: ${mimeType}`);
     
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Analizza questa bolletta energia/gas italiana ed estrai con precisione TUTTI i dati. Sei un esperto nell'analisi di bollette energetiche italiane.
+                text: `Analizza questa bolletta energia/gas italiana ed estrai con precisione TUTTI i dati numerici visibili. Sei un esperto nell'estrazione dati da bollette energetiche italiane.
 
-Estrai questi dati:
-1. "total_cost_eur" (numero): Importo totale da pagare in euro (cerca "Totale da pagare", "Quanto devo pagare", "Importo")
-2. "annual_kwh" (numero o null): Consumo annuale in kWh per LUCE. Se vedi solo consumo bimestrale (es. 575 kWh per 2 mesi), calcola annual_kwh = consumo_bimestrale * 6
-3. "unit_price_eur_kwh" (numero o null): Prezzo unitario energia in €/kWh
-4. "gas_smc" (numero o null): Consumo annuale GAS in Smc se presente
-5. "billing_period_start" (string "YYYY-MM-DD" o null): Data inizio periodo
-6. "billing_period_end" (string "YYYY-MM-DD" o null): Data fine periodo
-7. "provider" (string): Nome del fornitore (es. "A2A", "Enel", "Edison")
-8. "notes" (string): Note su calcoli fatti
+DATI DA ESTRARRE:
+1. "total_cost_eur" (numero): Importo totale da pagare in euro. Cerca "Totale da pagare", "Quanto devo pagare", "Importo totale", il numero più grande evidenziato
+2. "annual_kwh" (numero o null): Consumo annuale elettricità in kWh. Se vedi solo consumo di 2 mesi (bimestrale), moltiplica x6 per ottenere l'annuale
+3. "unit_price_eur_kwh" (numero o null): Prezzo unitario energia €/kWh (cerca nelle voci di dettaglio)
+4. "gas_smc" (numero o null): Consumo annuale GAS in Smc (Standard metri cubi), se presente nella bolletta
+5. "billing_period_start" (formato "YYYY-MM-DD" o null): Data inizio periodo fatturazione
+6. "billing_period_end" (formato "YYYY-MM-DD" o null): Data fine periodo fatturazione
+7. "provider" (stringa): Nome fornitore (es. "A2A Energia", "Enel", "Edison", "Sorgenia")
+8. "notes" (stringa): Note su calcoli o assunzioni fatte
 
-ESEMPI:
-- Se leggi "consumo 575 kWh" e "dal 01 Gennaio 2025 al 28 Febbraio 2025", allora annual_kwh = 575 * 6 = 3450
-- Se leggi "267,00 euro" come importo, total_cost_eur = 267.00
-- Leggi le date esatte dal documento
+ISTRUZIONI CRITICHE:
+- Se la bolletta copre 2 mesi (es. "dal 01 Gennaio al 28 Febbraio") e vedi "consumo 575 kWh", calcola: annual_kwh = 575 * 6 = 3450
+- Se vedi "267,00 euro", scrivi 267.00 (usa punto decimale)
+- Date nel formato YYYY-MM-DD (es. "21 Marzo 2025" diventa "2025-03-21")
+- Se un dato non è visibile, metti null e spiega in notes
+- Leggi attentamente tutti i numeri evidenziati nella bolletta
 
-Rispondi SOLO con JSON valido (no markdown, no testo extra):
+FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no markdown):
 {
   "total_cost_eur": 267.00,
   "annual_kwh": 3450,
-  "unit_price_eur_kwh": 0.25,
+  "unit_price_eur_kwh": 0.245,
   "gas_smc": null,
   "billing_period_start": "2025-01-01",
   "billing_period_end": "2025-02-28",
-  "provider": "A2A",
-  "notes": "Consumo bimestrale 575 kWh moltiplicato x6 per annuale"
+  "provider": "A2A Energia",
+  "notes": "Consumo bimestrale 575 kWh moltiplicato per 6 per ottenere stima annuale"
 }`
               },
               {
@@ -97,33 +124,44 @@ Rispondi SOLO con JSON valido (no markdown, no testo extra):
               }
             ]
           }
-        ]
+        ],
+        max_tokens: 1000,
+        temperature: 0.1
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Lovable AI error:', response.status, errorText);
-      throw new Error(`AI API error: ${response.status} - ${errorText}`);
+      console.error('OpenAI API error:', response.status, errorText);
+      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
     }
 
     const aiResult = await response.json();
     const aiContent = aiResult.choices?.[0]?.message?.content?.trim();
     
     if (!aiContent) {
-      throw new Error('Empty AI response');
+      throw new Error('Empty AI response from OpenAI');
     }
 
-    console.log('Raw AI response:', aiContent);
+    console.log('Raw OpenAI response:', aiContent);
 
     // Clean JSON response (remove markdown if present)
     let jsonStr = aiContent;
     if (jsonStr.includes('```json')) {
       jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
     }
+    if (jsonStr.includes('```')) {
+      jsonStr = jsonStr.replace(/```\n?/g, '');
+    }
     jsonStr = jsonStr.trim();
 
-    const parsedData = JSON.parse(jsonStr);
+    let parsedData;
+    try {
+      parsedData = JSON.parse(jsonStr);
+    } catch (parseError) {
+      console.error('Failed to parse JSON:', jsonStr);
+      throw new Error('Invalid JSON response from OpenAI');
+    }
     
     const extractedData = {
       total_cost_eur: parsedData.total_cost_eur,
@@ -141,17 +179,18 @@ Rispondi SOLO con JSON valido (no markdown, no testo extra):
 
     // Validate extracted data
     if (!extractedData.total_cost_eur || extractedData.total_cost_eur <= 0) {
-      throw new Error('Impossibile estrarre l\'importo dalla bolletta');
+      extractedData.quality_score = 0.50;
+      extractedData.notes = (extractedData.notes || '') + ' - ATTENZIONE: Importo non trovato o non valido. Verifica manualmente.';
     }
     
     if (extractedData.unit_price_eur_kwh && (extractedData.unit_price_eur_kwh < 0.05 || extractedData.unit_price_eur_kwh > 2.0)) {
-      extractedData.notes += ' - Prezzo unitario fuori range normale (0.05-2.0 €/kWh)';
-      extractedData.quality_score = 0.70;
+      extractedData.notes = (extractedData.notes || '') + ' - Prezzo unitario fuori range normale (0.05-2.0 €/kWh).';
+      extractedData.quality_score = Math.min(extractedData.quality_score, 0.70);
     }
     
     if (extractedData.annual_kwh && (extractedData.annual_kwh < 100 || extractedData.annual_kwh > 15000)) {
-      extractedData.notes += ' - Consumo annuo fuori range normale (100-15000 kWh)';
-      extractedData.quality_score = 0.70;
+      extractedData.notes = (extractedData.notes || '') + ' - Consumo annuo fuori range tipico (100-15000 kWh).';
+      extractedData.quality_score = Math.min(extractedData.quality_score, 0.70);
     }
 
     // Get user_id from upload record
@@ -159,9 +198,9 @@ Rispondi SOLO con JSON valido (no markdown, no testo extra):
       .from('uploads')
       .select('user_id')
       .eq('id', uploadId)
-      .single();
+      .maybeSingle();
 
-    // Store OCR results
+    // Store OCR results in database
     const { error: insertError } = await supabase
       .from('ocr_results')
       .insert({
@@ -177,7 +216,7 @@ Rispondi SOLO con JSON valido (no markdown, no testo extra):
 
     if (insertError) {
       console.error('Database insert error:', insertError);
-      throw new Error('Failed to save OCR results');
+      throw new Error('Failed to save OCR results to database');
     }
 
     console.log('OCR extraction completed successfully');
@@ -187,7 +226,7 @@ Rispondi SOLO con JSON valido (no markdown, no testo extra):
     });
 
   } catch (error) {
-    console.error('Error in ocr-extract:', error);
+    console.error('Error in ocr-extract function:', error);
     return new Response(
       JSON.stringify({ 
         error: error instanceof Error ? error.message : 'Unknown error',
