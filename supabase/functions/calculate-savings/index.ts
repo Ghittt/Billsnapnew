@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -15,7 +16,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -80,45 +81,50 @@ serve(async (req) => {
       console.error('Quote save error:', quoteError);
     }
 
-    // Generate AI copy message
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `Genera un messaggio d'impatto per un utente non tecnico.
-Regole:
-- Mostra SEMPRE il risparmio in euro/anno se ≥ 50€: "Ti ho trovato un'offerta che ti fa risparmiare {saving} €/anno rispetto alla tua bolletta attuale."
-- Se <50€: "La tua offerta è già tra le migliori, risparmio potenziale minimo di {saving} €/anno."
-- Una sola frase breve. Nessuna spiegazione tecnica. Nessun emoji.
-- Tono fiducioso, non aggressivo.`
-          },
-          {
-            role: 'user',
-            content: `Risparmio annuale: ${Math.round(annualSaving)} euro. Genera il messaggio.`
-          }
-        ],
-        max_tokens: 100,
-        temperature: 0.1
-      }),
-    });
+    // Generate AI-powered copy message
+    let copyMessage = `Ti ho trovato un'offerta che ti fa risparmiare €${Math.round(annualSaving)}/anno rispetto alla tua bolletta attuale.`;
+    
+    if (annualSaving < 50) {
+      copyMessage = `La tua offerta è già tra le migliori. Risparmio potenziale minimo (€${Math.round(annualSaving)}/anno).`;
+    }
 
-    let copyMessage = '';
-    if (aiResponse.ok) {
-      const aiData = await aiResponse.json();
-      copyMessage = aiData.choices[0].message.content.trim();
-    } else {
-      // Fallback copy
-      if (annualSaving >= 50) {
-        copyMessage = `Ti ho trovato un'offerta che ti fa risparmiare ${Math.round(annualSaving)} €/anno rispetto alla tua bolletta attuale.`;
-      } else {
-        copyMessage = `La tua offerta è già tra le migliori, risparmio potenziale minimo di ${Math.round(annualSaving)} €/anno.`;
+    if (openaiApiKey) {
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: 'Genera una sola frase chiara e diretta per comunicare il risparmio energetico. Niente emoji, tono professionale ma amichevole.'
+              },
+              {
+                role: 'user',
+                content: annualSaving >= 50 
+                  ? `L'utente può risparmiare €${Math.round(annualSaving)} all'anno cambiando da un costo attuale di €${Math.round(ocrData.total_cost_eur)} a un'offerta di €${Math.round(bestOffer.annual_cost_offer)} con ${bestOffer.provider}. Scrivi una frase di presentazione del risparmio.`
+                  : `L'utente ha già una buona offerta, può risparmiare solo €${Math.round(annualSaving)} all'anno. Scrivi una frase che lo rassicuri che la sua offerta è già competitiva.`
+              }
+            ],
+            max_tokens: 150,
+            temperature: 0.3
+          })
+        });
+
+        if (response.ok) {
+          const aiResult = await response.json();
+          const aiMessage = aiResult.choices?.[0]?.message?.content;
+          if (aiMessage && aiMessage.trim()) {
+            copyMessage = aiMessage.trim();
+            console.log('OpenAI copy generation successful');
+          }
+        }
+      } catch (aiError) {
+        console.error('AI copy generation failed:', aiError);
       }
     }
 
