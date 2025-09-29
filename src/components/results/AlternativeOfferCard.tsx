@@ -59,15 +59,28 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
           </div>
         </div>
 
-        {/* Action button */}
-        <Button 
+        {/* Action button - anchor to avoid popup blockers */}
+        <Button
+          asChild
           variant="default"
           className="w-full"
-          onClick={onSelect}
           disabled={isLoading}
         >
-          <ExternalLink className="w-4 h-4 mr-2" />
-          Vedi offerta
+          <a
+            href={source || '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              if (!source) {
+                e.preventDefault();
+              }
+              onSelect?.();
+            }}
+            aria-label={`Vedi offerta ${provider}`}
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Vedi offerta
+          </a>
         </Button>
       </CardContent>
     </Card>

@@ -78,24 +78,30 @@ const ResultsPage = () => {
       // DB-FIRST: fetch active offers to avoid empty UI
       let finalPayload: OffersPayload | null = null;
 
-      const mapOffer = (o: any): Offer => ({
-        id: o.id || o.offer_id || crypto.randomUUID(),
-        provider: o.provider || 'Provider sconosciuto',
-        offer_name: o.plan_name || o.offer_name || 'Offerta',
-        price_kwh: Number(o.unit_price_eur_kwh ?? o.price_kwh ?? 0),
-        fixed_fee_month: Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0),
-        fixed_fee_year: Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0) * 12,
-        offer_annual_cost_eur:
-          Number(
-            (
-              (o.offer_annual_cost_eur as number | undefined) ??
-              Math.round(consumption * Number(o.unit_price_eur_kwh ?? o.price_kwh ?? 0) + Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0) * 12)
-            )
-          ),
-        source_url: o.redirect_url || o.source_url || '#',
-        terms_url: o.terms_url || '',
-        last_checked: o.last_update || o.updated_at || o.created_at || new Date().toISOString(),
-      });
+      const mapOffer = (o: any): Offer => {
+        let src = o.redirect_url || o.source_url || '';
+        if (src && !/^https?:\/\//i.test(src)) {
+          src = `https://${String(src).replace(/^\/+/, '')}`;
+        }
+        return {
+          id: o.id || o.offer_id || crypto.randomUUID(),
+          provider: o.provider || 'Provider sconosciuto',
+          offer_name: o.plan_name || o.offer_name || 'Offerta',
+          price_kwh: Number(o.unit_price_eur_kwh ?? o.price_kwh ?? 0),
+          fixed_fee_month: Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0),
+          fixed_fee_year: Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0) * 12,
+          offer_annual_cost_eur:
+            Number(
+              (
+                (o.offer_annual_cost_eur as number | undefined) ??
+                Math.round(consumption * Number(o.unit_price_eur_kwh ?? o.price_kwh ?? 0) + Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0) * 12)
+              )
+            ),
+          source_url: src || '#',
+          terms_url: o.terms_url || '',
+          last_checked: o.last_update || o.updated_at || o.created_at || new Date().toISOString(),
+        };
+      };
 
       // Fetch from DB (commodity power), then relax filter if empty
       const { data: dbOffersPower, error: dbErrPower } = await supabase
@@ -158,9 +164,7 @@ const ResultsPage = () => {
     }
   };
 
-  const handleViewOffer = async (offer: Offer) => {
-    console.log('handleViewOffer called with:', offer);
-    
+  const handleViewOffer = (offer: Offer) => {
     if (!offer.source_url || offer.source_url === '#') {
       toast({
         title: 'Link non disponibile',
@@ -170,30 +174,33 @@ const ResultsPage = () => {
       return;
     }
 
-    // Save lead tracking
-    try {
-      await supabase.from('leads').insert({
+    // Open immediately to avoid popup blockers
+    const opened = window.open(offer.source_url, '_blank', 'noopener,noreferrer');
+
+    // Fire-and-forget lead tracking (do not await)
+    void supabase
+      .from('leads')
+      .insert({
         upload_id: uploadId || crypto.randomUUID(),
         provider: offer.provider,
         offer_id: offer.id,
         redirect_url: offer.source_url,
         offer_annual_cost_eur: offer.offer_annual_cost_eur,
-      });
+      })
+      .select();
 
-      if (typeof gtag !== 'undefined') {
-        gtag('event', 'offer_click', {
-          event_category: 'conversion',
-          provider: offer.provider,
-          annual_cost: offer.offer_annual_cost_eur
-        });
-      }
-    } catch (error) {
-      console.error('Error tracking lead:', error);
+    if (typeof gtag !== 'undefined') {
+      gtag('event', 'offer_click', {
+        event_category: 'conversion',
+        provider: offer.provider,
+        annual_cost: offer.offer_annual_cost_eur
+      });
     }
 
-    // Redirect to provider
-    console.log('Opening URL:', offer.source_url);
-    window.open(offer.source_url, '_blank', 'noopener,noreferrer');
+    // Fallback: if popup blocked, navigate in same tab
+    if (!opened) {
+      window.location.href = offer.source_url;
+    }
   };
 
   // Calculate savings
