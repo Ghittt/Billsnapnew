@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      feedback: {
+        Row: {
+          category: string
+          created_at: string
+          device: string | null
+          email: string | null
+          id: string
+          ip_hash: string
+          message: string
+          rating: number
+          status: string | null
+          user_agent: string | null
+          version: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          device?: string | null
+          email?: string | null
+          id?: string
+          ip_hash: string
+          message: string
+          rating: number
+          status?: string | null
+          user_agent?: string | null
+          version?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          device?: string | null
+          email?: string | null
+          id?: string
+          ip_hash?: string
+          message?: string
+          rating?: number
+          status?: string | null
+          user_agent?: string | null
+          version?: string | null
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           annual_saving_eur: number | null
