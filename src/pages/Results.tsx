@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import SavingsCard from '@/components/results/SavingsCard';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,8 @@ import { ArrowLeft, FileText, Zap, TrendingUp } from 'lucide-react';
 
 const ResultsPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const uploadId = searchParams.get('uploadId');
 
   // Mock data - in real app this would come from OCR + AI analysis
   const analysisData = {
@@ -58,9 +60,13 @@ const ResultsPage = () => {
 
             <SavingsCard
               currentCost={analysisData.currentCost}
-              bestOffer={analysisData.bestOffer}
+              bestOffer={{
+                ...analysisData.bestOffer,
+                id: "enel-e-light-luce"
+              }}
               annualSaving={analysisData.annualSaving}
               copyMessage={analysisData.copyMessage}
+              uploadId={uploadId || undefined}
             />
           </div>
 

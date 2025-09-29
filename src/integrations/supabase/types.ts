@@ -16,30 +16,54 @@ export type Database = {
     Tables: {
       leads: {
         Row: {
+          annual_saving_eur: number | null
           cta_clicked_at: string
+          current_annual_cost_eur: number | null
+          device: string | null
           id: string
+          ip_hash: string | null
+          offer_annual_cost_eur: number | null
           offer_id: string | null
+          provider: string | null
           redirect_url: string | null
+          status: string | null
           upload_id: string
           utm_campaign: string | null
+          utm_medium: string | null
           utm_source: string | null
         }
         Insert: {
+          annual_saving_eur?: number | null
           cta_clicked_at?: string
+          current_annual_cost_eur?: number | null
+          device?: string | null
           id?: string
+          ip_hash?: string | null
+          offer_annual_cost_eur?: number | null
           offer_id?: string | null
+          provider?: string | null
           redirect_url?: string | null
+          status?: string | null
           upload_id: string
           utm_campaign?: string | null
+          utm_medium?: string | null
           utm_source?: string | null
         }
         Update: {
+          annual_saving_eur?: number | null
           cta_clicked_at?: string
+          current_annual_cost_eur?: number | null
+          device?: string | null
           id?: string
+          ip_hash?: string | null
+          offer_annual_cost_eur?: number | null
           offer_id?: string | null
+          provider?: string | null
           redirect_url?: string | null
+          status?: string | null
           upload_id?: string
           utm_campaign?: string | null
+          utm_medium?: string | null
           utm_source?: string | null
         }
         Relationships: [
