@@ -14,6 +14,7 @@ interface BestOfferCardProps {
   termsUrl?: string;
   onActivate: () => void;
   isLoading?: boolean;
+  urlVerified?: boolean;
 }
 
 export const BestOfferCard: React.FC<BestOfferCardProps> = ({
@@ -26,7 +27,8 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
   source,
   termsUrl,
   onActivate,
-  isLoading = false
+  isLoading = false,
+  urlVerified = undefined
 }) => {
   const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
     style: 'currency',
@@ -40,12 +42,29 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle2 className="w-5 h-5 text-success" />
-              <span className="text-sm font-medium text-success">Migliore offerta</span>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-success" />
+                <span className="text-sm font-medium text-success">Migliore offerta</span>
+              </div>
+              {urlVerified === true && (
+                <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full">
+                  Link verificato
+                </span>
+              )}
+              {urlVerified === false && (
+                <span className="text-xs bg-warning/10 text-warning px-2 py-0.5 rounded-full">
+                  Link da verificare
+                </span>
+              )}
             </div>
             <CardTitle className="text-xl md:text-2xl">{provider}</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">{offerName}</p>
+            {source && source !== '#' && (
+              <p className="text-xs text-muted-foreground mt-1">
+                🔗 {new URL(source).hostname}
+              </p>
+            )}
           </div>
         </div>
       </CardHeader>

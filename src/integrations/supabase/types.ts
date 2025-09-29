@@ -244,13 +244,20 @@ export type Database = {
           notes: string | null
           plan_name: string
           pricing_type: string
+          product_url: string | null
           provider: string
+          provider_home: string | null
+          provider_name: string | null
           redirect_url: string | null
           source: string | null
           terms_url: string | null
           unit_price_eur_kwh: number | null
           unit_price_eur_smc: number | null
           updated_at: string | null
+          url_checked_at: string | null
+          url_error: string | null
+          url_ok: boolean | null
+          url_status: number | null
           valid_from: string
           valid_to: string | null
         }
@@ -266,13 +273,20 @@ export type Database = {
           notes?: string | null
           plan_name: string
           pricing_type: string
+          product_url?: string | null
           provider: string
+          provider_home?: string | null
+          provider_name?: string | null
           redirect_url?: string | null
           source?: string | null
           terms_url?: string | null
           unit_price_eur_kwh?: number | null
           unit_price_eur_smc?: number | null
           updated_at?: string | null
+          url_checked_at?: string | null
+          url_error?: string | null
+          url_ok?: boolean | null
+          url_status?: number | null
           valid_from?: string
           valid_to?: string | null
         }
@@ -288,13 +302,20 @@ export type Database = {
           notes?: string | null
           plan_name?: string
           pricing_type?: string
+          product_url?: string | null
           provider?: string
+          provider_home?: string | null
+          provider_name?: string | null
           redirect_url?: string | null
           source?: string | null
           terms_url?: string | null
           unit_price_eur_kwh?: number | null
           unit_price_eur_smc?: number | null
           updated_at?: string | null
+          url_checked_at?: string | null
+          url_error?: string | null
+          url_ok?: boolean | null
+          url_status?: number | null
           valid_from?: string
           valid_to?: string | null
         }
