@@ -79,7 +79,7 @@ const ResultsPage = () => {
       let finalPayload: OffersPayload | null = null;
 
       const mapOffer = (o: any): Offer => ({
-        id: o.id || o.offer_id || '',
+        id: o.id || o.offer_id || crypto.randomUUID(),
         provider: o.provider || 'Provider sconosciuto',
         offer_name: o.plan_name || o.offer_name || 'Offerta',
         price_kwh: Number(o.unit_price_eur_kwh ?? o.price_kwh ?? 0),
@@ -92,7 +92,7 @@ const ResultsPage = () => {
               Math.round(consumption * Number(o.unit_price_eur_kwh ?? o.price_kwh ?? 0) + Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0) * 12)
             )
           ),
-        source_url: o.redirect_url || o.source_url || '',
+        source_url: o.redirect_url || o.source_url || '#',
         terms_url: o.terms_url || '',
         last_checked: o.last_update || o.updated_at || o.created_at || new Date().toISOString(),
       });
@@ -159,7 +159,9 @@ const ResultsPage = () => {
   };
 
   const handleViewOffer = async (offer: Offer) => {
-    if (!offer.source_url) {
+    console.log('handleViewOffer called with:', offer);
+    
+    if (!offer.source_url || offer.source_url === '#') {
       toast({
         title: 'Link non disponibile',
         description: 'Il link all\'offerta non è disponibile.',
@@ -190,6 +192,7 @@ const ResultsPage = () => {
     }
 
     // Redirect to provider
+    console.log('Opening URL:', offer.source_url);
     window.open(offer.source_url, '_blank', 'noopener,noreferrer');
   };
 
