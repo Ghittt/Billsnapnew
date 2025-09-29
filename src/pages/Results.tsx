@@ -5,7 +5,7 @@ import { BestOfferCard } from '@/components/results/BestOfferCard';
 import { AlternativeOfferCard } from '@/components/results/AlternativeOfferCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, Zap, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Zap, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import '@/types/analytics';
@@ -184,10 +184,9 @@ const ResultsPage = () => {
   };
 
   // Get alternative offers (exclude best offer, show max 5)
-  const alternativeOffers = offersData?.offers
-    ?.filter(o => o.id !== offersData.best_offer.id)
-    ?.slice(0, 5) || [];
-
+  const alternativeOffers = (offersData?.offers || [])
+    .filter(o => o.id !== (offersData?.best_offer?.id || ''))
+    .slice(0, 5);
   const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
     style: 'currency',
     currency: 'EUR',
@@ -206,25 +205,8 @@ const ResultsPage = () => {
     );
   }
 
-  if (error || !offersData?.best_offer) {
-    return (
-      <div className="min-h-screen bg-gradient-subtle">
-        <Header />
-        <div className="container mx-auto px-4 py-8">
-          <div className="max-w-md mx-auto text-center space-y-4">
-            <AlertCircle className="w-16 h-16 text-destructive mx-auto" />
-            <h2 className="text-2xl font-bold">Offerte temporaneamente non disponibili</h2>
-            <p className="text-muted-foreground">
-              Non riusciamo a recuperare le offerte al momento. Riprova tra qualche minuto.
-            </p>
-            <Button onClick={() => navigate('/')}>
-              Torna alla home
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Non bloccare la pagina per errori/assenza best offer: continuiamo a renderizzare con stati vuoti
+
 
   return (
     <div className="min-h-screen bg-gradient-subtle pb-24 md:pb-8">
@@ -266,21 +248,23 @@ const ResultsPage = () => {
           </Card>
 
           {/* C) Best offer card with CTA */}
-          <BestOfferCard
-            provider={offersData.best_offer.provider}
-            offerName={offersData.best_offer.offer_name}
-            priceKwh={offersData.best_offer.price_kwh}
-            fixedFeeYear={offersData.best_offer.fixed_fee_year}
-            annualCost={offersData.best_offer.offer_annual_cost_eur}
-            lastUpdate={offersData.best_offer.last_checked}
-            source={offersData.best_offer.source_url}
-            termsUrl={offersData.best_offer.terms_url}
-            onActivate={() => handleViewOffer(offersData.best_offer.id)}
-            isLoading={false}
-          />
+          {offersData?.best_offer && (
+            <BestOfferCard
+              provider={offersData.best_offer.provider}
+              offerName={offersData.best_offer.offer_name}
+              priceKwh={offersData.best_offer.price_kwh}
+              fixedFeeYear={offersData.best_offer.fixed_fee_year}
+              annualCost={offersData.best_offer.offer_annual_cost_eur}
+              lastUpdate={offersData.best_offer.last_checked}
+              source={offersData.best_offer.source_url}
+              termsUrl={offersData.best_offer.terms_url}
+              onActivate={() => handleViewOffer(offersData.best_offer.id)}
+              isLoading={false}
+            />
+          )}
 
           {/* D) Alternative offers */}
-          {alternativeOffers.length > 0 && (
+          {alternativeOffers.length > 0 ? (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Altre offerte competitive</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -299,25 +283,36 @@ const ResultsPage = () => {
                 ))}
               </div>
             </div>
+          ) : (
+            !offersData?.best_offer && (
+              <div className="text-center text-muted-foreground">
+                Nessuna offerta disponibile al momento. Riprova più tardi.
+              </div>
+            )
           )}
 
           {/* E) Transparency notes */}
           <div className="text-center text-sm text-muted-foreground space-y-2 pt-4 border-t">
             <p>Costi stimati in base ai tuoi consumi. Verifica sempre le condizioni ufficiali del fornitore.</p>
-            <p>Ultimo aggiornamento prezzi: {new Date(offersData.best_offer.last_checked).toLocaleDateString('it-IT')}</p>
+            {offersData?.best_offer?.last_checked && (
+              <p>Ultimo aggiornamento prezzi: {new Date(offersData.best_offer.last_checked).toLocaleDateString('it-IT')}</p>
+            )}
           </div>
         </div>
       </div>
 
       {/* Mobile sticky CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t md:hidden">
-        <Button 
-          className="w-full h-12 text-lg font-semibold"
-          onClick={() => handleViewOffer(offersData.best_offer.id)}
-        >
-          {`Vedi offerta e risparmia ${fmt(annualSaving)}`}
-        </Button>
-      </div>
+      {offersData?.best_offer && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t md:hidden">
+          <Button 
+            className="w-full h-12 text-lg font-semibold"
+            onClick={() => handleViewOffer(offersData.best_offer.id)}
+          >
+            {`Vedi offerta e risparmia ${fmt(annualSaving)}`}
+          </Button>
+        </div>
+      )}
+
     </div>
   );
 };
