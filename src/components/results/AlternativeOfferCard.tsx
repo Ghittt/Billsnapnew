@@ -12,6 +12,7 @@ interface AlternativeOfferCardProps {
   source: string;
   onSelect: () => void;
   isLoading?: boolean;
+  urlVerified?: boolean;
 }
 
 export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
@@ -22,7 +23,8 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
   annualCost,
   source,
   onSelect,
-  isLoading = false
+  isLoading = false,
+  urlVerified = undefined
 }) => {
   const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
     style: 'currency',
@@ -34,8 +36,22 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
   return (
     <Card className="hover:border-primary/50 transition-colors">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">{provider}</CardTitle>
-        <p className="text-sm text-muted-foreground">{offerName}</p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1">
+            <CardTitle className="text-lg">{provider}</CardTitle>
+            <p className="text-sm text-muted-foreground">{offerName}</p>
+            {source && source !== '#' && (
+              <p className="text-xs text-muted-foreground mt-1">
+                🔗 {new URL(source).hostname}
+              </p>
+            )}
+          </div>
+          {urlVerified === true && (
+            <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full whitespace-nowrap">
+              Verificato
+            </span>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-3">

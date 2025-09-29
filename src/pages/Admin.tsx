@@ -12,8 +12,10 @@ const Admin = () => {
   const navigate = useNavigate();
   const [isScrapingLoading, setIsScrapingLoading] = useState(false);
   const [isHealthCheckLoading, setIsHealthCheckLoading] = useState(false);
+  const [isQALoading, setIsQALoading] = useState(false);
   const [scrapingResult, setScrapingResult] = useState<any>(null);
   const [healthCheckResult, setHealthCheckResult] = useState<any>(null);
+  const [qaResult, setQaResult] = useState<any>(null);
   const { toast } = useToast();
 
   const handleScrapeOffers = async () => {
@@ -111,6 +113,53 @@ const Admin = () => {
       });
     } finally {
       setIsHealthCheckLoading(false);
+    }
+  };
+
+  const handleQACheckLinks = async () => {
+    setIsQALoading(true);
+    setQaResult(null);
+    
+    try {
+      console.log('Starting QA check for offer links...');
+      
+      const { data, error } = await supabase.functions.invoke('qa-check-offer-links', {
+        body: { limit: 200, force_check: false }
+      });
+
+      if (error) {
+        console.error('QA check error:', error);
+        toast({
+          title: "Errore durante il QA",
+          description: error.message || "Si è verificato un errore durante il controllo dei link",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('QA check result:', data);
+      setQaResult(data);
+      
+      if (data.success && data.summary) {
+        const { ok, failed, total_checked } = data.summary;
+        const successRate = total_checked > 0 ? Math.round((ok / total_checked) * 100) : 0;
+        
+        toast({
+          title: "QA Completato",
+          description: `${ok}/${total_checked} link verificati (${successRate}%). ${failed} falliti.`,
+          variant: failed > 0 ? "destructive" : "default"
+        });
+      }
+
+    } catch (error) {
+      console.error('Error in QA check:', error);
+      toast({
+        title: "Errore",
+        description: "Si è verificato un errore durante il QA dei link",
+        variant: "destructive"
+      });
+    } finally {
+      setIsQALoading(false);
     }
   };
 
@@ -333,6 +382,79 @@ const Admin = () => {
                           </div>
                         )}
                       </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5" />
+                QA Link Offerte
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Verifica automaticamente tutti i link delle offerte per assicurarsi che siano accessibili e validi.
+              </p>
+              
+              <Button 
+                onClick={handleQACheckLinks} 
+                disabled={isQALoading}
+                variant="outline"
+                className="w-full sm:w-auto"
+              >
+                {isQALoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Controllo in corso...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Verifica Link
+                  </>
+                )}
+              </Button>
+
+              {qaResult && qaResult.success && (
+                <Alert className="mt-4">
+                  <AlertDescription>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          Risultati QA: {qaResult.summary.ok}/{qaResult.summary.total_checked} link OK
+                        </span>
+                      </div>
+                      
+                      {qaResult.results && qaResult.results.length > 0 && (
+                        <div className="space-y-2 text-sm max-h-64 overflow-y-auto">
+                          {qaResult.results.filter((r: any) => !r.ok).map((result: any, index: number) => (
+                            <div key={index} className="bg-destructive/10 p-2 rounded text-xs">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <p className="font-medium">{result.provider}</p>
+                                  <p className="text-muted-foreground truncate">{result.url}</p>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-destructive">
+                                    {result.status > 0 ? `HTTP ${result.status}` : result.error}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {qaResult.summary.ok > 0 && (
+                            <p className="text-xs text-success text-center pt-2">
+                              ✓ {qaResult.summary.ok} link verificati con successo
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </AlertDescription>
                 </Alert>

@@ -21,6 +21,8 @@ interface Offer {
   source_url: string;
   terms_url?: string;
   last_checked: string;
+  url_ok?: boolean;
+  provider_home?: string;
 }
 
 interface OffersPayload {
@@ -79,13 +81,17 @@ const ResultsPage = () => {
       let finalPayload: OffersPayload | null = null;
 
       const mapOffer = (o: any): Offer => {
-        let src = o.source_url || o.redirect_url || '';
+        // Priority: product_url (verified deeplink) > redirect_url > provider_home (fallback)
+        let src = o.product_url || o.redirect_url || o.provider_home || '';
+        
+        // Normalize URL: ensure https://
         if (src && !/^https?:\/\//i.test(src)) {
           src = `https://${String(src).replace(/^\/+/, '')}`;
         }
+        
         return {
           id: o.id || o.offer_id || crypto.randomUUID(),
-          provider: o.provider || 'Provider sconosciuto',
+          provider: o.provider_name || o.provider || 'Provider sconosciuto',
           offer_name: o.plan_name || o.offer_name || 'Offerta',
           price_kwh: Number(o.unit_price_eur_kwh ?? o.price_kwh ?? 0),
           fixed_fee_month: Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0),
@@ -100,15 +106,19 @@ const ResultsPage = () => {
           source_url: src || '#',
           terms_url: o.terms_url || '',
           last_checked: o.last_update || o.updated_at || o.created_at || new Date().toISOString(),
+          url_ok: o.url_ok ?? undefined,
+          provider_home: o.provider_home || undefined,
         };
       };
 
-      // Fetch from DB (commodity power), then relax filter if empty
+      // Fetch from DB (commodity power), prefer verified URLs
       const { data: dbOffersPower, error: dbErrPower } = await supabase
         .from('offers')
         .select('*')
         .eq('is_active', true)
         .eq('commodity', 'power')
+        .or('url_ok.eq.true,url_ok.is.null') // Only verified or unchecked offers
+        .order('url_ok', { ascending: false, nullsFirst: false }) // Verified first
         .order('created_at', { ascending: false });
 
       let activeOffers: any[] = [];
@@ -284,6 +294,7 @@ const ResultsPage = () => {
               termsUrl={offersData.best_offer.terms_url}
               onActivate={() => handleViewOffer(offersData.best_offer)}
               isLoading={false}
+              urlVerified={offersData.best_offer.url_ok}
             />
           )}
 
@@ -295,14 +306,15 @@ const ResultsPage = () => {
                 {alternativeOffers.map((offer) => (
                   <AlternativeOfferCard
                     key={offer.id}
-                     provider={offer.provider}
-                     offerName={offer.offer_name}
-                     priceKwh={offer.price_kwh}
-                     fixedFeeMonth={offer.fixed_fee_month}
-                     annualCost={offer.offer_annual_cost_eur}
-                     source={offer.source_url}
-                     onSelect={() => handleViewOffer(offer)}
+                    provider={offer.provider}
+                    offerName={offer.offer_name}
+                    priceKwh={offer.price_kwh}
+                    fixedFeeMonth={offer.fixed_fee_month}
+                    annualCost={offer.offer_annual_cost_eur}
+                    source={offer.source_url}
+                    onSelect={() => handleViewOffer(offer)}
                     isLoading={false}
+                    urlVerified={offer.url_ok}
                   />
                 ))}
               </div>
