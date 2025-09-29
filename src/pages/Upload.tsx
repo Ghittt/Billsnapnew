@@ -65,12 +65,8 @@ const UploadPage = () => {
         throw new Error('Upload failed');
       }
 
-      // Save upload record with user authentication
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        throw new Error('User authentication required');
-      }
+      // Save upload record (authentication optional for MVP)
+      const { data: { user } } = await supabase.auth.getUser();
 
       const { data: uploadData, error: uploadError } = await supabase
         .from('uploads')
@@ -78,7 +74,7 @@ const UploadPage = () => {
           file_url: `bills/${Date.now()}-${file.name}`,
           file_type: file.type,
           file_size: file.size,
-          user_id: user.id
+          user_id: user?.id || null
         })
         .select()
         .single();
