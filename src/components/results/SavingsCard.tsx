@@ -13,6 +13,9 @@ interface SavingsCardProps {
     annualCost: number;
     unitPrice: number;
     id?: string;
+    redirectUrl?: string;
+    termsUrl?: string;
+    pricingType?: string;
   };
   annualSaving: number;
   copyMessage?: string;
@@ -55,8 +58,9 @@ const SavingsCard: React.FC<SavingsCardProps> = ({
       const utmMedium = urlParams.get('utm_medium') || undefined;
       const utmCampaign = urlParams.get('utm_campaign') || undefined;
 
-      // Sample redirect URL - in real implementation this would come from offer data
-      const redirectUrl = `https://fornitore.example/landing?affid=billsnap&provider=${encodeURIComponent(bestOffer.provider)}`;
+      // Use real redirect URL from offer or construct affiliate URL
+      const redirectUrl = bestOffer.redirectUrl || 
+        `https://fornitore.example/landing?affid=billsnap&provider=${encodeURIComponent(bestOffer.provider)}&plan=${encodeURIComponent(bestOffer.plan)}`;
 
       const leadPayload = {
         upload_id: uploadId,
