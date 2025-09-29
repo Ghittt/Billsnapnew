@@ -79,7 +79,7 @@ const ResultsPage = () => {
       let finalPayload: OffersPayload | null = null;
 
       const mapOffer = (o: any): Offer => {
-        let src = o.redirect_url || o.source_url || '';
+        let src = o.source_url || o.redirect_url || '';
         if (src && !/^https?:\/\//i.test(src)) {
           src = `https://${String(src).replace(/^\/+/, '')}`;
         }
@@ -168,16 +168,13 @@ const ResultsPage = () => {
     if (!offer.source_url || offer.source_url === '#') {
       toast({
         title: 'Link non disponibile',
-        description: 'Il link all\'offerta non è disponibile.',
+        description: "Il link all'offerta non è disponibile.",
         variant: 'destructive'
       });
       return;
     }
 
-    // Open immediately to avoid popup blockers
-    const opened = window.open(offer.source_url, '_blank', 'noopener,noreferrer');
-
-    // Fire-and-forget lead tracking (do not await)
+    // Tracciamento lead (no apertura finestra, ci pensa il link diretto)
     void supabase
       .from('leads')
       .insert({
@@ -195,11 +192,6 @@ const ResultsPage = () => {
         provider: offer.provider,
         annual_cost: offer.offer_annual_cost_eur
       });
-    }
-
-    // Fallback: if popup blocked, navigate in same tab
-    if (!opened) {
-      window.location.href = offer.source_url;
     }
   };
 

@@ -69,21 +69,35 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
           <p className="text-3xl font-bold text-primary">{fmt(annualCost)}</p>
         </div>
 
-        {/* CTA Button */}
+        {/* CTA Button as direct link */}
         <Button 
+          asChild
           size="lg"
           className="w-full text-lg font-semibold"
-          onClick={onActivate}
-          disabled={isLoading}
+          disabled={isLoading || !source}
         >
-          {isLoading ? (
-            <>Reindirizzamento...</>
-          ) : (
-            <>
-              <ExternalLink className="w-5 h-5" />
-              Attiva subito e risparmia
-            </>
-          )}
+          <a
+            href={source || '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              if (!source) {
+                e.preventDefault();
+                return;
+              }
+              onActivate?.(); // traccia il click/lead
+            }}
+            aria-label={`Attiva offerta ${provider}`}
+          >
+            {isLoading ? (
+              <>Reindirizzamento...</>
+            ) : (
+              <>
+                <ExternalLink className="w-5 h-5" />
+                Attiva subito e risparmia
+              </>
+            )}
+          </a>
         </Button>
 
         {/* Meta info */}
