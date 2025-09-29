@@ -14,7 +14,194 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      leads: {
+        Row: {
+          cta_clicked_at: string
+          id: string
+          offer_id: string | null
+          redirect_url: string | null
+          upload_id: string
+          utm_campaign: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          cta_clicked_at?: string
+          id?: string
+          offer_id?: string | null
+          redirect_url?: string | null
+          upload_id: string
+          utm_campaign?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          cta_clicked_at?: string
+          id?: string
+          offer_id?: string | null
+          redirect_url?: string | null
+          upload_id?: string
+          utm_campaign?: string | null
+          utm_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ocr_results: {
+        Row: {
+          annual_kwh: number | null
+          created_at: string
+          gas_smc: number | null
+          id: string
+          quality_score: number | null
+          raw_json: Json | null
+          total_cost_eur: number | null
+          unit_price_eur_kwh: number | null
+          upload_id: string
+        }
+        Insert: {
+          annual_kwh?: number | null
+          created_at?: string
+          gas_smc?: number | null
+          id?: string
+          quality_score?: number | null
+          raw_json?: Json | null
+          total_cost_eur?: number | null
+          unit_price_eur_kwh?: number | null
+          upload_id: string
+        }
+        Update: {
+          annual_kwh?: number | null
+          created_at?: string
+          gas_smc?: number | null
+          id?: string
+          quality_score?: number | null
+          raw_json?: Json | null
+          total_cost_eur?: number | null
+          unit_price_eur_kwh?: number | null
+          upload_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ocr_results_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offers: {
+        Row: {
+          fixed_fee_eur_mo: number
+          id: string
+          plan_name: string
+          provider: string
+          terms_json: Json | null
+          unit_price_eur_kwh: number
+          updated_at: string
+        }
+        Insert: {
+          fixed_fee_eur_mo: number
+          id?: string
+          plan_name: string
+          provider: string
+          terms_json?: Json | null
+          unit_price_eur_kwh: number
+          updated_at?: string
+        }
+        Update: {
+          fixed_fee_eur_mo?: number
+          id?: string
+          plan_name?: string
+          provider?: string
+          terms_json?: Json | null
+          unit_price_eur_kwh?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quotes: {
+        Row: {
+          annual_cost_offer: number
+          annual_saving_eur: number
+          created_at: string
+          id: string
+          offer_id: string
+          upload_id: string
+        }
+        Insert: {
+          annual_cost_offer: number
+          annual_saving_eur: number
+          created_at?: string
+          id?: string
+          offer_id: string
+          upload_id: string
+        }
+        Update: {
+          annual_cost_offer?: number
+          annual_saving_eur?: number
+          created_at?: string
+          id?: string
+          offer_id?: string
+          upload_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      uploads: {
+        Row: {
+          created_at: string
+          file_size: number | null
+          file_type: string
+          file_url: string
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_size?: number | null
+          file_type: string
+          file_url: string
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_size?: number | null
+          file_type?: string
+          file_url?: string
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import Header from '@/components/layout/Header';
 import UploadZone from '@/components/upload/UploadZone';
 import { Button } from '@/components/ui/button';
@@ -18,24 +19,92 @@ const UploadPage = () => {
     setIsUploading(true);
     
     try {
-      // Simulate upload process
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const file = files[0]; // Process first file for MVP
+      
+      // Upload file to storage
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const uploadResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/bills/${Date.now()}-${file.name}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Upload failed');
+      }
+
+      // Save upload record
+      const { data: uploadData, error: uploadError } = await supabase
+        .from('uploads')
+        .insert({
+          file_url: `bills/${Date.now()}-${file.name}`,
+          file_type: file.type,
+          file_size: file.size
+        })
+        .select()
+        .single();
+
+      if (uploadError) throw uploadError;
+
+      // Process with OCR
+      const ocrFormData = new FormData();
+      ocrFormData.append('file', file);
+      ocrFormData.append('uploadId', uploadData.id);
+
+      const ocrResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ocr-extract`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: ocrFormData
+      });
+
+      if (!ocrResponse.ok) {
+        throw new Error('OCR processing failed');
+      }
+
+      const ocrData = await ocrResponse.json();
+      console.log('OCR Data:', ocrData);
+
+      // Calculate savings
+      const savingsResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-savings`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ uploadId: uploadData.id })
+      });
+
+      if (!savingsResponse.ok) {
+        throw new Error('Savings calculation failed');
+      }
+
+      const savingsData = await savingsResponse.json();
       
       setUploadedFiles(files);
       toast({
-        title: "Upload completato!",
-        description: `${files.length} file caricati con successo`,
+        title: "Analisi completata!",
+        description: `Bolletta analizzata con successo`,
       });
       
-      // Simulate processing and redirect to results
-      setTimeout(() => {
-        navigate('/results');
-      }, 1000);
+      // Navigate to results with data
+      navigate('/results', { 
+        state: { 
+          savingsData,
+          uploadId: uploadData.id 
+        } 
+      });
       
     } catch (error) {
+      console.error('Upload error:', error);
       toast({
-        title: "Errore nell'upload",
-        description: "Si è verificato un errore. Riprova.",
+        title: "Errore nell'analisi",
+        description: "Si è verificato un errore durante l'analisi della bolletta. Riprova.",
         variant: "destructive",
       });
     } finally {
