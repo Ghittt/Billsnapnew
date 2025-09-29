@@ -1,4 +1,5 @@
-import { Zap } from "lucide-react";
+import { Zap, MessageSquare } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Header = () => {
   return (
@@ -10,8 +11,17 @@ const Header = () => {
           </div>
           <span className="text-xl font-bold text-foreground">BillSnap</span>
         </div>
-        <div className="text-sm text-muted-foreground">
-          Risparmia sulle bollette
+        <div className="flex items-center gap-4">
+          <Link 
+            to="/feedback" 
+            className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Feedback
+          </Link>
+          <div className="text-sm text-muted-foreground">
+            Risparmia sulle bollette
+          </div>
         </div>
       </div>
     </header>
