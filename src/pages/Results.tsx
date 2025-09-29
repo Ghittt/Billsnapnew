@@ -78,10 +78,10 @@ const ResultsPage = () => {
       // DB-FIRST: fetch active offers to avoid empty UI
       let finalPayload: OffersPayload | null = null;
 
-      const mapOffer = (o: any) => ({
-        id: o.id || o.offer_id || crypto.randomUUID(),
-        provider: o.provider,
-        offer_name: o.plan_name,
+      const mapOffer = (o: any): Offer => ({
+        id: o.id || o.offer_id || '',
+        provider: o.provider || 'Provider sconosciuto',
+        offer_name: o.plan_name || o.offer_name || 'Offerta',
         price_kwh: Number(o.unit_price_eur_kwh ?? o.price_kwh ?? 0),
         fixed_fee_month: Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0),
         fixed_fee_year: Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0) * 12,
@@ -92,8 +92,8 @@ const ResultsPage = () => {
               Math.round(consumption * Number(o.unit_price_eur_kwh ?? o.price_kwh ?? 0) + Number(o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0) * 12)
             )
           ),
-        source_url: o.redirect_url || o.source || o.terms_url || '',
-        terms_url: o.terms_url || undefined,
+        source_url: o.redirect_url || o.source_url || '',
+        terms_url: o.terms_url || '',
         last_checked: o.last_update || o.updated_at || o.created_at || new Date().toISOString(),
       });
 
@@ -158,8 +158,39 @@ const ResultsPage = () => {
     }
   };
 
-  const handleViewOffer = (offerId: string) => {
-    navigate(`/offer/${offerId}`);
+  const handleViewOffer = async (offer: Offer) => {
+    if (!offer.source_url) {
+      toast({
+        title: 'Link non disponibile',
+        description: 'Il link all\'offerta non è disponibile.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Save lead tracking
+    try {
+      await supabase.from('leads').insert({
+        upload_id: uploadId || crypto.randomUUID(),
+        provider: offer.provider,
+        offer_id: offer.id,
+        redirect_url: offer.source_url,
+        offer_annual_cost_eur: offer.offer_annual_cost_eur,
+      });
+
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'offer_click', {
+          event_category: 'conversion',
+          provider: offer.provider,
+          annual_cost: offer.offer_annual_cost_eur
+        });
+      }
+    } catch (error) {
+      console.error('Error tracking lead:', error);
+    }
+
+    // Redirect to provider
+    window.open(offer.source_url, '_blank', 'noopener,noreferrer');
   };
 
   // Calculate savings
@@ -249,7 +280,7 @@ const ResultsPage = () => {
               lastUpdate={offersData.best_offer.last_checked}
               source={offersData.best_offer.source_url}
               termsUrl={offersData.best_offer.terms_url}
-              onActivate={() => handleViewOffer(offersData.best_offer.id)}
+              onActivate={() => handleViewOffer(offersData.best_offer)}
               isLoading={false}
             />
           )}
@@ -268,7 +299,7 @@ const ResultsPage = () => {
                      fixedFeeMonth={offer.fixed_fee_month}
                      annualCost={offer.offer_annual_cost_eur}
                      source={offer.source_url}
-                    onSelect={() => handleViewOffer(offer.id)}
+                     onSelect={() => handleViewOffer(offer)}
                     isLoading={false}
                   />
                 ))}
@@ -297,7 +328,7 @@ const ResultsPage = () => {
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t md:hidden">
           <Button 
             className="w-full h-12 text-lg font-semibold"
-            onClick={() => handleViewOffer(offersData.best_offer.id)}
+            onClick={() => handleViewOffer(offersData.best_offer)}
           >
             {`Vedi offerta e risparmia ${fmt(annualSaving)}`}
           </Button>
