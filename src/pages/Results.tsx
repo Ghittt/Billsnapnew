@@ -323,18 +323,6 @@ const ResultsPage = () => {
         </div>
       </div>
 
-      {/* Mobile sticky CTA */}
-      {offersData?.best_offer && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t md:hidden">
-          <Button 
-            className="w-full h-12 text-lg font-semibold"
-            onClick={() => handleViewOffer(offersData.best_offer)}
-          >
-            {`Vedi offerta e risparmia ${fmt(annualSaving)}`}
-          </Button>
-        </div>
-      )}
-
     </div>
   );
 };
