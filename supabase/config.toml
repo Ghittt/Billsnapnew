@@ -59,6 +59,9 @@ verify_jwt = false
 [functions.calculate-savings]
 verify_jwt = false
 
+[functions.save-lead]
+verify_jwt = false
+
 [edge-runtime]
 enabled = true
 ip_version = "ipv6"
