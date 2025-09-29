@@ -11,6 +11,7 @@ interface BestOfferCardProps {
   annualCost: number;
   lastUpdate: string;
   source: string;
+  termsUrl?: string;
   onActivate: () => void;
   isLoading?: boolean;
 }
@@ -23,6 +24,7 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
   annualCost,
   lastUpdate,
   source,
+  termsUrl,
   onActivate,
   isLoading = false
 }) => {
@@ -85,16 +87,28 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
         </Button>
 
         {/* Meta info */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
+        <div className="flex flex-col gap-2 text-xs text-muted-foreground pt-2">
           <span>Aggiornato: {new Date(lastUpdate).toLocaleDateString('it-IT')}</span>
-          <a 
-            href={source}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-primary underline"
-          >
-            Vedi condizioni
-          </a>
+          {termsUrl && (
+            <a 
+              href={termsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-primary inline-flex items-center gap-1"
+            >
+              Vedi termini e condizioni <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          {source && (
+            <a 
+              href={source}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-primary inline-flex items-center gap-1"
+            >
+              Fonte ufficiale <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
         </div>
       </CardContent>
     </Card>

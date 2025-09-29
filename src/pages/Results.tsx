@@ -11,25 +11,21 @@ import { useToast } from '@/hooks/use-toast';
 import '@/types/analytics';
 
 interface Offer {
+  id: string;
   provider: string;
-  plan_name: string;
-  unit_price_eur_kwh: number;
-  fixed_fee_eur_mo: number;
+  offer_name: string;
+  price_kwh: number;
+  fixed_fee_month: number;
+  fixed_fee_year: number;
   offer_annual_cost_eur: number;
-  terms_url: string;
-  redirect_url: string;
-  source: string;
-  last_update: string;
-  offer_id: string;
+  source_url: string;
+  terms_url?: string;
+  last_checked: string;
 }
 
 interface OffersPayload {
   best_offer: Offer;
   offers: Offer[];
-  calculation: {
-    annual_consumption: number;
-    unit: string;
-  };
 }
 
 const ResultsPage = () => {
@@ -55,7 +51,7 @@ const ResultsPage = () => {
     fetchResults();
   }, [uploadId]);
 
-  const fetchResults = async (retryWithScrape = true) => {
+  const fetchResults = async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -71,38 +67,19 @@ const ResultsPage = () => {
 
       const consumption = ocrData.annual_kwh || 2700;
       const estimatedCurrentCost = ocrData.total_cost_eur || consumption * 0.30;
-      const commodity = ocrData.gas_smc > 0 ? 'gas' : 'power';
       
       setAnnualKwh(consumption);
       setCurrentCost(estimatedCurrentCost);
 
-      // Fetch best offer and all offers
+      // Fetch verified offers
       const { data: offersResponse, error: offersError } = await supabase.functions.invoke(
-        'get-best-offer',
+        'get-verified-offers',
         {
           body: {
-            commodity: commodity,
             annual_kwh: consumption,
-            annual_smc: ocrData.gas_smc || 0,
           }
         }
       );
-
-      // If no offers found and we can retry, trigger scraper and retry once
-      if ((!offersResponse?.best_offer || offersError) && retryWithScrape) {
-        console.log('No offers found, triggering scraper...');
-        
-        // Trigger scraper (non-blocking, don't wait for completion)
-        supabase.functions.invoke('scrape-offers').catch(err => 
-          console.error('Scraper error:', err)
-        );
-
-        // Wait a bit for scraper to populate some data
-        await new Promise(resolve => setTimeout(resolve, 3000));
-
-        // Retry fetch once
-        return fetchResults(false);
-      }
 
       if (offersError || !offersResponse?.best_offer) {
         throw new Error('NO_OFFERS');
@@ -142,7 +119,7 @@ const ResultsPage = () => {
       return;
     }
 
-    if (!offer.redirect_url && !offer.source) {
+    if (!offer.source_url) {
       toast({
         title: 'Link non disponibile',
         description: 'Link offerta non disponibile al momento',
@@ -151,7 +128,7 @@ const ResultsPage = () => {
       return;
     }
 
-    setLoadingOfferId(offer.offer_id);
+    setLoadingOfferId(offer.id);
 
     try {
       // Detect device
@@ -169,12 +146,12 @@ const ResultsPage = () => {
       // Save lead (non-blocking)
       const leadPayload = {
         upload_id: uploadId,
-        offer_id: offer.offer_id,
+        offer_id: offer.id,
         provider: offer.provider,
         annual_saving_eur: annualSaving,
         current_annual_cost_eur: currentCost,
         offer_annual_cost_eur: offer.offer_annual_cost_eur,
-        redirect_url: offer.redirect_url || offer.source,
+        redirect_url: offer.source_url,
         utm_source: utmSource,
         device: device
       };
@@ -187,13 +164,13 @@ const ResultsPage = () => {
         gtag('event', isAlternative ? 'alt_offer_clicked' : 'cta_clicked', {
           event_category: 'conversion',
           provider: offer.provider,
-          plan: offer.plan_name,
+          plan: offer.offer_name,
           annual_saving: annualSaving
         });
       }
 
       // Immediate redirect
-      window.location.href = offer.redirect_url || offer.source;
+      window.location.href = offer.source_url;
 
     } catch (err) {
       console.error('Error activating offer:', err);
@@ -220,7 +197,7 @@ const ResultsPage = () => {
 
   // Get alternative offers (exclude best offer, show max 5)
   const alternativeOffers = offersData?.offers
-    ?.filter(o => o.offer_id !== offersData.best_offer.offer_id)
+    ?.filter(o => o.id !== offersData.best_offer.id)
     ?.slice(0, 5) || [];
 
   const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
@@ -303,14 +280,15 @@ const ResultsPage = () => {
           {/* C) Best offer card with CTA */}
           <BestOfferCard
             provider={offersData.best_offer.provider}
-            offerName={offersData.best_offer.plan_name}
-            priceKwh={offersData.best_offer.unit_price_eur_kwh}
-            fixedFeeYear={offersData.best_offer.fixed_fee_eur_mo * 12}
+            offerName={offersData.best_offer.offer_name}
+            priceKwh={offersData.best_offer.price_kwh}
+            fixedFeeYear={offersData.best_offer.fixed_fee_year}
             annualCost={offersData.best_offer.offer_annual_cost_eur}
-            lastUpdate={offersData.best_offer.last_update}
-            source={offersData.best_offer.source}
+            lastUpdate={offersData.best_offer.last_checked}
+            source={offersData.best_offer.source_url}
+            termsUrl={offersData.best_offer.terms_url}
             onActivate={() => handleActivateOffer(offersData.best_offer)}
-            isLoading={loadingOfferId === offersData.best_offer.offer_id}
+            isLoading={loadingOfferId === offersData.best_offer.id}
           />
 
           {/* D) Alternative offers */}
@@ -320,15 +298,15 @@ const ResultsPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {alternativeOffers.map((offer) => (
                   <AlternativeOfferCard
-                    key={offer.offer_id}
+                    key={offer.id}
                     provider={offer.provider}
-                    offerName={offer.plan_name}
-                    priceKwh={offer.unit_price_eur_kwh}
-                    fixedFeeYear={offer.fixed_fee_eur_mo * 12}
+                    offerName={offer.offer_name}
+                    priceKwh={offer.price_kwh}
+                    fixedFeeYear={offer.fixed_fee_year}
                     annualCost={offer.offer_annual_cost_eur}
-                    source={offer.source}
+                    source={offer.source_url}
                     onSelect={() => handleActivateOffer(offer, true)}
-                    isLoading={loadingOfferId === offer.offer_id}
+                    isLoading={loadingOfferId === offer.id}
                   />
                 ))}
               </div>
@@ -338,7 +316,7 @@ const ResultsPage = () => {
           {/* E) Transparency notes */}
           <div className="text-center text-sm text-muted-foreground space-y-2 pt-4 border-t">
             <p>Costi stimati in base ai tuoi consumi. Verifica sempre le condizioni ufficiali del fornitore.</p>
-            <p>Ultimo aggiornamento prezzi: {new Date(offersData.best_offer.last_update).toLocaleDateString('it-IT')}</p>
+            <p>Ultimo aggiornamento prezzi: {new Date(offersData.best_offer.last_checked).toLocaleDateString('it-IT')}</p>
           </div>
         </div>
       </div>
@@ -348,9 +326,9 @@ const ResultsPage = () => {
         <Button 
           className="w-full h-12 text-lg font-semibold"
           onClick={() => handleActivateOffer(offersData.best_offer)}
-          disabled={loadingOfferId === offersData.best_offer.offer_id}
+          disabled={loadingOfferId === offersData.best_offer.id}
         >
-          {loadingOfferId === offersData.best_offer.offer_id ? (
+          {loadingOfferId === offersData.best_offer.id ? (
             'Reindirizzamento...'
           ) : (
             `Attiva e risparmia ${fmt(annualSaving)}`
