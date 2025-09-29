@@ -108,11 +108,15 @@ serve(async (req) => {
     const currentCost = ocrData.total_cost_eur;
     const annualSaving = Math.max(0, currentCost - bestOffer.offer_annual_cost_eur);
 
+    // Get user_id from OCR results
+    const userId = ocrData.user_id;
+
     // Save quote with real offer data
     const { data: quote, error: quoteError } = await supabase
       .from('quotes')
       .insert({
         upload_id: uploadId,
+        user_id: userId,
         offer_id: bestOffer.offer_id || bestOffer.id || crypto.randomUUID(),
         annual_cost_offer: bestOffer.offer_annual_cost_eur,
         annual_saving_eur: annualSaving

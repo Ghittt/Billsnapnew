@@ -97,6 +97,7 @@ export type Database = {
           redirect_url: string | null
           status: string | null
           upload_id: string
+          user_id: string | null
           utm_campaign: string | null
           utm_medium: string | null
           utm_source: string | null
@@ -114,6 +115,7 @@ export type Database = {
           redirect_url?: string | null
           status?: string | null
           upload_id: string
+          user_id?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
@@ -131,6 +133,7 @@ export type Database = {
           redirect_url?: string | null
           status?: string | null
           upload_id?: string
+          user_id?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
@@ -192,6 +195,7 @@ export type Database = {
           total_cost_eur: number | null
           unit_price_eur_kwh: number | null
           upload_id: string
+          user_id: string | null
         }
         Insert: {
           annual_kwh?: number | null
@@ -203,6 +207,7 @@ export type Database = {
           total_cost_eur?: number | null
           unit_price_eur_kwh?: number | null
           upload_id: string
+          user_id?: string | null
         }
         Update: {
           annual_kwh?: number | null
@@ -214,6 +219,7 @@ export type Database = {
           total_cost_eur?: number | null
           unit_price_eur_kwh?: number | null
           upload_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -344,6 +350,7 @@ export type Database = {
           id: string
           offer_id: string
           upload_id: string
+          user_id: string | null
         }
         Insert: {
           annual_cost_offer: number
@@ -352,6 +359,7 @@ export type Database = {
           id?: string
           offer_id: string
           upload_id: string
+          user_id?: string | null
         }
         Update: {
           annual_cost_offer?: number
@@ -360,6 +368,7 @@ export type Database = {
           id?: string
           offer_id?: string
           upload_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -499,15 +508,39 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: {
+        Args: { check_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "user" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -634,6 +667,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["user", "admin"],
+    },
   },
 } as const
