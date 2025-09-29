@@ -81,34 +81,67 @@ const ResultsPage = () => {
       if (!offersError && offersResponse?.best_offer) {
         finalPayload = offersResponse as OffersPayload;
       } else {
-        // Fallback to robust function if primary fails
+        // Fallback A: use robust server function
         const { data: bestResp, error: bestErr } = await supabase.functions.invoke(
           'get-best-offer',
           { body: { commodity: 'power', annualKwh: consumption, annualSmc: 0 } }
         );
 
-        if (bestErr || !bestResp?.best_offer) {
-          console.error('Fallback get-best-offer failed:', bestErr, bestResp);
-          throw new Error('NO_OFFERS');
+        if (!bestErr && bestResp?.best_offer) {
+          const mapOffer = (o: any) => ({
+            id: o.id || o.offer_id || crypto.randomUUID(),
+            provider: o.provider,
+            offer_name: o.plan_name,
+            price_kwh: o.unit_price_eur_kwh ?? o.price_kwh ?? 0,
+            fixed_fee_month: o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0,
+            fixed_fee_year: (o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0) * 12,
+            offer_annual_cost_eur: o.offer_annual_cost_eur ?? Math.round(consumption * (o.unit_price_eur_kwh || 0) + (o.fixed_fee_eur_mo || 0) * 12),
+            source_url: o.redirect_url || o.source || o.terms_url || '',
+            terms_url: o.terms_url || undefined,
+            last_checked: o.last_update || o.updated_at || new Date().toISOString(),
+          });
+
+          const best = mapOffer(bestResp.best_offer);
+          const list = (bestResp.offers || bestResp.allOffersResponse || []).map(mapOffer);
+          finalPayload = { best_offer: best, offers: list };
+        } else {
+          console.warn('Server fallbacks failed, using client-side computation', bestErr);
+          // Fallback B: compute on client directly from offers table
+          const { data: dbOffers, error: dbErr } = await supabase
+            .from('offers')
+            .select('*')
+            .eq('is_active', true)
+            .eq('commodity', 'power')
+            .order('created_at', { ascending: false });
+
+          if (dbErr || !dbOffers || dbOffers.length === 0) {
+            console.error('Client fallback failed:', dbErr);
+            throw new Error('NO_OFFERS');
+          }
+
+          const mapped = dbOffers.map((o: any) => {
+            const price = Number(o.unit_price_eur_kwh || o.price_kwh || 0);
+            const feeMo = Number(o.fixed_fee_eur_mo || o.fixed_fee_month || 0);
+            const total = Math.round(consumption * price + feeMo * 12);
+            return {
+              id: o.id,
+              provider: o.provider,
+              offer_name: o.plan_name,
+              price_kwh: price,
+              fixed_fee_month: feeMo,
+              fixed_fee_year: feeMo * 12,
+              offer_annual_cost_eur: total,
+              source_url: o.redirect_url || o.source || o.terms_url || '',
+              terms_url: o.terms_url || undefined,
+              last_checked: o.updated_at || o.created_at,
+            } as Offer;
+          });
+
+          mapped.sort((a, b) => a.offer_annual_cost_eur - b.offer_annual_cost_eur);
+          finalPayload = { best_offer: mapped[0], offers: mapped };
         }
-
-        const mapOffer = (o: any) => ({
-          id: o.id || o.offer_id || crypto.randomUUID(),
-          provider: o.provider,
-          offer_name: o.plan_name,
-          price_kwh: o.unit_price_eur_kwh ?? o.price_kwh ?? 0,
-          fixed_fee_month: o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0,
-          fixed_fee_year: (o.fixed_fee_eur_mo ?? o.fixed_fee_month ?? 0) * 12,
-          offer_annual_cost_eur: o.offer_annual_cost_eur ?? Math.round(consumption * (o.unit_price_eur_kwh || 0) + (o.fixed_fee_eur_mo || 0) * 12),
-          source_url: o.redirect_url || o.source || o.terms_url || '',
-          terms_url: o.terms_url || undefined,
-          last_checked: o.last_update || o.updated_at || new Date().toISOString(),
-        });
-
-        const best = mapOffer(bestResp.best_offer);
-        const list = (bestResp.offers || bestResp.allOffersResponse || []).map(mapOffer);
-        finalPayload = { best_offer: best, offers: list };
       }
+
 
       setOffersData(finalPayload);
 
