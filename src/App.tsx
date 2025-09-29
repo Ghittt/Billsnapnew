@@ -17,6 +17,7 @@ import Terms from "./pages/Terms";
 import Feedback from "./pages/Feedback";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
+import OffersManagement from "./pages/OffersManagement";
 import Debug from "./pages/Debug";
 import NotFound from "./pages/NotFound";
 
@@ -45,6 +46,11 @@ const App = () => (
             <Route path="/admin" element={
               <ProtectedRoute>
                 <Admin />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/offers" element={
+              <ProtectedRoute>
+                <OffersManagement />
               </ProtectedRoute>
             } />
             <Route path="/privacy" element={<Privacy />} />

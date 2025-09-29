@@ -7,7 +7,7 @@ interface AlternativeOfferCardProps {
   provider: string;
   offerName: string;
   priceKwh: number;
-  fixedFeeYear: number;
+  fixedFeeMonth: number;
   annualCost: number;
   source: string;
   onSelect: () => void;
@@ -18,7 +18,7 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
   provider,
   offerName,
   priceKwh,
-  fixedFeeYear,
+  fixedFeeMonth,
   annualCost,
   source,
   onSelect,
@@ -47,7 +47,7 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Quota fissa</span>
-            <span className="font-semibold">{fmt(fixedFeeYear / 12)}/mese</span>
+            <span className="font-semibold">{fmt(fixedFeeMonth)}/mese</span>
           </div>
         </div>
 
