@@ -234,6 +234,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_green: boolean | null
+          last_checked: string | null
           notes: string | null
           plan_name: string
           pricing_type: string
@@ -255,6 +256,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_green?: boolean | null
+          last_checked?: string | null
           notes?: string | null
           plan_name: string
           pricing_type: string
@@ -276,6 +278,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_green?: boolean | null
+          last_checked?: string | null
           notes?: string | null
           plan_name?: string
           pricing_type?: string

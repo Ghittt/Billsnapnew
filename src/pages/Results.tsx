@@ -277,12 +277,12 @@ const ResultsPage = () => {
                 {alternativeOffers.map((offer) => (
                   <AlternativeOfferCard
                     key={offer.id}
-                    provider={offer.provider}
-                    offerName={offer.offer_name}
-                    priceKwh={offer.price_kwh}
-                    fixedFeeYear={offer.fixed_fee_year}
-                    annualCost={offer.offer_annual_cost_eur}
-                    source={offer.source_url}
+                     provider={offer.provider}
+                     offerName={offer.offer_name}
+                     priceKwh={offer.price_kwh}
+                     fixedFeeMonth={offer.fixed_fee_month}
+                     annualCost={offer.offer_annual_cost_eur}
+                     source={offer.source_url}
                     onSelect={() => handleViewOffer(offer.id)}
                     isLoading={false}
                   />

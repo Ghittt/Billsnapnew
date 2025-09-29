@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Download, RefreshCw, Activity, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Loader2, Download, RefreshCw, Activity, CheckCircle, XCircle, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/layout/Header';
+import { useNavigate } from 'react-router-dom';
 
 const Admin = () => {
+  const navigate = useNavigate();
   const [isScrapingLoading, setIsScrapingLoading] = useState(false);
   const [isHealthCheckLoading, setIsHealthCheckLoading] = useState(false);
   const [scrapingResult, setScrapingResult] = useState<any>(null);
@@ -117,11 +119,17 @@ const Admin = () => {
       <Header />
       <main className="container mx-auto px-4 pt-24 pb-8">
         <div className="max-w-4xl mx-auto space-y-6">
-          <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold">Pannello Amministratore</h1>
-            <p className="text-muted-foreground">
-              Gestisci le offerte energetiche e aggiorna i dati di mercato
-            </p>
+          <div className="flex items-center justify-between">
+            <div className="text-center space-y-2 flex-1">
+              <h1 className="text-3xl font-bold">Pannello Amministratore</h1>
+              <p className="text-muted-foreground">
+                Gestisci le offerte energetiche e aggiorna i dati di mercato
+              </p>
+            </div>
+            <Button onClick={() => navigate('/admin/offers')} variant="outline">
+              <Settings className="w-4 h-4 mr-2" />
+              Gestisci Offerte
+            </Button>
           </div>
 
           <Card>
