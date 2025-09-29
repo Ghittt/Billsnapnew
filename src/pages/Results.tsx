@@ -41,12 +41,7 @@ const ResultsPage = () => {
   const [annualKwh, setAnnualKwh] = useState<number>(2700);
 
   useEffect(() => {
-    if (!uploadId) {
-      setError('ID upload mancante');
-      setIsLoading(false);
-      return;
-    }
-
+    // Always attempt to load results; if uploadId is missing we proceed with defaults
     fetchResults();
   }, [uploadId]);
 
@@ -55,18 +50,28 @@ const ResultsPage = () => {
       setIsLoading(true);
       setError(null);
 
-      // Fetch OCR results to get consumption data
-      const { data: ocrData, error: ocrError } = await supabase
-        .from('ocr_results')
-        .select('*')
-        .eq('upload_id', uploadId)
-        .single();
+      // Defaults if no OCR or no uploadId
+      let consumption = 2700;
+      let estimatedCurrentCost = Math.round(consumption * 0.30);
 
-      if (ocrError) throw ocrError;
+      if (uploadId) {
+        // Try to read OCR results safely (non-blocking)
+        const { data: ocrData, error: ocrError } = await supabase
+          .from('ocr_results')
+          .select('*')
+          .eq('upload_id', uploadId)
+          .maybeSingle();
 
-      const consumption = ocrData.annual_kwh || 2700;
-      const estimatedCurrentCost = ocrData.total_cost_eur || consumption * 0.30;
-      
+        if (ocrError) {
+          console.warn('OCR fetch warning (non-blocking):', ocrError);
+        }
+
+        if (ocrData) {
+          consumption = Number(ocrData.annual_kwh ?? consumption);
+          estimatedCurrentCost = Number(ocrData.total_cost_eur ?? consumption * 0.30);
+        }
+      }
+
       setAnnualKwh(consumption);
       setCurrentCost(estimatedCurrentCost);
 
