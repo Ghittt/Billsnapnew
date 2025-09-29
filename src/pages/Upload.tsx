@@ -65,14 +65,8 @@ const UploadPage = () => {
         throw new Error('Upload failed');
       }
 
-      // Get authenticated user (required for security)
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        // Redirect to auth if not logged in
-        navigate('/auth', { state: { from: '/upload', files } });
-        return;
-      }
+      // Get authenticated user (optional)
+      const { data: { user } } = await supabase.auth.getUser();
 
       const { data: uploadData, error: uploadError } = await supabase
         .from('uploads')
@@ -80,7 +74,7 @@ const UploadPage = () => {
           file_url: `bills/${Date.now()}-${file.name}`,
           file_type: file.type,
           file_size: file.size,
-          user_id: user.id
+          user_id: user?.id || null
         })
         .select()
         .single();
