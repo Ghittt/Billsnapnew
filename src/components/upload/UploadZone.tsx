@@ -67,13 +67,14 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onFileUpload, isUploading = fal
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button variant="upload" size="lg" disabled={isUploading}>
-            <Upload className="w-4 h-4" />
-            Scegli file
-          </Button>
-          <Button variant="outline" size="lg" disabled={isUploading}>
-            <Camera className="w-4 h-4" />
-            Scatta foto
+          <Button 
+            variant="default" 
+            size="lg" 
+            disabled={isUploading}
+            className="min-h-[44px] text-base font-semibold"
+          >
+            <Upload className="w-5 h-5" />
+            Carica bolletta
           </Button>
         </div>
       </div>
