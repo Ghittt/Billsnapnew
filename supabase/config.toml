@@ -62,6 +62,12 @@ verify_jwt = false
 [functions.save-lead]
 verify_jwt = false
 
+[functions.compare-offers]
+verify_jwt = false
+
+[functions.explain-choice]
+verify_jwt = false
+
 [functions.ai-parse-bill]
 verify_jwt = false
 

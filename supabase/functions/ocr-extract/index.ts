@@ -14,6 +14,62 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return b64encode(bytes.buffer);
 }
 
+// Helper functions for field extraction
+function grab(re: RegExp, s: string): string | null {
+  const m = s.match(re);
+  return m && (m[1] || m[0]) ? (m[1] || m[0]).trim() : null;
+}
+
+function toNum(x: string | null, d = 0): number {
+  if (!x) return d;
+  const n = Number(x.replace(',', '.').replace(/[^0-9.]/g, ''));
+  return isFinite(n) ? n : d;
+}
+
+function extractBillFields(text: string, aiParsed: any) {
+  const s = text.replace(/\s+/g, ' ');
+  
+  // Extract POD/PDR
+  const pod = grab(/POD[:\s]*([A-Z0-9]{14,})/i, s);
+  const pdr = grab(/PDR[:\s]*([0-9]{14,})/i, s);
+  
+  // Extract F1/F2/F3 consumption
+  const f1 = toNum(grab(/F1[^0-9]{0,10}([0-9.,]{1,})(?:\s?kWh)/i, s));
+  const f2 = toNum(grab(/F2[^0-9]{0,10}([0-9.,]{1,})(?:\s?kWh)/i, s));
+  const f3 = toNum(grab(/F3[^0-9]{0,10}([0-9.,]{1,})(?:\s?kWh)/i, s));
+  
+  // Total consumption
+  const kwh_period = toNum(grab(/Consumi(?:\s+totali)?[^0-9]{0,10}([0-9.,]+)\s?kWh/i, s), f1 + f2 + f3);
+  
+  // Power
+  const potenza = toNum(grab(/Potenza\s+(?:impegnata|contrattuale)[^\d]{0,10}([0-9.,]+)/i, s), 3.0);
+  
+  // Tariff type
+  const tariff = grab(/Mono(?:raria)|Bioraria|Triofascia|F1-F2-F3/i, s);
+  
+  // Billing period from AI
+  const periodStart = aiParsed?.billing_period_start || null;
+  const periodEnd = aiParsed?.billing_period_end || null;
+  const provider = aiParsed?.provider || grab(/Fornitore[:\s]*([A-Za-z0-9\s]+)/i, s);
+  
+  return {
+    pod,
+    pdr,
+    f1_kwh: f1 || null,
+    f2_kwh: f2 || null,
+    f3_kwh: f3 || null,
+    kwh_period: kwh_period || aiParsed?.annual_kwh || 2700,
+    potenza_kw: potenza,
+    tariff_hint: tariff || 'monoraria',
+    billing_period_start: periodStart,
+    billing_period_end: periodEnd,
+    provider,
+    total_cost_eur: aiParsed?.total_cost_eur || null,
+    unit_price_kwh: aiParsed?.unit_price_eur_kwh || null,
+    gas_smc: aiParsed?.gas_smc || null
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -187,16 +243,26 @@ FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no 
       throw new Error('Invalid JSON response from OCR AI');
     }
 
+    // Extract structured fields
+    const structured = extractBillFields(jsonStr, parsedData);
+    
     const extractedData = {
-      total_cost_eur: parsedData.total_cost_eur,
-      annual_kwh: parsedData.annual_kwh,
-      unit_price_eur_kwh: parsedData.unit_price_eur_kwh,
-      gas_smc: parsedData.gas_smc || null,
+      total_cost_eur: structured.total_cost_eur,
+      annual_kwh: structured.kwh_period,
+      unit_price_eur_kwh: structured.unit_price_kwh,
+      gas_smc: structured.gas_smc,
+      pod: structured.pod,
+      pdr: structured.pdr,
+      f1_kwh: structured.f1_kwh,
+      f2_kwh: structured.f2_kwh,
+      f3_kwh: structured.f3_kwh,
+      potenza_kw: structured.potenza_kw,
+      tariff_hint: structured.tariff_hint,
+      billing_period_start: structured.billing_period_start,
+      billing_period_end: structured.billing_period_end,
+      provider: structured.provider,
       quality_score: 0.95,
-      notes: parsedData.notes || '',
-      provider: parsedData.provider || null,
-      billing_period_start: parsedData.billing_period_start || null,
-      billing_period_end: parsedData.billing_period_end || null
+      notes: parsedData.notes || ''
     };
 
     console.log('Extracted data:', extractedData);
@@ -234,6 +300,16 @@ FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no 
         annual_kwh: extractedData.annual_kwh,
         unit_price_eur_kwh: extractedData.unit_price_eur_kwh,
         gas_smc: extractedData.gas_smc,
+        pod: extractedData.pod,
+        pdr: extractedData.pdr,
+        f1_kwh: extractedData.f1_kwh,
+        f2_kwh: extractedData.f2_kwh,
+        f3_kwh: extractedData.f3_kwh,
+        potenza_kw: extractedData.potenza_kw,
+        tariff_hint: extractedData.tariff_hint,
+        billing_period_start: extractedData.billing_period_start,
+        billing_period_end: extractedData.billing_period_end,
+        provider: extractedData.provider,
         quality_score: extractedData.quality_score,
         raw_json: extractedData
       });

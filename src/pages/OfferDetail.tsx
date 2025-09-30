@@ -12,7 +12,7 @@ interface Offer {
   id: string;
   provider: string;
   plan_name: string;
-  unit_price_eur_kwh: number;
+  price_kwh: number;
   fixed_fee_eur_mo: number;
   commodity: string;
   pricing_type: string;
@@ -61,7 +61,7 @@ export default function OfferDetail() {
         
         // Calculate annual cost with default 2700 kWh
         const defaultKwh = 2700;
-        const cost = defaultKwh * data.unit_price_eur_kwh + data.fixed_fee_eur_mo * 12;
+        const cost = defaultKwh * (data.price_kwh || 0) + (data.fixed_fee_eur_mo || 0) * 12;
         setAnnualCost(Math.round(cost));
       } catch (error) {
         console.error('Error fetching offer:', error);
@@ -184,7 +184,7 @@ export default function OfferDetail() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    €{offer.unit_price_eur_kwh.toFixed(4)}
+                    €{offer.price_kwh.toFixed(4)}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     per kWh

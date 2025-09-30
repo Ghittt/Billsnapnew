@@ -41,6 +41,47 @@ export type Database = {
         }
         Relationships: []
       }
+      comparison_results: {
+        Row: {
+          ai_explanation: Json | null
+          best_offer_id: string | null
+          created_at: string | null
+          id: string
+          profile_json: Json
+          ranked_offers: Json
+          upload_id: string
+          user_id: string | null
+        }
+        Insert: {
+          ai_explanation?: Json | null
+          best_offer_id?: string | null
+          created_at?: string | null
+          id?: string
+          profile_json: Json
+          ranked_offers: Json
+          upload_id: string
+          user_id?: string | null
+        }
+        Update: {
+          ai_explanation?: Json | null
+          best_offer_id?: string | null
+          created_at?: string | null
+          id?: string
+          profile_json?: Json
+          ranked_offers?: Json
+          upload_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comparison_results_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback: {
         Row: {
           category: string
@@ -187,11 +228,21 @@ export type Database = {
       ocr_results: {
         Row: {
           annual_kwh: number | null
+          billing_period_end: string | null
+          billing_period_start: string | null
           created_at: string
+          f1_kwh: number | null
+          f2_kwh: number | null
+          f3_kwh: number | null
           gas_smc: number | null
           id: string
+          pdr: string | null
+          pod: string | null
+          potenza_kw: number | null
+          provider: string | null
           quality_score: number | null
           raw_json: Json | null
+          tariff_hint: string | null
           total_cost_eur: number | null
           unit_price_eur_kwh: number | null
           upload_id: string
@@ -199,11 +250,21 @@ export type Database = {
         }
         Insert: {
           annual_kwh?: number | null
+          billing_period_end?: string | null
+          billing_period_start?: string | null
           created_at?: string
+          f1_kwh?: number | null
+          f2_kwh?: number | null
+          f3_kwh?: number | null
           gas_smc?: number | null
           id?: string
+          pdr?: string | null
+          pod?: string | null
+          potenza_kw?: number | null
+          provider?: string | null
           quality_score?: number | null
           raw_json?: Json | null
+          tariff_hint?: string | null
           total_cost_eur?: number | null
           unit_price_eur_kwh?: number | null
           upload_id: string
@@ -211,11 +272,21 @@ export type Database = {
         }
         Update: {
           annual_kwh?: number | null
+          billing_period_end?: string | null
+          billing_period_start?: string | null
           created_at?: string
+          f1_kwh?: number | null
+          f2_kwh?: number | null
+          f3_kwh?: number | null
           gas_smc?: number | null
           id?: string
+          pdr?: string | null
+          pod?: string | null
+          potenza_kw?: number | null
+          provider?: string | null
           quality_score?: number | null
           raw_json?: Json | null
+          tariff_hint?: string | null
           total_cost_eur?: number | null
           unit_price_eur_kwh?: number | null
           upload_id?: string
@@ -243,6 +314,12 @@ export type Database = {
           last_checked: string | null
           notes: string | null
           plan_name: string
+          power_fee_year: number | null
+          price_f1: number | null
+          price_f2: number | null
+          price_f23: number | null
+          price_f3: number | null
+          price_kwh: number | null
           pricing_type: string
           product_url: string | null
           provider: string
@@ -250,8 +327,8 @@ export type Database = {
           provider_name: string | null
           redirect_url: string | null
           source: string | null
+          tariff_type: string | null
           terms_url: string | null
-          unit_price_eur_kwh: number | null
           unit_price_eur_smc: number | null
           updated_at: string | null
           url_checked_at: string | null
@@ -272,6 +349,12 @@ export type Database = {
           last_checked?: string | null
           notes?: string | null
           plan_name: string
+          power_fee_year?: number | null
+          price_f1?: number | null
+          price_f2?: number | null
+          price_f23?: number | null
+          price_f3?: number | null
+          price_kwh?: number | null
           pricing_type: string
           product_url?: string | null
           provider: string
@@ -279,8 +362,8 @@ export type Database = {
           provider_name?: string | null
           redirect_url?: string | null
           source?: string | null
+          tariff_type?: string | null
           terms_url?: string | null
-          unit_price_eur_kwh?: number | null
           unit_price_eur_smc?: number | null
           updated_at?: string | null
           url_checked_at?: string | null
@@ -301,6 +384,12 @@ export type Database = {
           last_checked?: string | null
           notes?: string | null
           plan_name?: string
+          power_fee_year?: number | null
+          price_f1?: number | null
+          price_f2?: number | null
+          price_f23?: number | null
+          price_f3?: number | null
+          price_kwh?: number | null
           pricing_type?: string
           product_url?: string | null
           provider?: string
@@ -308,8 +397,8 @@ export type Database = {
           provider_name?: string | null
           redirect_url?: string | null
           source?: string | null
+          tariff_type?: string | null
           terms_url?: string | null
-          unit_price_eur_kwh?: number | null
           unit_price_eur_smc?: number | null
           updated_at?: string | null
           url_checked_at?: string | null

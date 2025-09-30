@@ -20,7 +20,7 @@ interface Offer {
   provider: string;
   plan_name: string;
   commodity: string;
-  unit_price_eur_kwh: number;
+  price_kwh: number;
   fixed_fee_eur_mo: number;
   pricing_type: string;
   valid_from: string;
@@ -31,6 +31,12 @@ interface Offer {
   is_green: boolean;
   source: string;
   notes: string | null;
+  tariff_type?: string;
+  price_f1?: number;
+  price_f2?: number;
+  price_f3?: number;
+  price_f23?: number;
+  power_fee_year?: number;
 }
 
 const OffersManagement = () => {
@@ -47,7 +53,7 @@ const OffersManagement = () => {
     provider: '',
     plan_name: '',
     commodity: 'power',
-    unit_price_eur_kwh: '',
+    price_kwh: '',
     fixed_fee_eur_mo: '',
     pricing_type: 'fixed',
     valid_from: new Date().toISOString().split('T')[0],
@@ -115,7 +121,7 @@ const OffersManagement = () => {
     try {
       const offerData = {
         ...formData,
-        unit_price_eur_kwh: parseFloat(formData.unit_price_eur_kwh),
+        price_kwh: parseFloat(formData.price_kwh),
         fixed_fee_eur_mo: parseFloat(formData.fixed_fee_eur_mo),
         valid_to: formData.valid_to || null,
         redirect_url: formData.redirect_url || null,
@@ -160,7 +166,7 @@ const OffersManagement = () => {
       provider: offer.provider,
       plan_name: offer.plan_name,
       commodity: offer.commodity,
-      unit_price_eur_kwh: offer.unit_price_eur_kwh.toString(),
+      price_kwh: offer.price_kwh.toString(),
       fixed_fee_eur_mo: offer.fixed_fee_eur_mo.toString(),
       pricing_type: offer.pricing_type,
       valid_from: offer.valid_from,
@@ -201,7 +207,7 @@ const OffersManagement = () => {
       provider: '',
       plan_name: '',
       commodity: 'power',
-      unit_price_eur_kwh: '',
+      price_kwh: '',
       fixed_fee_eur_mo: '',
       pricing_type: 'fixed',
       valid_from: new Date().toISOString().split('T')[0],
@@ -305,13 +311,13 @@ const OffersManagement = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="unit_price_eur_kwh">€/kWh *</Label>
+                      <Label htmlFor="price_kwh">€/kWh *</Label>
                       <Input
-                        id="unit_price_eur_kwh"
+                        id="price_kwh"
                         type="number"
                         step="0.0001"
-                        value={formData.unit_price_eur_kwh}
-                        onChange={(e) => setFormData({...formData, unit_price_eur_kwh: e.target.value})}
+                        value={formData.price_kwh}
+                        onChange={(e) => setFormData({...formData, price_kwh: e.target.value})}
                         required
                       />
                     </div>
@@ -455,7 +461,7 @@ const OffersManagement = () => {
                           <TableCell>{offer.plan_name}</TableCell>
                           <TableCell className="capitalize">{offer.pricing_type}</TableCell>
                           <TableCell className="text-right font-mono">
-                            {offer.unit_price_eur_kwh.toFixed(4)}
+                            {offer.price_kwh.toFixed(4)}
                           </TableCell>
                           <TableCell className="text-right">{fmt(offer.fixed_fee_eur_mo)}</TableCell>
                           <TableCell className="text-sm">
