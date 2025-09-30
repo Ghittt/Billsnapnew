@@ -115,24 +115,37 @@ const UploadPage = () => {
         });
       }
 
-      // Step 3: Calculate savings
+      // Step 3: Compare offers and get AI explanation
       setCurrentStep('calculate');
-      const savingsResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-savings`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ uploadId: uploadData.id })
+      const { data: compareData, error: compareError } = await supabase.functions.invoke('compare-offers', {
+        body: { uploadId: uploadData.id }
       });
 
-      if (!savingsResponse.ok) {
-        throw new Error('Savings calculation failed');
+      if (compareError) {
+        console.error('Compare offers error:', compareError);
+        throw new Error('Errore nel confronto delle offerte');
       }
 
-      const savingsData = await savingsResponse.json();
+      console.log('Offers compared successfully:', compareData);
+
+      // Step 4: Get AI explanation
+      if (compareData?.best && compareData?.profile) {
+        const { data: explainData, error: explainError } = await supabase.functions.invoke('explain-choice', {
+          body: {
+            profile: compareData.profile,
+            best: compareData.best,
+            runnerUp: compareData.runnerUp
+          }
+        });
+
+        if (explainError) {
+          console.error('AI explanation failed:', explainError);
+        } else {
+          console.log('AI explanation generated:', explainData);
+        }
+      }
       
-      // Step 4: Complete
+      // Step 5: Complete
       setCurrentStep('complete');
       setUploadedFiles(files);
       
@@ -140,17 +153,12 @@ const UploadPage = () => {
       if (typeof gtag !== 'undefined') {
         gtag('event', 'result_shown', {
           'event_category': 'engagement',
-          'value': savingsData.annualSaving || 0
+          'value': compareData?.best?.total_year || 0
         });
       }
       
       setTimeout(() => {
-        navigate('/results', { 
-          state: { 
-            savingsData,
-            uploadId: uploadData.id 
-          } 
-        });
+        navigate(`/results?uploadId=${uploadData.id}`);
       }, 1000);
       
     } catch (error) {
