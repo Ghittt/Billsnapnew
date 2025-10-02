@@ -41,6 +41,27 @@ export type Database = {
         }
         Relationships: []
       }
+      bills: {
+        Row: {
+          created_at: string | null
+          fields_json: Json | null
+          id: string
+          raw_text: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fields_json?: Json | null
+          id?: string
+          raw_text?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fields_json?: Json | null
+          id?: string
+          raw_text?: string | null
+        }
+        Relationships: []
+      }
       comparison_results: {
         Row: {
           ai_explanation: Json | null
