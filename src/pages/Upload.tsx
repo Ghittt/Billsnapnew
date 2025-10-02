@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import Header from '@/components/layout/Header';
 import UploadZone from '@/components/upload/UploadZone';
 import ProgressIndicator from '@/components/upload/ProgressIndicator';
+import { ManualBillInputModal } from '@/components/upload/ManualBillInputModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, Clock, Upload, AlertTriangle } from 'lucide-react';
@@ -17,6 +18,8 @@ const UploadPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [currentStep, setCurrentStep] = useState<'upload' | 'ocr' | 'calculate' | 'complete'>('upload');
   const [retryCount, setRetryCount] = useState(0);
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -103,7 +106,22 @@ const UploadPage = () => {
       });
 
       if (!ocrResponse.ok) {
-        throw new Error('Non riusciamo a leggere bene questa bolletta. Prova con un PDF o una foto più nitida.');
+        console.error('OCR failed, status:', ocrResponse.status);
+        
+        // Retry logic for common OCR failures
+        if (retryCount < 1) {
+          console.log(`Retrying OCR (attempt ${retryCount + 1})...`);
+          setRetryCount(retryCount + 1);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return handleFileUpload(files);
+        }
+        
+        // OCR failed after retries - offer manual input
+        console.log('OCR failed after retries, opening manual input modal');
+        setPendingUploadId(uploadData.id);
+        setShowManualInput(true);
+        setIsUploading(false);
+        return;
       }
 
       const ocrData = await ocrResponse.json();
@@ -198,6 +216,86 @@ const UploadPage = () => {
     }
   };
 
+  const handleManualInput = async (fields: any) => {
+    if (!pendingUploadId) return;
+
+    try {
+      setShowManualInput(false);
+      setIsUploading(true);
+      setCurrentStep('calculate');
+
+      // Store manual fields in bills table
+      await supabase.from("bills").insert({
+        fields_json: fields,
+        raw_text: "Manual input"
+      });
+
+      // Create OCR result with manual data
+      const { error: ocrInsertError } = await supabase
+        .from("ocr_results")
+        .insert({
+          upload_id: pendingUploadId,
+          annual_kwh: fields.kwh_period,
+          f1_kwh: fields.f1_kwh,
+          f2_kwh: fields.f2_kwh,
+          f3_kwh: fields.f3_kwh,
+          potenza_kw: fields.potenza_kw,
+          total_cost_eur: fields.fixed_fee_month * 12,
+          quality_score: 0.5, // Manual input quality score
+          tariff_hint: "manual"
+        });
+
+      if (ocrInsertError) throw ocrInsertError;
+
+      // Continue with comparison
+      console.log("Calling offer comparison with manual data...");
+      const { data: compareData, error: compareError } = await supabase.functions.invoke('compare-offers', {
+        body: { uploadId: pendingUploadId }
+      });
+
+      if (compareError) throw compareError;
+
+      console.log('Offers compared successfully:', compareData);
+
+      // Get AI explanation
+      if (compareData?.best && compareData?.profile) {
+        const { data: explainData, error: explainError } = await supabase.functions.invoke('explain-choice', {
+          body: {
+            profile: compareData.profile,
+            best: compareData.best,
+            runnerUp: compareData.runnerUp
+          }
+        });
+
+        if (explainError) {
+          console.error('AI explanation failed:', explainError);
+        }
+      }
+
+      setCurrentStep('complete');
+      
+      toast({
+        title: "Analisi completata!",
+        description: "Confronto offerte completato con i dati inseriti manualmente.",
+      });
+
+      setTimeout(() => {
+        navigate(`/results?uploadId=${pendingUploadId}`);
+      }, 1000);
+
+    } catch (error) {
+      console.error("Error processing manual input:", error);
+      toast({
+        title: "Errore",
+        description: "Errore durante l'elaborazione dei dati. Riprova.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setPendingUploadId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Header />
@@ -259,6 +357,15 @@ const UploadPage = () => {
           )}
         </div>
       </div>
+
+      <ManualBillInputModal
+        open={showManualInput}
+        onClose={() => {
+          setShowManualInput(false);
+          setPendingUploadId(null);
+        }}
+        onSubmit={handleManualInput}
+      />
     </div>
   );
 };
