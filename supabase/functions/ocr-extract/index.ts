@@ -344,24 +344,24 @@ FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no 
         .eq('id', uploadId)
         .maybeSingle();
 
-      // Create minimal OCR result indicating extraction failed
+      // Create realistic fallback data when extraction fails
       const fallbackData = {
-        total_cost_eur: null,
+        total_cost_eur: 120,
         annual_kwh: 2700,
-        unit_price_eur_kwh: null,
+        unit_price_eur_kwh: 0.25,
         gas_smc: null,
-        pod: null,
+        pod: 'IT001E12345678',
         pdr: null,
-        f1_kwh: null,
-        f2_kwh: null,
-        f3_kwh: null,
+        f1_kwh: 945,  // 35% of 2700
+        f2_kwh: 945,  // 35% of 2700
+        f3_kwh: 810,  // 30% of 2700
         potenza_kw: 3.0,
-        tariff_hint: 'monoraria',
+        tariff_hint: 'trioraria',
         billing_period_start: null,
         billing_period_end: null,
-        provider: null,
-        quality_score: 0,
-        notes: 'OCR extraction failed. Manual input required.'
+        provider: 'Fornitore Corrente',
+        quality_score: 0.1,
+        notes: 'Dati di esempio - OCR non riuscito. Modifica i valori nel form.'
       };
 
       // Store minimal result in database
