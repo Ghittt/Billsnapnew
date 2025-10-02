@@ -327,15 +327,89 @@ FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no 
 
   } catch (error) {
     console.error('Error in ocr-extract function:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        details: error instanceof Error ? error.stack : undefined
-      }), 
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    
+    // Instead of failing, return a minimal result with quality_score = 0
+    // This allows the frontend to open the manual input modal
+    const uploadId = (await req.formData().catch(() => new FormData())).get('uploadId') as string;
+    
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      // Get user_id from upload record if available
+      const { data: uploadRecord } = await supabase
+        .from('uploads')
+        .select('user_id')
+        .eq('id', uploadId)
+        .maybeSingle();
+
+      // Create minimal OCR result indicating extraction failed
+      const fallbackData = {
+        total_cost_eur: null,
+        annual_kwh: 2700,
+        unit_price_eur_kwh: null,
+        gas_smc: null,
+        pod: null,
+        pdr: null,
+        f1_kwh: null,
+        f2_kwh: null,
+        f3_kwh: null,
+        potenza_kw: 3.0,
+        tariff_hint: 'monoraria',
+        billing_period_start: null,
+        billing_period_end: null,
+        provider: null,
+        quality_score: 0,
+        notes: 'OCR extraction failed. Manual input required.'
+      };
+
+      // Store minimal result in database
+      if (uploadId) {
+        await supabase
+          .from('ocr_results')
+          .insert({
+            upload_id: uploadId,
+            user_id: uploadRecord?.user_id,
+            total_cost_eur: fallbackData.total_cost_eur,
+            annual_kwh: fallbackData.annual_kwh,
+            unit_price_eur_kwh: fallbackData.unit_price_eur_kwh,
+            gas_smc: fallbackData.gas_smc,
+            pod: fallbackData.pod,
+            pdr: fallbackData.pdr,
+            f1_kwh: fallbackData.f1_kwh,
+            f2_kwh: fallbackData.f2_kwh,
+            f3_kwh: fallbackData.f3_kwh,
+            potenza_kw: fallbackData.potenza_kw,
+            tariff_hint: fallbackData.tariff_hint,
+            billing_period_start: fallbackData.billing_period_start,
+            billing_period_end: fallbackData.billing_period_end,
+            provider: fallbackData.provider,
+            quality_score: fallbackData.quality_score,
+            raw_json: fallbackData
+          });
       }
-    );
+
+      // Return success with quality_score = 0 to trigger manual input
+      return new Response(JSON.stringify(fallbackData), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
+
+    } catch (fallbackError) {
+      console.error('Fallback also failed:', fallbackError);
+      // Last resort: return error
+      return new Response(
+        JSON.stringify({ 
+          error: error instanceof Error ? error.message : 'Unknown error',
+          details: error instanceof Error ? error.stack : undefined,
+          quality_score: 0
+        }), 
+        {
+          status: 422,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
   }
 });

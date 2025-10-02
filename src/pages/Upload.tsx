@@ -126,6 +126,17 @@ const UploadPage = () => {
 
       const ocrData = await ocrResponse.json();
       
+      console.log('OCR response:', ocrData);
+      
+      // Check if OCR quality is too low or failed
+      if (ocrData.quality_score !== undefined && ocrData.quality_score < 0.3) {
+        console.log('OCR quality too low, opening manual input modal');
+        setPendingUploadId(uploadData.id);
+        setShowManualInput(true);
+        setIsUploading(false);
+        return;
+      }
+      
       // Track OCR completion
       if (typeof gtag !== 'undefined') {
         gtag('event', 'ocr_completed', {
