@@ -128,15 +128,6 @@ const UploadPage = () => {
       
       console.log('OCR response:', ocrData);
       
-      // Check if OCR quality is too low or failed
-      if (ocrData.quality_score !== undefined && ocrData.quality_score < 0.3) {
-        console.log('OCR quality too low, opening manual input modal');
-        setPendingUploadId(uploadData.id);
-        setShowManualInput(true);
-        setIsUploading(false);
-        return;
-      }
-      
       // Track OCR completion
       if (typeof gtag !== 'undefined') {
         gtag('event', 'ocr_completed', {
@@ -156,25 +147,8 @@ const UploadPage = () => {
       }
 
       console.log('Offers compared successfully:', compareData);
-
-      // Step 4: Get AI explanation
-      if (compareData?.best && compareData?.profile) {
-        const { data: explainData, error: explainError } = await supabase.functions.invoke('explain-choice', {
-          body: {
-            profile: compareData.profile,
-            best: compareData.best,
-            runnerUp: compareData.runnerUp
-          }
-        });
-
-        if (explainError) {
-          console.error('AI explanation failed:', explainError);
-        } else {
-          console.log('AI explanation generated:', explainData);
-        }
-      }
       
-      // Step 5: Complete
+      // Step 4: Complete (AI explanations will be generated in Results page)
       setCurrentStep('complete');
       setUploadedFiles(files);
       
@@ -268,21 +242,7 @@ const UploadPage = () => {
 
       console.log('Offers compared successfully:', compareData);
 
-      // Get AI explanation
-      if (compareData?.best && compareData?.profile) {
-        const { data: explainData, error: explainError } = await supabase.functions.invoke('explain-choice', {
-          body: {
-            profile: compareData.profile,
-            best: compareData.best,
-            runnerUp: compareData.runnerUp
-          }
-        });
-
-        if (explainError) {
-          console.error('AI explanation failed:', explainError);
-        }
-      }
-
+      // AI explanations will be generated in Results page
       setCurrentStep('complete');
       
       toast({
