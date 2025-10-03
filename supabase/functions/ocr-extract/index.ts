@@ -366,7 +366,7 @@ FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no 
 
       // Store minimal result in database
       if (uploadId) {
-        await supabase
+        const { error: insertError } = await supabase
           .from('ocr_results')
           .insert({
             upload_id: uploadId,
@@ -388,6 +388,13 @@ FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no 
             quality_score: fallbackData.quality_score,
             raw_json: fallbackData
           });
+        
+        if (insertError) {
+          console.error('Failed to insert fallback OCR data:', insertError);
+          throw new Error(`Failed to save fallback data: ${insertError.message}`);
+        }
+        
+        console.log('Fallback OCR data saved successfully');
       }
 
       // Return success with quality_score = 0 to trigger manual input
