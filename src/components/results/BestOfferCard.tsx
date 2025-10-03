@@ -15,6 +15,13 @@ interface BestOfferCardProps {
   onActivate: () => void;
   isLoading?: boolean;
   urlVerified?: boolean;
+  explanation?: {
+    headline: string;
+    simple_explanation: string;
+    why_this_price: string;
+    best_for: string;
+    savings_vs_current: number | null;
+  };
 }
 
 export const BestOfferCard: React.FC<BestOfferCardProps> = ({
@@ -28,7 +35,8 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
   termsUrl,
   onActivate,
   isLoading = false,
-  urlVerified = undefined
+  urlVerified = undefined,
+  explanation
 }) => {
   const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
     style: 'currency',
@@ -86,7 +94,33 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
         <div className="text-center p-4 bg-primary/10 rounded-lg">
           <p className="text-sm text-muted-foreground mb-1">Costo annuo stimato</p>
           <p className="text-3xl font-bold text-primary">{fmt(annualCost)}</p>
+          {explanation?.savings_vs_current && explanation.savings_vs_current > 0 && (
+            <p className="text-sm text-success font-medium mt-2">
+              Risparmi {fmt(explanation.savings_vs_current)} all'anno
+            </p>
+          )}
         </div>
+
+        {/* AI Explanation */}
+        {explanation && (
+          <div className="space-y-3 p-4 bg-background/50 rounded-lg border border-primary/20">
+            <div>
+              <h4 className="font-semibold text-primary mb-2">{explanation.headline}</h4>
+              <p className="text-sm text-foreground leading-relaxed">{explanation.simple_explanation}</p>
+            </div>
+            
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-medium text-muted-foreground">💰 Perché questo prezzo: </span>
+                <span className="text-foreground">{explanation.why_this_price}</span>
+              </div>
+              <div>
+                <span className="font-medium text-muted-foreground">✅ Ideale per: </span>
+                <span className="text-foreground">{explanation.best_for}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* CTA Button as direct link */}
         <Button 

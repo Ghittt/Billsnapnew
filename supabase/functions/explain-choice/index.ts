@@ -18,72 +18,66 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    const { profile, best, runnerUp } = await req.json();
+    const { profile, offers } = await req.json();
 
-    if (!profile || !best) {
-      throw new Error('profile and best offer are required');
+    if (!profile || !offers || !Array.isArray(offers) || offers.length === 0) {
+      throw new Error('profile and offers array are required');
     }
 
-    console.log('Generating AI explanation for best offer:', best.offer_id);
+    console.log('Generating AI explanations for', offers.length, 'offers');
 
-    const systemPrompt = `Sei un consulente energia esperto. Spiega in modo chiaro e onesto PERCHÉ l'offerta migliore è più conveniente.
+    const systemPrompt = `Sei un assistente energia esperto che spiega le offerte in modo SEMPLICE e UMANO.
 
-Usa SOLO i numeri forniti:
-- Consumo annuo kWh e distribuzione per fascia (F1/F2/F3)
-- Prezzi €/kWh per fascia
-- Quota fissa mensile
-- Potenza impegnata
+STILE DI COMUNICAZIONE:
+- Usa un tono amichevole e diretto, come se parlassi a un amico
+- Spiega le FASCE ORARIE in modo comprensibile:
+  * F1 (picco): lunedì-venerdì 8-19, quando consumi di più costa di più
+  * F2 (intermedia): mattino presto e sera tardi dei giorni feriali, sabato
+  * F3 (fuori picco): notte, domenica e festivi, quando l'energia costa meno
+- Mostra DOVE si risparmia rispetto alla bolletta attuale
+- Usa esempi concreti e numeri reali
+- NON inventare numeri, usa SOLO quelli forniti
 
-IMPORTANTE:
-- NON inventare stime o numeri
-- Spiega il calcolo in modo trasparente
-- Usa bullet points chiari
-- Includi il risparmio annuale totale
-
-Rispondi SOLO con JSON valido in questo formato:
+Per OGNI offerta, rispondi con JSON in questo formato:
 {
-  "headline": "Breve titolo accattivante del risparmio",
-  "bullets": [
-    "Punto 1 con calcolo specifico",
-    "Punto 2 con dettaglio prezzi",
-    "Punto 3 con confronto tariffe"
-  ],
-  "savings_per_year": numero_risparmio_in_euro,
-  "explanation": "Spiegazione dettagliata del calcolo (2-3 frasi)"
-}`;
+  "offer_id": "id_dell_offerta",
+  "headline": "Titolo breve e chiaro (es: 'Ideale se consumi di sera')",
+  "simple_explanation": "Spiegazione in 2-3 frasi semplici che chiunque capisca, includendo le fasce orarie se rilevanti",
+  "why_this_price": "Perché costa così: spiega in modo umano come si arriva al costo totale",
+  "best_for": "Per chi è perfetta questa offerta (es: 'famiglie che usano elettrodomestici la sera')",
+  "savings_vs_current": numero_risparmio_rispetto_bolletta_attuale_o_null
+}
 
-    const userContent = runnerUp 
-      ? `Profilo consumo:
-- Consumo annuo: ${profile.total_kwh_year} kWh
-- Fascia F1: ${(profile.f1_share * 100).toFixed(0)}%
-- Fascia F2: ${(profile.f2_share * 100).toFixed(0)}%
-- Fascia F3: ${(profile.f3_share * 100).toFixed(0)}%
-- Potenza: ${profile.potenza_kw} kW
+Fornisci un array di questi oggetti, uno per ogni offerta.`;
 
-Offerta migliore (${best.provider} - ${best.plan_name}):
-- Tipo tariffa: ${best.tariff_type}
-- Costo energia: ${best.energy_year}€/anno
-- Quota fissa: ${best.fee_year}€/anno
-- Costo totale: ${best.total_year}€/anno
+    // Calcola il costo attuale stimato dalla bolletta
+    const currentCost = offers[0].current_cost_eur || (profile.total_kwh_year * 0.30);
 
-Seconda migliore (${runnerUp.provider} - ${runnerUp.plan_name}):
-- Costo totale: ${runnerUp.total_year}€/anno
+    const userContent = `Profilo consumo dell'utente:
+- Consumo annuo totale: ${profile.total_kwh_year} kWh
+- Fascia F1 (picco, lun-ven 8-19): ${(profile.f1_share * 100).toFixed(0)}% = ${Math.round(profile.total_kwh_year * profile.f1_share)} kWh
+- Fascia F2 (intermedia): ${(profile.f2_share * 100).toFixed(0)}% = ${Math.round(profile.total_kwh_year * profile.f2_share)} kWh  
+- Fascia F3 (fuori picco, notte/weekend): ${(profile.f3_share * 100).toFixed(0)}% = ${Math.round(profile.total_kwh_year * profile.f3_share)} kWh
+- Potenza impegnata: ${profile.potenza_kw} kW
+- Costo bolletta attuale stimato: ${currentCost.toFixed(0)}€/anno
 
-Spiega perché la prima è migliore della seconda.`
-      : `Profilo consumo:
-- Consumo annuo: ${profile.total_kwh_year} kWh
-- Fascia F1: ${(profile.f1_share * 100).toFixed(0)}%
-- Fascia F2: ${(profile.f2_share * 100).toFixed(0)}%
-- Fascia F3: ${(profile.f3_share * 100).toFixed(0)}%
-- Potenza: ${profile.potenza_kw} kW
+Offerte da spiegare:
+${offers.map((o: any, i: number) => `
+${i + 1}. ${o.provider} - ${o.plan_name}
+   - ID: ${o.offer_id}
+   - Tipo tariffa: ${o.tariff_type}
+   - Prezzo F1: ${o.price_f1 || o.price_kwh}€/kWh
+   - Prezzo F2: ${o.price_f2 || o.price_kwh}€/kWh
+   - Prezzo F3: ${o.price_f3 || o.price_kwh}€/kWh
+   - Quota fissa: ${o.fee_month}€/mese
+   - Costo totale annuo: ${o.total_year}€
+   ${i === 0 ? '★ MIGLIORE OFFERTA' : ''}
+`).join('\n')}
 
-Offerta migliore (${best.provider} - ${best.plan_name}):
-- Tipo tariffa: ${best.tariff_type}
-- Costo energia: ${best.energy_year}€/anno
-- Quota fissa: ${best.fee_year}€/anno
-- Costo totale: ${best.total_year}€/anno
-
-Spiega i vantaggi di questa offerta.`;
+Spiega ogni offerta in modo comprensibile, evidenziando:
+1. Se ha prezzi diversi per fascia oraria e cosa significa per l'utente
+2. Quanto si risparmia rispetto alla bolletta attuale (${currentCost.toFixed(0)}€)
+3. Per quale tipo di consumatore è più adatta`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -118,19 +112,23 @@ Spiega i vantaggi di questa offerta.`;
     let parsed;
     try {
       parsed = JSON.parse(content);
+      
+      // Ensure we have an array
+      if (!Array.isArray(parsed)) {
+        parsed = [parsed];
+      }
     } catch (e) {
       console.error('Failed to parse AI response:', content);
-      // Fallback response
-      parsed = {
-        headline: `Risparmia ${runnerUp ? (runnerUp.total_year - best.total_year).toFixed(0) : '100'}€ all'anno`,
-        bullets: [
-          `Tariffa ${best.tariff_type} ottimizzata per il tuo consumo`,
-          `Costo energia: ${best.energy_year}€/anno`,
-          `Quota fissa: ${best.fee_year}€/anno`
-        ],
-        savings_per_year: runnerUp ? (runnerUp.total_year - best.total_year) : 100,
-        explanation: `Con ${best.provider} paghi ${best.total_year}€/anno per ${profile.total_kwh_year} kWh.`
-      };
+      // Fallback responses for each offer
+      const currentCost = offers[0].current_cost_eur || (profile.total_kwh_year * 0.30);
+      parsed = offers.map((offer: any, i: number) => ({
+        offer_id: offer.offer_id,
+        headline: i === 0 ? 'La scelta più conveniente' : 'Alternativa valida',
+        simple_explanation: `Offerta ${offer.tariff_type} di ${offer.provider} con costo annuo di ${offer.total_year}€.`,
+        why_this_price: `Il costo include ${offer.fee_month}€/mese di quota fissa più il consumo di energia.`,
+        best_for: 'Utenti domestici',
+        savings_vs_current: i === 0 ? Math.round(currentCost - offer.total_year) : null
+      }));
     }
 
     return new Response(JSON.stringify(parsed), {
