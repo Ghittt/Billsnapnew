@@ -13,6 +13,13 @@ interface AlternativeOfferCardProps {
   onSelect: () => void;
   isLoading?: boolean;
   urlVerified?: boolean;
+  explanation?: {
+    headline: string;
+    simple_explanation: string;
+    why_this_price: string;
+    best_for: string;
+    savings_vs_current: number | null;
+  };
 }
 
 export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
@@ -24,7 +31,8 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
   source,
   onSelect,
   isLoading = false,
-  urlVerified = undefined
+  urlVerified = undefined,
+  explanation
 }) => {
   const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
     style: 'currency',
@@ -73,7 +81,23 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
             <span className="text-sm text-muted-foreground">Costo annuo</span>
             <span className="text-xl font-bold">{fmt(annualCost)}</span>
           </div>
+          {explanation?.savings_vs_current && explanation.savings_vs_current > 0 && (
+            <p className="text-xs text-success font-medium mt-1">
+              Risparmi {fmt(explanation.savings_vs_current)}
+            </p>
+          )}
         </div>
+
+        {/* AI Explanation */}
+        {explanation && (
+          <div className="space-y-2 p-3 bg-muted/30 rounded-lg text-sm">
+            <p className="font-medium text-foreground">{explanation.headline}</p>
+            <p className="text-muted-foreground leading-snug">{explanation.simple_explanation}</p>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium">Ideale per:</span> {explanation.best_for}
+            </p>
+          </div>
+        )}
 
         {/* Action button - anchor to avoid popup blockers */}
         <Button
