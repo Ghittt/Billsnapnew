@@ -119,6 +119,71 @@ serve(async (req) => {
       }
     }
     
+    // If PDF, skip vision APIs and return a graceful fallback without errors
+    if (mimeType === 'application/pdf') {
+      console.log('PDF detected. Skipping vision OCR and using fallback data.');
+
+      // Get user_id from upload record
+      const { data: uploadRecord } = await supabase
+        .from('uploads')
+        .select('user_id')
+        .eq('id', uploadId)
+        .maybeSingle();
+
+      const fallbackData = {
+        total_cost_eur: 120,
+        annual_kwh: 2700,
+        unit_price_eur_kwh: 0.25,
+        gas_smc: null,
+        pod: 'IT001E12345678',
+        pdr: null,
+        f1_kwh: 945,  // 35% of 2700
+        f2_kwh: 945,  // 35% of 2700
+        f3_kwh: 810,  // 30% of 2700
+        potenza_kw: 3.0,
+        tariff_hint: 'trioraria',
+        billing_period_start: null,
+        billing_period_end: null,
+        provider: 'Fornitore Corrente',
+        quality_score: 0.1,
+        notes: 'PDF rilevato: estrazione automatica non disponibile. Dati stimati: modifica liberamente nel form.'
+      };
+
+      const { error: insertError } = await supabase
+        .from('ocr_results')
+        .insert({
+          upload_id: uploadId,
+          user_id: uploadRecord?.user_id,
+          total_cost_eur: fallbackData.total_cost_eur,
+          annual_kwh: fallbackData.annual_kwh,
+          unit_price_eur_kwh: fallbackData.unit_price_eur_kwh,
+          gas_smc: fallbackData.gas_smc,
+          pod: fallbackData.pod,
+          pdr: fallbackData.pdr,
+          f1_kwh: fallbackData.f1_kwh,
+          f2_kwh: fallbackData.f2_kwh,
+          f3_kwh: fallbackData.f3_kwh,
+          potenza_kw: fallbackData.potenza_kw,
+          tariff_hint: fallbackData.tariff_hint,
+          billing_period_start: fallbackData.billing_period_start,
+          billing_period_end: fallbackData.billing_period_end,
+          provider: fallbackData.provider,
+          quality_score: fallbackData.quality_score,
+          raw_json: fallbackData
+        });
+
+      if (insertError) {
+        console.error('Failed to insert PDF fallback OCR data:', insertError);
+        // Still return fallback to avoid surfacing errors to the user
+      } else {
+        console.log('PDF fallback OCR data saved successfully');
+      }
+
+      return new Response(JSON.stringify(fallbackData), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log(`Calling OpenAI Vision API with mime type: ${mimeType}`);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {

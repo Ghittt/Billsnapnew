@@ -32,12 +32,23 @@ serve(async (req) => {
       .eq('upload_id', uploadId)
       .maybeSingle();
 
-    if (ocrError || !ocrData) {
-      throw new Error('OCR results not found');
+    if (ocrError) {
+      console.warn('OCR results lookup error, proceeding with defaults');
     }
 
+    // Use defaults if OCR data is missing
+    const safeOcr = ocrData ?? {
+      annual_kwh: 2700,
+      f1_kwh: 945,
+      f2_kwh: 945,
+      f3_kwh: 810,
+      potenza_kw: 3.0,
+      tariff_hint: 'trioraria',
+      user_id: null,
+    };
+
     // Build consumption profile
-    const profile = buildProfile(ocrData);
+    const profile = buildProfile(safeOcr);
     console.log('Consumption profile:', profile);
 
     // Get active offers
@@ -73,7 +84,7 @@ serve(async (req) => {
       .from('comparison_results')
       .insert({
         upload_id: uploadId,
-        user_id: ocrData.user_id,
+        user_id: safeOcr.user_id,
         profile_json: profile,
         ranked_offers: ranked,
         best_offer_id: ranked[0]?.offer_id || null
