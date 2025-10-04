@@ -48,11 +48,13 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
           <div className="flex-1">
             <CardTitle className="text-lg">{provider}</CardTitle>
             <p className="text-sm text-muted-foreground">{offerName}</p>
-            {source && source !== '#' && (
-              <p className="text-xs text-muted-foreground mt-1">
-                🔗 {new URL(source).hostname}
-              </p>
-            )}
+            {source && source !== '#' && (() => {
+              try {
+                return <p className="text-xs text-muted-foreground mt-1">🔗 {new URL(source).hostname}</p>;
+              } catch {
+                return null;
+              }
+            })()}
           </div>
           {urlVerified === true && (
             <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full whitespace-nowrap">
