@@ -68,11 +68,13 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
             </div>
             <CardTitle className="text-xl md:text-2xl">{provider}</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">{offerName}</p>
-            {source && source !== '#' && (
-              <p className="text-xs text-muted-foreground mt-1">
-                🔗 {new URL(source).hostname}
-              </p>
-            )}
+            {source && source !== '#' && (() => {
+              try {
+                return <p className="text-xs text-muted-foreground mt-1">🔗 {new URL(source).hostname}</p>;
+              } catch {
+                return null;
+              }
+            })()}
           </div>
         </div>
       </CardHeader>
