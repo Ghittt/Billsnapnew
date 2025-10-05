@@ -289,10 +289,10 @@ const ResultsPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground">Caricamento risultati...</p>
+          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground">Caricamento...</p>
         </div>
       </div>
     );
@@ -302,11 +302,11 @@ const ResultsPage = () => {
 
 
   return (
-    <div className="min-h-screen bg-gradient-subtle pb-24 md:pb-8">
+    <div className="min-h-screen bg-background pb-16">
       <Header />
       
-      <div className="container mx-auto px-4 py-4 md:py-8">
-        <div className="max-w-5xl mx-auto space-y-6 md:space-y-8">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto space-y-8">
           
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -320,23 +320,23 @@ const ResultsPage = () => {
             </Button>
           </div>
 
-          {/* A) Savings message */}
-          <div className="text-center space-y-4">
-            <div className="flex items-center justify-center gap-2 text-primary mb-4">
-              <Zap className="w-6 h-6" />
-              <span className="font-medium">Analisi completata</span>
+          {/* Savings message */}
+          <div className="text-center space-y-3">
+            <div className="flex items-center justify-center gap-2 text-primary">
+              <Zap className="w-5 h-5" />
+              <span className="text-sm font-medium">Analisi completata</span>
             </div>
-            <p className="text-xl md:text-2xl font-semibold max-w-2xl mx-auto">
+            <p className="text-2xl font-semibold max-w-2xl mx-auto">
               {getSavingsMessage()}
             </p>
           </div>
 
-          {/* B) Current cost card */}
-          <Card className="text-center p-6">
-            <CardContent className="space-y-2">
+          {/* Current cost */}
+          <Card>
+            <CardContent className="p-6 text-center space-y-2">
               <p className="text-sm text-muted-foreground">Costo attuale stimato</p>
-              <p className="text-4xl font-bold text-foreground">{fmt(currentCost)}</p>
-              <p className="text-xs text-muted-foreground">all'anno ({annualKwh.toLocaleString()} kWh)</p>
+              <p className="text-4xl font-semibold">{fmt(currentCost)}</p>
+              <p className="text-xs text-muted-foreground">all'anno • {annualKwh.toLocaleString()} kWh</p>
             </CardContent>
           </Card>
 
@@ -358,11 +358,11 @@ const ResultsPage = () => {
             />
           )}
 
-          {/* D) Alternative offers */}
+          {/* Alternative offers */}
           {alternativeOffers.length > 0 ? (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Altre offerte competitive</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-6">
+              <h3 className="text-xl font-semibold">Altre offerte</h3>
+              <div className="grid gap-4">
                 {alternativeOffers.map((offer) => (
                   <AlternativeOfferCard
                     key={offer.id}
@@ -388,11 +388,11 @@ const ResultsPage = () => {
             )
           )}
 
-          {/* E) Transparency notes */}
-          <div className="text-center text-sm text-muted-foreground space-y-2 pt-4 border-t">
-            <p>Costi stimati in base ai tuoi consumi. Verifica sempre le condizioni ufficiali del fornitore.</p>
+          {/* Notes */}
+          <div className="text-center text-sm text-muted-foreground space-y-1 pt-6 border-t">
+            <p>Costi stimati. Verifica le condizioni ufficiali.</p>
             {offersData?.best_offer?.last_checked && (
-              <p>Ultimo aggiornamento prezzi: {new Date(offersData.best_offer.last_checked).toLocaleDateString('it-IT')}</p>
+              <p>Aggiornato: {new Date(offersData.best_offer.last_checked).toLocaleDateString('it-IT')}</p>
             )}
           </div>
         </div>

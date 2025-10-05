@@ -13,32 +13,32 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 glass border-b border-border/50 backdrop-blur-xl">
-      <div className="container mx-auto px-6 py-5 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-spring group">
-          <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center shadow-medium group-hover:shadow-strong transition-spring">
-            <Zap className="w-6 h-6 text-white" />
+    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2 hover:opacity-70 transition-all">
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <Zap className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-2xl font-bold text-foreground tracking-tight">BillSnap</span>
+          <span className="text-xl font-semibold">BillSnap</span>
         </Link>
         
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           {user ? (
             <>
               <Link 
                 to="/profile" 
-                className="text-sm font-medium text-muted-foreground hover:text-primary flex items-center gap-2 transition-spring"
+                className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors"
               >
-                <User className="w-5 h-5" />
+                <User className="w-4 h-4" />
                 <span className="hidden sm:inline">Profilo</span>
               </Link>
               <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={handleSignOut}
-                className="text-sm font-medium flex items-center gap-2"
+                className="text-sm"
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-4 h-4" />
                 <span className="hidden sm:inline">Esci</span>
               </Button>
             </>
@@ -47,7 +47,6 @@ const Header = () => {
               variant="outline" 
               size="sm"
               onClick={() => navigate('/auth')}
-              className="font-semibold"
             >
               Accedi
             </Button>
@@ -55,9 +54,9 @@ const Header = () => {
           
           <Link 
             to="/feedback" 
-            className="text-sm font-medium text-muted-foreground hover:text-primary flex items-center gap-2 transition-spring"
+            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors"
           >
-            <MessageSquare className="w-5 h-5" />
+            <MessageSquare className="w-4 h-4" />
             <span className="hidden sm:inline">Feedback</span>
           </Link>
         </div>
