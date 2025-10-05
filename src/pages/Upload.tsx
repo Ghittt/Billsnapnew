@@ -7,7 +7,7 @@ import ProgressIndicator from '@/components/upload/ProgressIndicator';
 import { ManualBillInputModal } from '@/components/upload/ManualBillInputModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Clock, Upload, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Clock, Upload, AlertTriangle, Shield } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import heroImage from '@/assets/hero-bg.jpg';
 import billIcon from '@/assets/bill-icon.png';
@@ -268,41 +268,36 @@ const UploadPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
+    <div className="min-h-screen bg-background">
       <Header />
       
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto space-y-8">
           
           {!isUploading && uploadedFiles.length === 0 && (
             <>
-              {/* Simple upload interface */}
-              <div className="text-center space-y-6">
-                <div className="flex justify-center">
-                  <img src={billIcon} alt="BillSnap" className="w-16 h-16" />
-                </div>
-                <h1 className="text-3xl md:text-4xl font-bold text-foreground">
+              <div className="text-center space-y-4">
+                <h1 className="text-4xl font-semibold">
                   Analizza la tua bolletta
                 </h1>
                 <p className="text-lg text-muted-foreground">
-                  Carica una foto o un PDF della tua bolletta. Niente moduli, niente attese complicate.
+                  Carica una foto o un PDF
                 </p>
               </div>
 
               <UploadZone onFileUpload={handleFileUpload} isUploading={false} />
               
-              {/* Trust indicator */}
               <div className="text-center text-sm text-muted-foreground">
-                🛡️ Dati cancellati dopo l'analisi · <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>
+                <Shield className="w-4 h-4 inline mr-1" />
+                Dati protetti e cancellati dopo l'analisi
               </div>
             </>
           )}
 
-          {/* Progress indicator during upload */}
           {isUploading && (
             <div className="space-y-6">
               <div className="text-center">
-                <h2 className="text-2xl font-bold text-foreground mb-2">
+                <h2 className="text-2xl font-semibold mb-2">
                   Analisi in corso
                 </h2>
                 <p className="text-muted-foreground">
@@ -314,14 +309,13 @@ const UploadPage = () => {
             </div>
           )}
 
-          {/* Success state - brief before redirect */}
           {uploadedFiles.length > 0 && !isUploading && (
-            <Card className="border-success bg-success/5">
-              <CardContent className="p-6 text-center space-y-4">
+            <Card>
+              <CardContent className="p-8 text-center space-y-4">
                 <CheckCircle className="w-12 h-12 text-success mx-auto" />
-                <h3 className="text-xl font-bold text-success">Analisi completata!</h3>
+                <h3 className="text-xl font-semibold">Completato!</h3>
                 <p className="text-muted-foreground">
-                  Reindirizzamento ai risultati...
+                  Caricamento risultati...
                 </p>
               </CardContent>
             </Card>
