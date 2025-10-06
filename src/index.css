@@ -8,7 +8,7 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Apple-inspired Minimal Design System */
+    /* Apple-inspired Purple Gradient System */
     --background: 0 0% 100%;
     --foreground: 0 0% 9%;
 
@@ -18,19 +18,20 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 9%;
 
-    /* Primary: Apple Blue */
-    --primary: 211 100% 50%;
+    /* Primary: Deep Purple */
+    --primary: 271 81% 56%;
     --primary-foreground: 0 0% 100%;
+    --primary-glow: 280 90% 70%;
 
-    /* Secondary: Neutral gray */
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 9%;
+    /* Secondary: Soft Purple */
+    --secondary: 270 60% 96%;
+    --secondary-foreground: 271 81% 56%;
 
-    --muted: 0 0% 96%;
+    --muted: 270 60% 96%;
     --muted-foreground: 0 0% 45%;
 
-    --accent: 0 0% 96%;
-    --accent-foreground: 0 0% 9%;
+    --accent: 280 70% 92%;
+    --accent-foreground: 271 81% 56%;
 
     /* Success: Clean green */
     --success: 142 76% 36%;
@@ -43,20 +44,27 @@ All colors MUST be HSL.
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 211 100% 50%;
+    --border: 270 30% 90%;
+    --input: 270 30% 90%;
+    --ring: 271 81% 56%;
 
-    /* Minimal Shadows - Apple style */
-    --shadow-xs: 0 1px 2px 0 hsla(0 0% 0% / 0.05);
-    --shadow-sm: 0 1px 3px 0 hsla(0 0% 0% / 0.1), 0 1px 2px -1px hsla(0 0% 0% / 0.1);
-    --shadow-md: 0 4px 6px -1px hsla(0 0% 0% / 0.1), 0 2px 4px -2px hsla(0 0% 0% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsla(0 0% 0% / 0.1), 0 4px 6px -4px hsla(0 0% 0% / 0.1);
+    /* Purple Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(271 81% 56%) 0%, hsl(280 90% 70%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(270 60% 98%) 0%, hsl(0 0% 100%) 100%);
+    --gradient-glow: radial-gradient(circle at 50% 0%, hsl(280 90% 70% / 0.15) 0%, transparent 50%);
+
+    /* Elegant Shadows with Purple Tint */
+    --shadow-xs: 0 1px 2px 0 hsla(271 81% 56% / 0.04);
+    --shadow-sm: 0 1px 3px 0 hsla(271 81% 56% / 0.08), 0 1px 2px -1px hsla(271 81% 56% / 0.08);
+    --shadow-md: 0 4px 6px -1px hsla(271 81% 56% / 0.1), 0 2px 4px -2px hsla(271 81% 56% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsla(271 81% 56% / 0.12), 0 4px 6px -4px hsla(271 81% 56% / 0.12);
+    --shadow-xl: 0 20px 25px -5px hsla(271 81% 56% / 0.15), 0 8px 10px -6px hsla(271 81% 56% / 0.15);
+    --shadow-glow: 0 0 40px hsla(280 90% 70% / 0.3);
 
     /* Smooth Transitions */
-    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-    --radius: 0.75rem;
+    --radius: 1rem;
 
     --sidebar-background: 0 0% 98%;
 
@@ -76,7 +84,7 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 0 0% 9%;
+    --background: 0 0% 6%;
     --foreground: 0 0% 98%;
 
     --card: 0 0% 9%;
@@ -85,24 +93,29 @@ All colors MUST be HSL.
     --popover: 0 0% 9%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 211 100% 50%;
+    --primary: 280 90% 70%;
     --primary-foreground: 0 0% 100%;
+    --primary-glow: 280 90% 80%;
 
-    --secondary: 0 0% 15%;
+    --secondary: 270 40% 15%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 15%;
+    --muted: 270 30% 15%;
     --muted-foreground: 0 0% 60%;
 
-    --accent: 0 0% 15%;
+    --accent: 270 50% 20%;
     --accent-foreground: 0 0% 98%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 211 100% 50%;
+    --border: 270 30% 18%;
+    --input: 270 30% 18%;
+    --ring: 280 90% 70%;
+    
+    --gradient-hero: linear-gradient(135deg, hsl(280 90% 70%) 0%, hsl(290 85% 75%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(270 40% 8%) 0%, hsl(0 0% 6%) 100%);
+    --gradient-glow: radial-gradient(circle at 50% 0%, hsl(280 90% 70% / 0.2) 0%, transparent 50%);
     
     --sidebar-background: 0 0% 9%;
     --sidebar-foreground: 0 0% 98%;
@@ -127,11 +140,27 @@ All colors MUST be HSL.
   }
 }
 
-/* Minimal utility classes */
+/* Utility classes */
 @layer utilities {
   .glass {
-    background: hsla(0 0% 100% / 0.8);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: hsla(0 0% 100% / 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid hsla(270 60% 96% / 0.5);
+  }
+  
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  
+  .gradient-glow {
+    background: var(--gradient-glow);
+  }
+  
+  .text-gradient {
+    background: var(--gradient-hero);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
