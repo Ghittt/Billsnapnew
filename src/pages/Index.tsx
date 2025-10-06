@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import UploadZone from '@/components/upload/UploadZone';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, Zap, CheckCircle, Shield, Bell } from 'lucide-react';
+import { Sparkles, TrendingDown, Lock, Zap, Award, ArrowRight } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -18,121 +19,195 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      {/* Hero Section - Minimal Apple style */}
-      <section className="py-16 md:py-24">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto">
-            
-            {/* Main Value Proposition */}
-            <div className="text-center space-y-6 mb-16">
-              <h1 className="text-5xl md:text-7xl font-semibold text-foreground leading-tight tracking-tight">
-                Risparmia sulle tue bollette
-              </h1>
-              <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
-                Carica la tua bolletta e trova l'offerta migliore in pochi secondi
-              </p>
+      {/* Hero Section with Gradient */}
+      <section className="relative overflow-hidden">
+        {/* Gradient Background */}
+        <div className="absolute inset-0 gradient-glow" />
+        
+        <div className="relative container mx-auto px-4 py-20 md:py-32">
+          <div className="max-w-5xl mx-auto text-center space-y-8">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 backdrop-blur-sm border border-primary/10">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-foreground">Analisi AI in tempo reale</span>
             </div>
-
+            
+            {/* Hero Title */}
+            <h1 className="text-6xl md:text-8xl font-bold leading-tight tracking-tight">
+              <span className="text-gradient">Risparmia</span>
+              <br />
+              <span className="text-foreground">sulle tue bollette</span>
+            </h1>
+            
+            {/* Hero Description */}
+            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              Carica la tua bolletta. La nostra AI trova automaticamente l'offerta perfetta per te. 
+              <span className="text-foreground font-semibold"> Zero stress, massimo risparmio.</span>
+            </p>
+            
             {/* Upload Zone */}
-            <div className="max-w-2xl mx-auto space-y-6">
+            <div className="max-w-2xl mx-auto pt-8">
               <UploadZone onFileUpload={handleFileUpload} />
               
-              {/* Trust indicator */}
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Shield className="w-4 h-4" />
-                <span>I tuoi dati sono al sicuro</span>
-                <span>•</span>
-                <a href="/privacy" className="text-primary hover:underline">
-                  Privacy Policy
-                </a>
+              {/* Trust Indicators */}
+              <div className="flex items-center justify-center gap-6 mt-6 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-primary" />
+                  <span>100% Sicuro</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-primary" />
+                  <span>Risultati in 25s</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Award className="w-4 h-4 text-primary" />
+                  <span>50+ Fornitori</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="py-16 bg-muted/30">
+      {/* Stats Section */}
+      <section className="py-20 bg-gradient-subtle">
         <div className="container mx-auto px-4">
           <div className="max-w-5xl mx-auto">
-            <h2 className="text-3xl md:text-4xl font-semibold text-center mb-12">
-              Come funziona
-            </h2>
             <div className="grid md:grid-cols-3 gap-8">
+              {/* Stat 1 */}
+              <Card className="border-primary/10 shadow-lg hover:shadow-xl transition-all duration-300">
+                <CardContent className="p-8 text-center">
+                  <div className="text-6xl font-bold text-gradient mb-3">
+                    €427
+                  </div>
+                  <p className="text-base text-muted-foreground">
+                    Risparmio medio all'anno
+                  </p>
+                  <p className="text-xs text-muted-foreground/70 mt-2">
+                    Dati aggiornati 2025
+                  </p>
+                </CardContent>
+              </Card>
+              
+              {/* Stat 2 */}
+              <Card className="border-primary/10 shadow-lg hover:shadow-xl transition-all duration-300">
+                <CardContent className="p-8 text-center">
+                  <div className="text-6xl font-bold text-gradient mb-3">
+                    25s
+                  </div>
+                  <p className="text-base text-muted-foreground">
+                    Tempo di analisi
+                  </p>
+                  <p className="text-xs text-muted-foreground/70 mt-2">
+                    Velocità media AI
+                  </p>
+                </CardContent>
+              </Card>
+              
+              {/* Stat 3 */}
+              <Card className="border-primary/10 shadow-lg hover:shadow-xl transition-all duration-300">
+                <CardContent className="p-8 text-center">
+                  <div className="text-6xl font-bold text-gradient mb-3">
+                    98%
+                  </div>
+                  <p className="text-base text-muted-foreground">
+                    Utenti soddisfatti
+                  </p>
+                  <p className="text-xs text-muted-foreground/70 mt-2">
+                    Rating medio
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How it Works */}
+      <section className="py-20">
+        <div className="container mx-auto px-4">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-5xl md:text-6xl font-bold mb-4">
+                Semplice. <span className="text-gradient">Veloce.</span> Efficace.
+              </h2>
+              <p className="text-xl text-muted-foreground">
+                Tre passi per iniziare a risparmiare
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-3 gap-12">
               {/* Step 1 */}
-              <div className="text-center space-y-4">
-                <div className="w-14 h-14 bg-primary rounded-full flex items-center justify-center mx-auto">
-                  <Upload className="w-6 h-6 text-primary-foreground" />
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-hero opacity-0 group-hover:opacity-10 rounded-2xl transition-opacity duration-300" />
+                <div className="relative text-center space-y-4 p-6">
+                  <div className="w-16 h-16 gradient-hero rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+                    <span className="text-3xl font-bold text-white">1</span>
+                  </div>
+                  <h3 className="text-2xl font-bold">Carica</h3>
+                  <p className="text-muted-foreground leading-relaxed">
+                    Scatta una foto alla tua bolletta o carica il PDF. Accettiamo qualsiasi formato.
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold">Carica</h3>
-                <p className="text-muted-foreground">
-                  Foto o PDF della tua bolletta
-                </p>
               </div>
               
               {/* Step 2 */}
-              <div className="text-center space-y-4">
-                <div className="w-14 h-14 bg-primary rounded-full flex items-center justify-center mx-auto">
-                  <Zap className="w-6 h-6 text-primary-foreground" />
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-hero opacity-0 group-hover:opacity-10 rounded-2xl transition-opacity duration-300" />
+                <div className="relative text-center space-y-4 p-6">
+                  <div className="w-16 h-16 gradient-hero rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+                    <span className="text-3xl font-bold text-white">2</span>
+                  </div>
+                  <h3 className="text-2xl font-bold">Analizza</h3>
+                  <p className="text-muted-foreground leading-relaxed">
+                    La nostra AI confronta 50+ fornitori in tempo reale per trovare l'offerta perfetta.
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold">Analizza</h3>
-                <p className="text-muted-foreground">
-                  L'AI confronta centinaia di offerte
-                </p>
               </div>
               
               {/* Step 3 */}
-              <div className="text-center space-y-4">
-                <div className="w-14 h-14 bg-success rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle className="w-6 h-6 text-success-foreground" />
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-hero opacity-0 group-hover:opacity-10 rounded-2xl transition-opacity duration-300" />
+                <div className="relative text-center space-y-4 p-6">
+                  <div className="w-16 h-16 gradient-hero rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+                    <span className="text-3xl font-bold text-white">3</span>
+                  </div>
+                  <h3 className="text-2xl font-bold">Risparmia</h3>
+                  <p className="text-muted-foreground leading-relaxed">
+                    Ricevi un report dettagliato con l'offerta migliore. Attivala in un click.
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold">Risparmia</h3>
-                <p className="text-muted-foreground">
-                  Attiva l'offerta migliore
-                </p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Notification Feature */}
-      <section className="py-16 bg-primary">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center space-y-6">
-            <Bell className="w-12 h-12 text-primary-foreground mx-auto" />
-            <h2 className="text-3xl md:text-5xl font-semibold text-primary-foreground">
-              Non perdere mai un risparmio
-            </h2>
-            <p className="text-lg md:text-xl text-primary-foreground/90">
-              Registrati e ti avviseremo quando arriva un'offerta ancora più vantaggiosa
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats */}
-      <section className="py-16">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardContent className="p-8 text-center">
-                <div className="text-5xl font-semibold text-success mb-2">
-                  €400+
+      {/* CTA Section */}
+      <section className="py-20 relative overflow-hidden">
+        <div className="absolute inset-0 gradient-hero opacity-5" />
+        <div className="relative container mx-auto px-4">
+          <div className="max-w-4xl mx-auto">
+            <Card className="border-primary/20 shadow-xl bg-gradient-subtle backdrop-blur-sm">
+              <CardContent className="p-12 text-center space-y-6">
+                <div className="w-16 h-16 gradient-hero rounded-2xl flex items-center justify-center mx-auto shadow-glow">
+                  <TrendingDown className="w-8 h-8 text-white" />
                 </div>
-                <p className="text-muted-foreground">
-                  Risparmio medio annuo
+                <h2 className="text-4xl md:text-5xl font-bold">
+                  Inizia a risparmiare <span className="text-gradient">oggi</span>
+                </h2>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                  Unisciti a migliaia di italiani che hanno già ridotto le loro bollette.
+                  Nessuna registrazione richiesta per iniziare.
                 </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-8 text-center">
-                <div className="text-5xl font-semibold text-primary mb-2">
-                  25s
-                </div>
-                <p className="text-muted-foreground">
-                  Tempo di analisi
-                </p>
+                <Button 
+                  size="lg" 
+                  className="text-lg px-8 py-6 gradient-hero border-0 shadow-lg hover:shadow-xl transition-all duration-300"
+                  onClick={() => (document.querySelector('input[type="file"]') as HTMLInputElement)?.click()}
+                >
+                  Analizza la tua bolletta
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
               </CardContent>
             </Card>
           </div>
