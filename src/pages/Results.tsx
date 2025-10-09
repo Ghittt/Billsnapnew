@@ -5,6 +5,7 @@ import { BestOfferCard } from '@/components/results/BestOfferCard';
 import { AlternativeOfferCard } from '@/components/results/AlternativeOfferCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ProfileQuestionnaire } from '@/components/profile/ProfileQuestionnaire';
 import { ArrowLeft, Zap, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +43,8 @@ const ResultsPage = () => {
   const [currentCost, setCurrentCost] = useState<number>(0);
   const [annualKwh, setAnnualKwh] = useState<number>(2700);
   const [explanations, setExplanations] = useState<Record<string, any>>({});
+  const [showQuestionnaire, setShowQuestionnaire] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
   useEffect(() => {
     // Always attempt to load results; if uploadId is missing we proceed with defaults
@@ -52,6 +55,25 @@ const ResultsPage = () => {
     try {
       setIsLoading(true);
       setError(null);
+
+      // Fetch user profile if authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+        
+        setUserProfile(profile);
+        
+        // Show questionnaire if profile not completed
+        if (!profile?.profile_completed) {
+          setShowQuestionnaire(true);
+          setIsLoading(false);
+          return;
+        }
+      }
 
       // Defaults if no OCR or no uploadId
       let consumption = 2700;
@@ -192,7 +214,7 @@ const ResultsPage = () => {
 
             const { data: aiExplanations, error: aiError } = await supabase.functions.invoke(
               'explain-choice',
-              { body: { profile, offers: offersToExplain } }
+              { body: { profile, offers: offersToExplain, userProfile } }
             );
 
             if (!aiError && Array.isArray(aiExplanations)) {
@@ -286,6 +308,29 @@ const ResultsPage = () => {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(n);
+
+  if (showQuestionnaire) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle">
+        <Header />
+        <main className="container mx-auto px-4 py-12">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold mb-2">Prima di continuare...</h1>
+            <p className="text-muted-foreground">
+              Completa il tuo profilo per ricevere raccomandazioni AI ultra-personalizzate
+            </p>
+          </div>
+          <ProfileQuestionnaire 
+            onComplete={() => {
+              setShowQuestionnaire(false);
+              fetchResults();
+            }}
+            userId={userProfile?.user_id}
+          />
+        </main>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

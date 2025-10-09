@@ -19,6 +19,7 @@ interface AlternativeOfferCardProps {
     why_this_price: string;
     best_for: string;
     savings_vs_current: number | null;
+    tariff_recommendation?: string;
   };
 }
 
@@ -95,6 +96,11 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
           <div className="space-y-2 p-3 bg-muted/30 rounded-lg text-sm">
             <p className="font-medium text-foreground">{explanation.headline}</p>
             <p className="text-muted-foreground leading-snug">{explanation.simple_explanation}</p>
+            {explanation.tariff_recommendation && (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium">⚡ Fasce orarie:</span> {explanation.tariff_recommendation}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               <span className="font-medium">Ideale per:</span> {explanation.best_for}
             </p>
