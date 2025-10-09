@@ -21,6 +21,7 @@ interface BestOfferCardProps {
     why_this_price: string;
     best_for: string;
     savings_vs_current: number | null;
+    tariff_recommendation?: string;
   };
 }
 
@@ -116,6 +117,12 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
                 <span className="font-medium text-muted-foreground">💰 Perché questo prezzo: </span>
                 <span className="text-foreground">{explanation.why_this_price}</span>
               </div>
+              {explanation.tariff_recommendation && (
+                <div>
+                  <span className="font-medium text-muted-foreground">⚡ Consiglio fasce orarie: </span>
+                  <span className="text-foreground">{explanation.tariff_recommendation}</span>
+                </div>
+              )}
               <div>
                 <span className="font-medium text-muted-foreground">✅ Ideale per: </span>
                 <span className="text-foreground">{explanation.best_for}</span>

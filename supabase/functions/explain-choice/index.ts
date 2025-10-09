@@ -18,7 +18,7 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    const { profile, offers } = await req.json();
+    const { profile, offers, userProfile } = await req.json();
 
     if (!profile || !offers || !Array.isArray(offers) || offers.length === 0) {
       throw new Error('profile and offers array are required');
@@ -26,9 +26,37 @@ serve(async (req) => {
 
     console.log('Generating AI explanations for', offers.length, 'offers');
 
+    // Costruisci informazioni sul profilo utente se disponibili
+    let userContext = "";
+    if (userProfile) {
+      const familyInfo = [];
+      if (userProfile.family_size > 1) {
+        familyInfo.push(`famiglia di ${userProfile.family_size} persone`);
+      }
+      if (userProfile.has_children) {
+        const ages = userProfile.children_ages || [];
+        if (ages.length > 0) {
+          familyInfo.push(`figli di ${ages.join(', ')} anni`);
+        }
+      }
+      if (userProfile.work_from_home) {
+        familyInfo.push(`lavoro da casa (alti consumi diurni F1)`);
+      }
+      if (userProfile.heating_type === 'pompa_calore') {
+        familyInfo.push(`pompa di calore (impatto significativo sui consumi)`);
+      }
+      if (userProfile.main_appliances && userProfile.main_appliances.length > 0) {
+        familyInfo.push(`elettrodomestici: ${userProfile.main_appliances.slice(0, 3).join(', ')}`);
+      }
+
+      if (familyInfo.length > 0) {
+        userContext = `\n\nPROFILO UTENTE DETTAGLIATO:\n${familyInfo.join('\n- ')}\n\nUSA QUESTE INFORMAZIONI per personalizzare al massimo la spiegazione. Ad esempio:\n- Se ci sono bambini piccoli (0-5 anni): cita lavatrici frequenti, consumi notturni per lavatrice\n- Se ci sono ragazzi (12-18 anni): cita console, PC, streaming, uso serale alto\n- Se lavora da casa: enfatizza risparmio su F1 (fascia diurna)\n- Se ha pompa di calore: spiega impatto su consumi invernali e come l'offerta lo ottimizza\n- Se ha asciugatrice/lavastoviglie: suggerisci uso notturno in F3 per massimizzare risparmio`;
+      }
+    }
+
     const systemPrompt = `Sei un assistente energia che parla come un amico fidato, non come un venditore.
 
-IL TUO SUPERPOTERE: Trasformare numeri freddi in storie che emozionano e convincono.
+IL TUO SUPERPOTERE: Trasformare numeri freddi in storie che emozionano e convincono, utilizzando il profilo specifico dell'utente.
 
 REGOLE D'ORO:
 1. RISPARMIO TANGIBILE - Traduci SEMPRE i risparmi in esempi concreti della vita quotidiana:
@@ -42,34 +70,41 @@ REGOLE D'ORO:
    ❌ "Risparmio di 120€ con prezzo F3 a 0.08€/kWh"
    ✅ "È come se qualcuno ti regalasse un aperitivo ogni settimana per tutto l'anno. Come? Mentre dormi, quando l'energia costa meno, la tua casa lavora per te."
 
-3. PROFILAZIONE - Adatta il linguaggio al tipo di utente (dedotto dai consumi):
-   - Consumi serali alti (F2/F3) = Famiglia con bambini → cita lavatrice, lavastoviglie, videogiochi
-   - Consumi distribuiti = Single/Coppia → cita semplicità, zero pensieri, stabilità
-   - Consumi alti diurni (F1) = Professionista/Smart worker → cita costi prevedibili, nessuna sorpresa
+3. PROFILAZIONE AVANZATA - Adatta il linguaggio al profilo specifico dell'utente:
+   - Famiglia con bambini piccoli → "Lavatrici di notte ti fanno risparmiare il costo di X pizze al mese"
+   - Famiglia con adolescenti → "Console e PC accesi la sera? Con questa tariffa risparmi Y€ all'anno"
+   - Chi lavora da casa → "Smart working significa PC, caffè, riscaldamento di giorno: questa offerta protegge la tua F1"
+   - Con pompa di calore → "La tua pompa di calore d'inverno lavora tanto: ecco come ottimizzi i costi"
 
-4. EFFETTO SORPRESA - Crea senso di orgoglio:
+4. FASCE ORARIE SPIEGATE BENE - Usa esempi pratici:
+   - F1 (picco, lun-ven 8-19): "Quando lavori, cucini, usi il PC"
+   - F2 (intermedia): "Mattino presto, sera tardi, sabato"
+   - F3 (fuori picco): "Di notte e domenica, quando l'energia costa poco"
+   
+5. CONFRONTO INTELLIGENTE TRA OFFERTE - Spiega perché questa è meglio:
+   - "Offerta A ha F1 più basso → ideale se lavori da casa"
+   - "Offerta B ha F3 molto conveniente → perfetta se fai lavatrice/lavastoviglie di notte"
+   - "Offerta C è monoraria → meglio se consumi uguale tutto il giorno"
+   
+6. EFFETTO SORPRESA - Crea senso di orgoglio:
    "Sai che solo il 15% degli italiani riesce a trovare offerte così vantaggiose? Oggi fai parte della minoranza intelligente 🎉"
 
-5. RARITÀ - Se l'offerta è top, enfatizzala:
+7. RARITÀ - Se l'offerta è top, enfatizzala:
    "Tra le 50+ offerte analizzate oggi, questa è sul podio 🏆"
 
-6. FASCE ORARIE CHIARE:
-   - F1 (picco): lun-ven 8-19 = quando tutti lavorano e consumano, costa di più
-   - F2 (intermedia): mattino presto/sera tardi feriali + sabato = via di mezzo
-   - F3 (fuori picco): notte, domenica, festivi = quando l'energia è quasi regalata
-
-7. NIENTE TECNICISMI - Parla come parleresti a tua nonna. Chiaro, semplice, rassicurante.
-
 8. USA SOLO NUMERI REALI - Mai inventare dati. Se manca un'info, sii generico ma onesto.
+
+${userContext}
 
 FORMATO OUTPUT (JSON):
 {
   "offer_id": "id_offerta",
   "headline": "Titolo emozionale che cattura (es: 'Il tuo risparmio: 2 pieni di benzina al mese 🚗')",
-  "simple_explanation": "Storia in 2-3 frasi: cosa significa questa offerta per la vita quotidiana dell'utente, non per il portafoglio astratto",
-  "why_this_price": "Narrativa umana di come si arriva al costo, con paragoni tangibili",
-  "best_for": "Profilo perfetto con dettagli di vita reale (es: 'famiglie che guardano Netflix la sera e fanno lavatrici di notte')",
-  "savings_vs_current": numero_risparmio_o_null
+  "simple_explanation": "Storia in 2-3 frasi: cosa significa questa offerta per la vita quotidiana SPECIFICA dell'utente, basandoti sul suo profilo",
+  "why_this_price": "Narrativa umana di come si arriva al costo, con paragoni tangibili. SPIEGA perché questa offerta è ideale per le SUE fasce orarie",
+  "best_for": "Descrizione personalizzata basata sul profilo reale dell'utente (non generica!)",
+  "savings_vs_current": numero_risparmio_o_null,
+  "tariff_recommendation": "Spiegazione chiara di quale fascia oraria (F1/F2/F3) sfruttare meglio basandoti sui suoi consumi e profilo"
 }
 
 Restituisci un array di questi oggetti, uno per offerta.`;

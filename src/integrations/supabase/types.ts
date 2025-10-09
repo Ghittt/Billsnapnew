@@ -433,43 +433,70 @@ export type Database = {
       }
       profiles: {
         Row: {
+          children_ages: number[] | null
+          consumption_habits: Json | null
           created_at: string
           device_tokens: Json | null
           display_name: string | null
           email: string | null
+          family_size: number | null
+          has_children: boolean | null
+          heating_type: string | null
+          home_type: string | null
           id: string
           is_premium: boolean | null
+          main_appliances: string[] | null
           notification_preferences: Json | null
           premium_expires_at: string | null
+          profile_completed: boolean | null
           total_savings_eur: number | null
           updated_at: string
           user_id: string
+          work_from_home: boolean | null
         }
         Insert: {
+          children_ages?: number[] | null
+          consumption_habits?: Json | null
           created_at?: string
           device_tokens?: Json | null
           display_name?: string | null
           email?: string | null
+          family_size?: number | null
+          has_children?: boolean | null
+          heating_type?: string | null
+          home_type?: string | null
           id?: string
           is_premium?: boolean | null
+          main_appliances?: string[] | null
           notification_preferences?: Json | null
           premium_expires_at?: string | null
+          profile_completed?: boolean | null
           total_savings_eur?: number | null
           updated_at?: string
           user_id: string
+          work_from_home?: boolean | null
         }
         Update: {
+          children_ages?: number[] | null
+          consumption_habits?: Json | null
           created_at?: string
           device_tokens?: Json | null
           display_name?: string | null
           email?: string | null
+          family_size?: number | null
+          has_children?: boolean | null
+          heating_type?: string | null
+          home_type?: string | null
           id?: string
           is_premium?: boolean | null
+          main_appliances?: string[] | null
           notification_preferences?: Json | null
           premium_expires_at?: string | null
+          profile_completed?: boolean | null
           total_savings_eur?: number | null
           updated_at?: string
           user_id?: string
+          work_from_home?: boolean | null
         }
         Relationships: []
       }
