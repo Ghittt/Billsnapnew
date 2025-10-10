@@ -385,6 +385,38 @@ const ResultsPage = () => {
             </CardContent>
           </Card>
 
+          {/* Providers analyzed */}
+          {offersData && offersData.offers.length > 0 && (
+            <Card className="glass">
+              <CardContent className="p-6">
+                <div className="text-center space-y-4">
+                  <div className="flex items-center justify-center gap-2 text-primary">
+                    <Zap className="w-4 h-4" />
+                    <p className="text-sm font-medium">Analisi completa del mercato</p>
+                  </div>
+                  <p className="text-muted-foreground text-sm">
+                    Ho analizzato <span className="font-semibold text-foreground">{offersData.offers.length} offerte</span> da{' '}
+                    <span className="font-semibold text-foreground">
+                      {Array.from(new Set(offersData.offers.map(o => o.provider))).length} provider
+                    </span>
+                  </p>
+                  <div className="flex flex-wrap gap-2 justify-center pt-2">
+                    {Array.from(new Set(offersData.offers.map(o => o.provider)))
+                      .sort()
+                      .map((provider) => (
+                        <span
+                          key={provider}
+                          className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium"
+                        >
+                          {provider}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* C) Best offer card with CTA */}
           {offersData?.best_offer && (
             <BestOfferCard
