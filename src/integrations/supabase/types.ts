@@ -210,6 +210,53 @@ export type Database = {
           },
         ]
       }
+      notification_subscriptions: {
+        Row: {
+          created_at: string
+          current_provider: string | null
+          display_name: string | null
+          email: string
+          estimated_saving_eur: number | null
+          id: string
+          is_active: boolean
+          last_notified_at: string | null
+          upload_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_provider?: string | null
+          display_name?: string | null
+          email: string
+          estimated_saving_eur?: number | null
+          id?: string
+          is_active?: boolean
+          last_notified_at?: string | null
+          upload_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_provider?: string | null
+          display_name?: string | null
+          email?: string
+          estimated_saving_eur?: number | null
+          id?: string
+          is_active?: boolean
+          last_notified_at?: string | null
+          upload_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_subscriptions_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           clicked_at: string | null
@@ -692,10 +739,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      is_admin: {
-        Args: { check_user_id: string }
-        Returns: boolean
-      }
+      is_admin: { Args: { check_user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "user" | "admin"
