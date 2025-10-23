@@ -6,6 +6,7 @@ import { AlternativeOfferCard } from '@/components/results/AlternativeOfferCard'
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProfileQuestionnaire } from '@/components/profile/ProfileQuestionnaire';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { ArrowLeft, Zap, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -45,6 +46,7 @@ const ResultsPage = () => {
   const [explanations, setExplanations] = useState<Record<string, any>>({});
   const [showQuestionnaire, setShowQuestionnaire] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [ocrData, setOcrData] = useState<any>(null);
 
   useEffect(() => {
     // Always attempt to load results; if uploadId is missing we proceed with defaults
@@ -81,7 +83,7 @@ const ResultsPage = () => {
 
       if (uploadId) {
         // Try to read OCR results safely (non-blocking)
-        const { data: ocrData, error: ocrError } = await supabase
+        const { data: fetchedOcrData, error: ocrError } = await supabase
           .from('ocr_results')
           .select('*')
           .eq('upload_id', uploadId)
@@ -91,9 +93,10 @@ const ResultsPage = () => {
           console.warn('OCR fetch warning (non-blocking):', ocrError);
         }
 
-        if (ocrData) {
-          consumption = Number(ocrData.annual_kwh ?? consumption);
-          estimatedCurrentCost = Number(ocrData.total_cost_eur ?? consumption * 0.30);
+        if (fetchedOcrData) {
+          setOcrData(fetchedOcrData);
+          consumption = Number(fetchedOcrData.annual_kwh ?? consumption);
+          estimatedCurrentCost = Number(fetchedOcrData.total_cost_eur ?? consumption * 0.30);
         }
       }
 
@@ -415,6 +418,15 @@ const ResultsPage = () => {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Notification Bell */}
+          {offersData?.best_offer && (
+            <NotificationBell
+              uploadId={uploadId}
+              currentProvider={ocrData?.provider}
+              estimatedSaving={currentCost - offersData.best_offer.offer_annual_cost_eur}
+            />
           )}
 
           {/* C) Best offer card with CTA */}
