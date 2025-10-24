@@ -32,14 +32,20 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const [displayName, setDisplayName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showGlow, setShowGlow] = useState(false);
   
   const { user, signInWithGoogle, signInWithApple } = useAuth();
   const { toast } = useToast();
 
-  // Show bell after 3 seconds
+  // Show bell after 3 seconds, then trigger glow animation
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(true);
+      // Trigger glow animation 3 seconds after bell appears
+      setTimeout(() => {
+        setShowGlow(true);
+      }, 3000);
     }, 3000);
     return () => clearTimeout(timer);
   }, []);
@@ -74,7 +80,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     setIsDialogOpen(true);
   };
 
-  const saveSubscription = async (userId: string, userEmail: string, userName?: string) => {
+  const saveSubscription = async (userId: string | null, userEmail: string, userName: string | undefined, loginType: 'google' | 'apple' | 'email') => {
     try {
       const { error } = await supabase
         .from('notification_subscriptions')
@@ -85,16 +91,19 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           upload_id: uploadId || null,
           current_provider: currentProvider || null,
           estimated_saving_eur: estimatedSaving || null,
+          login_type: loginType,
         });
 
       if (error) throw error;
 
       setIsSubscribed(true);
       setIsDialogOpen(false);
-      toast({
-        title: "Perfetto! 🎉",
-        description: "Ti avvisiamo solo se c'è da risparmiare di nuovo 😉",
-      });
+      
+      // Show animated confirmation message
+      setShowConfirmation(true);
+      setTimeout(() => {
+        setShowConfirmation(false);
+      }, 2000);
     } catch (error) {
       console.error('Error saving subscription:', error);
       toast({
@@ -118,7 +127,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           await saveSubscription(
             authUser.id,
             authUser.email,
-            authUser.user_metadata?.full_name || authUser.user_metadata?.name
+            authUser.user_metadata?.full_name || authUser.user_metadata?.name,
+            'google'
           );
         }
       }, 1000);
@@ -147,7 +157,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           await saveSubscription(
             authUser.id,
             authUser.email,
-            authUser.user_metadata?.full_name || authUser.user_metadata?.name
+            authUser.user_metadata?.full_name || authUser.user_metadata?.name,
+            'apple'
           );
         }
       }, 1000);
@@ -171,9 +182,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     try {
       // Check if user exists or create anonymous subscription
       if (user) {
-        await saveSubscription(user.id, email, displayName);
+        await saveSubscription(user.id, email, displayName, 'email');
       } else {
-        // For non-authenticated users, create a temporary account or just save email
+        // For non-authenticated users, save email anonymously
         const { error } = await supabase
           .from('notification_subscriptions')
           .insert({
@@ -182,16 +193,19 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
             upload_id: uploadId || null,
             current_provider: currentProvider || null,
             estimated_saving_eur: estimatedSaving || null,
+            login_type: 'email',
           });
 
         if (error) throw error;
 
         setIsSubscribed(true);
         setIsDialogOpen(false);
-        toast({
-          title: "Perfetto! 🎉",
-          description: "Ti avvisiamo solo se c'è da risparmiare di nuovo 😉",
-        });
+        
+        // Show animated confirmation message
+        setShowConfirmation(true);
+        setTimeout(() => {
+          setShowConfirmation(false);
+        }, 2000);
       }
     } catch (error) {
       console.error('Error saving email subscription:', error);
@@ -210,9 +224,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   return (
     <>
       <div 
-        className="glass rounded-xl p-6 text-center cursor-pointer hover:scale-105 transition-transform"
+        className={`glass rounded-xl p-6 text-center cursor-pointer hover:scale-105 transition-transform ${
+          showGlow ? 'animate-notification-glow' : ''
+        }`}
         onClick={handleBellClick}
-        style={{ marginTop: '24px', animation: isSubscribed ? 'none' : 'bellGlow 2s ease-in-out infinite' }}
+        style={{ marginTop: '24px' }}
       >
         <div className="flex items-center justify-center gap-2 mb-3">
           <Bell className="w-5 h-5 text-primary" />
@@ -222,6 +238,16 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           Niente pubblicità. Solo il suono dolce di una bolletta più bassa.
         </p>
       </div>
+
+      {showConfirmation && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-background border-2 border-primary rounded-lg p-6 shadow-2xl animate-fade-in">
+            <p className="text-lg font-medium text-center">
+              Perfetto! Ti avviserò solo se c'è da risparmiare di nuovo 😉
+            </p>
+          </div>
+        </div>
+      )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -325,9 +351,23 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       </Dialog>
 
       <style>{`
-        @keyframes bellGlow {
-          0%, 100% { box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.3); }
-          50% { box-shadow: 0 0 20px rgba(var(--primary-rgb), 0.6); }
+        @keyframes notificationGlow {
+          0% {
+            box-shadow: 0 0 0 rgba(168, 85, 247, 0);
+            transform: translateY(0);
+          }
+          50% {
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.6);
+            transform: translateY(-2px);
+          }
+          100% {
+            box-shadow: 0 0 0 rgba(168, 85, 247, 0);
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-notification-glow {
+          animation: notificationGlow 1s ease-out;
         }
       `}</style>
     </>
