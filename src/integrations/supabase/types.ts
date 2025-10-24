@@ -220,6 +220,7 @@ export type Database = {
           id: string
           is_active: boolean
           last_notified_at: string | null
+          login_type: string | null
           upload_id: string | null
           user_id: string | null
         }
@@ -232,6 +233,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_notified_at?: string | null
+          login_type?: string | null
           upload_id?: string | null
           user_id?: string | null
         }
@@ -244,6 +246,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_notified_at?: string | null
+          login_type?: string | null
           upload_id?: string | null
           user_id?: string | null
         }
