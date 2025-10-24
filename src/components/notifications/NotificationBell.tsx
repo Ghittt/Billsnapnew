@@ -118,28 +118,36 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     setIsLoading(true);
     try {
       const { error } = await signInWithGoogle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       
-      // Wait for auth state to update
-      setTimeout(async () => {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser?.email) {
-          await saveSubscription(
-            authUser.id,
-            authUser.email,
-            authUser.user_metadata?.full_name || authUser.user_metadata?.name,
-            'google'
-          );
-        }
-      }, 1000);
-    } catch (error) {
+      // Wait for auth state to update with proper async handling
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        throw new Error('Autenticazione non completata. Riprova.');
+      }
+      
+      if (authUser?.email) {
+        await saveSubscription(
+          authUser.id,
+          authUser.email,
+          authUser.user_metadata?.full_name || authUser.user_metadata?.name,
+          'google'
+        );
+      } else {
+        throw new Error('Email non disponibile dopo il login');
+      }
+    } catch (error: any) {
       console.error('Google sign in error:', error);
       toast({
-        title: "Errore",
-        description: "Non siamo riusciti ad accedere con Google. Riprova.",
+        title: "Errore di accesso",
+        description: error.message || "Non siamo riusciti ad accedere con Google. Verifica i pop-up del browser e riprova.",
         variant: "destructive"
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -148,28 +156,36 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     setIsLoading(true);
     try {
       const { error } = await signInWithApple();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       
-      // Wait for auth state to update
-      setTimeout(async () => {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser?.email) {
-          await saveSubscription(
-            authUser.id,
-            authUser.email,
-            authUser.user_metadata?.full_name || authUser.user_metadata?.name,
-            'apple'
-          );
-        }
-      }, 1000);
-    } catch (error) {
+      // Wait for auth state to update with proper async handling
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        throw new Error('Autenticazione non completata. Riprova.');
+      }
+      
+      if (authUser?.email) {
+        await saveSubscription(
+          authUser.id,
+          authUser.email,
+          authUser.user_metadata?.full_name || authUser.user_metadata?.name,
+          'apple'
+        );
+      } else {
+        throw new Error('Email non disponibile dopo il login');
+      }
+    } catch (error: any) {
       console.error('Apple sign in error:', error);
       toast({
-        title: "Errore",
-        description: "Non siamo riusciti ad accedere con Apple. Riprova.",
+        title: "Errore di accesso",
+        description: error.message || "Non siamo riusciti ad accedere con Apple. Verifica i pop-up del browser e riprova.",
         variant: "destructive"
       });
-    } finally {
       setIsLoading(false);
     }
   };

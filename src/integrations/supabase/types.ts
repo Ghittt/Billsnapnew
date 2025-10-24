@@ -103,6 +103,56 @@ export type Database = {
           },
         ]
       }
+      errors: {
+        Row: {
+          created_at: string
+          error_code: string | null
+          error_message: string
+          error_type: string
+          id: string
+          payload: Json | null
+          resolved: boolean | null
+          resolved_at: string | null
+          stack_trace: string | null
+          upload_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_code?: string | null
+          error_message: string
+          error_type: string
+          id?: string
+          payload?: Json | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          stack_trace?: string | null
+          upload_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_code?: string | null
+          error_message?: string
+          error_type?: string
+          id?: string
+          payload?: Json | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          stack_trace?: string | null
+          upload_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "errors_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback: {
         Row: {
           category: string
@@ -221,6 +271,7 @@ export type Database = {
           is_active: boolean
           last_notified_at: string | null
           login_type: string | null
+          provider_login: string | null
           upload_id: string | null
           user_id: string | null
         }
@@ -234,6 +285,7 @@ export type Database = {
           is_active?: boolean
           last_notified_at?: string | null
           login_type?: string | null
+          provider_login?: string | null
           upload_id?: string | null
           user_id?: string | null
         }
@@ -247,6 +299,7 @@ export type Database = {
           is_active?: boolean
           last_notified_at?: string | null
           login_type?: string | null
+          provider_login?: string | null
           upload_id?: string | null
           user_id?: string | null
         }
@@ -667,6 +720,10 @@ export type Database = {
           file_type: string
           file_url: string
           id: string
+          ocr_completed_at: string | null
+          ocr_error: string | null
+          ocr_started_at: string | null
+          ocr_status: string | null
           user_id: string | null
         }
         Insert: {
@@ -675,6 +732,10 @@ export type Database = {
           file_type: string
           file_url: string
           id?: string
+          ocr_completed_at?: string | null
+          ocr_error?: string | null
+          ocr_started_at?: string | null
+          ocr_status?: string | null
           user_id?: string | null
         }
         Update: {
@@ -683,6 +744,10 @@ export type Database = {
           file_type?: string
           file_url?: string
           id?: string
+          ocr_completed_at?: string | null
+          ocr_error?: string | null
+          ocr_started_at?: string | null
+          ocr_status?: string | null
           user_id?: string | null
         }
         Relationships: []

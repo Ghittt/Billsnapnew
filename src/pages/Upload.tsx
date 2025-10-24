@@ -5,10 +5,12 @@ import Header from '@/components/layout/Header';
 import UploadZone from '@/components/upload/UploadZone';
 import ProgressIndicator from '@/components/upload/ProgressIndicator';
 import { ManualBillInputModal } from '@/components/upload/ManualBillInputModal';
+import { ManualBillInputFallback } from '@/components/upload/ManualBillInputFallback';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, Clock, Upload, AlertTriangle, Shield } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { logError, updateUploadStatus } from '@/lib/errorLogger';
 import heroImage from '@/assets/hero-bg.jpg';
 import billIcon from '@/assets/bill-icon.png';
 import '@/types/analytics';
@@ -19,7 +21,10 @@ const UploadPage = () => {
   const [currentStep, setCurrentStep] = useState<'upload' | 'ocr' | 'calculate' | 'complete'>('upload');
   const [retryCount, setRetryCount] = useState(0);
   const [showManualInput, setShowManualInput] = useState(false);
+  const [showManualFallback, setShowManualFallback] = useState(false);
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
+  const [uploadStartTime, setUploadStartTime] = useState<number>(0);
+  const [ocrTimeoutWarning, setOcrTimeoutWarning] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -34,6 +39,8 @@ const UploadPage = () => {
     setIsUploading(true);
     setCurrentStep('upload');
     setRetryCount(0);
+    setOcrTimeoutWarning(false);
+    setUploadStartTime(Date.now());
     
     // Track analytics event
     if (typeof gtag !== 'undefined') {
@@ -48,6 +55,12 @@ const UploadPage = () => {
       
       // Validate file
       if (file.size > 20 * 1024 * 1024) {
+        await logError({
+          type: 'validation',
+          message: 'File troppo grande',
+          errorCode: 'FILE_TOO_LARGE',
+          payload: { fileSize: file.size, fileName: file.name }
+        });
         throw new Error('File troppo grande. Massimo 20MB consentiti.');
       }
 
@@ -65,6 +78,12 @@ const UploadPage = () => {
       });
 
       if (!uploadResponse.ok) {
+        await logError({
+          type: 'upload',
+          message: 'Storage upload failed',
+          errorCode: `HTTP_${uploadResponse.status}`,
+          payload: { fileName: file.name }
+        });
         throw new Error('Upload failed');
       }
 
@@ -77,12 +96,21 @@ const UploadPage = () => {
           file_url: `bills/${Date.now()}-${file.name}`,
           file_type: file.type,
           file_size: file.size,
-          user_id: user?.id || null
+          user_id: user?.id || null,
+          ocr_status: 'pending'
         })
         .select()
         .single();
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        await logError({
+          type: 'upload',
+          message: 'Database insert failed',
+          errorCode: uploadError.code || 'DB_ERROR',
+          payload: { error: uploadError.message }
+        });
+        throw uploadError;
+      }
 
       // Track upload success
       if (typeof gtag !== 'undefined') {
@@ -91,8 +119,18 @@ const UploadPage = () => {
         });
       }
 
-      // Step 2: OCR Processing
+      // Step 2: OCR Processing with timeout warning
       setCurrentStep('ocr');
+      await updateUploadStatus(uploadData.id, 'processing');
+      
+      // Show timeout warning after 30s
+      const timeoutWarning = setTimeout(() => {
+        const elapsed = (Date.now() - uploadStartTime) / 1000;
+        if (elapsed > 30) {
+          setOcrTimeoutWarning(true);
+        }
+      }, 30000);
+      
       const ocrFormData = new FormData();
       ocrFormData.append('file', file);
       ocrFormData.append('uploadId', uploadData.id);
@@ -105,26 +143,48 @@ const UploadPage = () => {
         body: ocrFormData
       });
 
+      clearTimeout(timeoutWarning);
+      setOcrTimeoutWarning(false);
+
       if (!ocrResponse.ok) {
-        console.error('OCR failed, status:', ocrResponse.status);
+        const errorText = await ocrResponse.text();
+        console.error('OCR failed, status:', ocrResponse.status, errorText);
+        
+        await logError({
+          type: 'ocr',
+          message: `OCR failed with status ${ocrResponse.status}`,
+          uploadId: uploadData.id,
+          errorCode: `HTTP_${ocrResponse.status}`,
+          payload: { fileName: file.name, error: errorText }
+        });
+        
+        await updateUploadStatus(uploadData.id, 'failed', `HTTP ${ocrResponse.status}`);
         
         // Retry logic for common OCR failures
-        if (retryCount < 1) {
+        if (retryCount < 1 && ocrResponse.status >= 500) {
           console.log(`Retrying OCR (attempt ${retryCount + 1})...`);
           setRetryCount(retryCount + 1);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 2000));
           return handleFileUpload(files);
         }
         
-        // OCR failed after retries - offer manual input
-        console.log('OCR failed after retries, opening manual input modal');
+        // OCR failed after retries - offer manual fallback
+        console.log('OCR failed after retries, showing manual fallback');
         setPendingUploadId(uploadData.id);
-        setShowManualInput(true);
+        setShowManualFallback(true);
         setIsUploading(false);
+        
+        toast({
+          title: "Bolletta non leggibile",
+          description: "Non riusciamo a leggere questa bolletta. Inserisci i dati manualmente per continuare.",
+          variant: "destructive"
+        });
+        
         return;
       }
 
       const ocrData = await ocrResponse.json();
+      await updateUploadStatus(uploadData.id, 'success');
       
       console.log('OCR response:', ocrData);
       
@@ -170,8 +230,16 @@ const UploadPage = () => {
       const errorMessage = error instanceof Error ? error.message : 
         "Si è verificato un errore durante l'analisi della bolletta.";
       
+      await logError({
+        type: 'network',
+        message: errorMessage,
+        uploadId: pendingUploadId || undefined,
+        stackTrace: error instanceof Error ? error.stack : undefined,
+        payload: { step: currentStep }
+      });
+      
       // Show appropriate error message
-      if (errorMessage.includes('leggere')) {
+      if (errorMessage.includes('leggere') || errorMessage.includes('timeout')) {
         toast({
           title: "Bolletta non leggibile",
           description: errorMessage,
@@ -187,7 +255,15 @@ const UploadPage = () => {
             >
               Riprova
             </Button>
-          ) : undefined
+          ) : (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowManualFallback(true)}
+            >
+              Inserisci manualmente
+            </Button>
+          )
         });
       } else {
         toast({
@@ -198,6 +274,81 @@ const UploadPage = () => {
       }
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleManualFallbackSubmit = async (data: {
+    provider: string;
+    annualKwh: number;
+    totalCostEur?: number;
+  }) => {
+    if (!pendingUploadId) return;
+
+    try {
+      setShowManualFallback(false);
+      setIsUploading(true);
+      setCurrentStep('calculate');
+
+      // Create OCR result with manual data
+      const { error: ocrInsertError } = await supabase
+        .from("ocr_results")
+        .insert({
+          upload_id: pendingUploadId,
+          annual_kwh: data.annualKwh,
+          total_cost_eur: data.totalCostEur,
+          provider: data.provider,
+          quality_score: 0.6, // Manual input quality score
+          tariff_hint: "manual"
+        });
+
+      if (ocrInsertError) {
+        await logError({
+          type: 'validation',
+          message: 'Failed to insert manual OCR data',
+          uploadId: pendingUploadId,
+          payload: { error: ocrInsertError }
+        });
+        throw ocrInsertError;
+      }
+
+      await updateUploadStatus(pendingUploadId, 'success');
+
+      // Continue with comparison
+      const { data: compareData, error: compareError } = await supabase.functions.invoke('compare-offers', {
+        body: { uploadId: pendingUploadId }
+      });
+
+      if (compareError) {
+        await logError({
+          type: 'network',
+          message: 'Compare offers failed',
+          uploadId: pendingUploadId,
+          payload: { error: compareError }
+        });
+        throw compareError;
+      }
+
+      setCurrentStep('complete');
+      
+      toast({
+        title: "Analisi completata!",
+        description: "Confronto offerte completato con i tuoi dati.",
+      });
+
+      setTimeout(() => {
+        navigate(`/results?uploadId=${pendingUploadId}`);
+      }, 1000);
+
+    } catch (error) {
+      console.error("Error processing manual fallback:", error);
+      toast({
+        title: "Errore",
+        description: "Errore durante l'elaborazione. Riprova.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setPendingUploadId(null);
     }
   };
 
@@ -301,12 +452,36 @@ const UploadPage = () => {
                   Analisi in corso
                 </h2>
                 <p className="text-muted-foreground">
-                  Non chiudere questa pagina
+                  {ocrTimeoutWarning 
+                    ? "Stiamo ancora elaborando... Qualche secondo in più del solito."
+                    : "Non chiudere questa pagina"
+                  }
                 </p>
               </div>
               
               <ProgressIndicator currentStep={currentStep} />
+              
+              {ocrTimeoutWarning && (
+                <Card className="glass border-primary/20">
+                  <CardContent className="p-4">
+                    <p className="text-sm text-center text-muted-foreground">
+                      <Clock className="w-4 h-4 inline mr-2" />
+                      Connessione lenta rilevata. Continua l'elaborazione...
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
+          )}
+
+          {showManualFallback && pendingUploadId && (
+            <ManualBillInputFallback
+              onSubmit={handleManualFallbackSubmit}
+              onCancel={() => {
+                setShowManualFallback(false);
+                setPendingUploadId(null);
+              }}
+            />
           )}
 
           {uploadedFiles.length > 0 && !isUploading && (
