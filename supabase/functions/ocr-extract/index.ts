@@ -200,24 +200,37 @@ serve(async (req) => {
             content: [
               {
                 type: 'text',
-                text: `Analizza questa bolletta energia/gas italiana ed estrai con precisione TUTTI i dati numerici visibili. Sei un esperto nell'estrazione dati da bollette energetiche italiane.
+                text: `Sei un estrattore OCR per bollette luce/gas italiane. Segui RIGOROSAMENTE queste regole:
+
+REGOLE CRITICHE:
+- NON indovinare MAI. Se un dato non è leggibile, restituisci null e scrivi in 'notes'
+- Lavora SOLO sul contenuto della bolletta allegata
+- Se il documento ha più pagine, usa la pagina 1 o, se mancano dati, la pagina 2 (indica in 'pagina_usata')
+- Usa unità corrette (kWh per luce, Smc per gas)
+- Restituisci SOLO JSON valido con lo schema completo
+- Usa punto come separatore decimale e range realistici
+- POD deve rispettare: ^IT[0-9A-Z]{10,25}$
+- PDR deve rispettare: ^\\d{14}$
 
 DATI DA ESTRARRE:
-1. "total_cost_eur" (numero): Importo totale da pagare in euro. Cerca "Totale da pagare", "Quanto devo pagare", "Importo totale", il numero più grande evidenziato
-2. "annual_kwh" (numero o null): Consumo annuale elettricità in kWh. Se vedi solo consumo di 2 mesi (bimestrale), moltiplica x6 per ottenere l'annuale
-3. "unit_price_eur_kwh" (numero o null): Prezzo unitario energia €/kWh (cerca nelle voci di dettaglio)
-4. "gas_smc" (numero o null): Consumo annuale GAS in Smc (Standard metri cubi), se presente nella bolletta
-5. "billing_period_start" (formato "YYYY-MM-DD" o null): Data inizio periodo fatturazione
-6. "billing_period_end" (formato "YYYY-MM-DD" o null): Data fine periodo fatturazione
-7. "provider" (stringa): Nome fornitore (es. "A2A Energia", "Enel", "Edison", "Sorgenia")
-8. "notes" (stringa): Note su calcoli o assunzioni fatte
+1. "total_cost_eur" (numero): Importo totale da pagare in euro (range: 50-5000)
+2. "annual_kwh" (numero o null): Consumo annuale elettricità in kWh (range: 200-10000). Se vedi solo bimestre, moltiplica x6
+3. "unit_price_eur_kwh" (numero o null): Prezzo unitario €/kWh (range: 0.05-2.0)
+4. "gas_smc" (numero o null): Consumo annuale GAS in Smc
+5. "billing_period_start" (formato "YYYY-MM-DD" o null)
+6. "billing_period_end" (formato "YYYY-MM-DD" o null)
+7. "provider" (stringa): Nome fornitore esatto (es. "A2A", "Enel", "Edison")
+8. "pod" (stringa o null): Codice POD (IT + 10-25 caratteri alfanumerici)
+9. "pdr" (stringa o null): Codice PDR (14 cifre)
+10. "pagina_usata" (intero): Pagina del documento usata per l'estrazione (1 o 2)
+11. "notes" (stringa): Note su calcoli o assunzioni fatte
 
-ISTRUZIONI CRITICHE:
-- Se la bolletta copre 2 mesi (es. "dal 01 Gennaio al 28 Febbraio") e vedi "consumo 575 kWh", calcola: annual_kwh = 575 * 6 = 3450
-- Se vedi "267,00 euro", scrivi 267.00 (usa punto decimale)
-- Date nel formato YYYY-MM-DD (es. "21 Marzo 2025" diventa "2025-03-21")
-- Se un dato non è visibile, metti null e spiega in notes
-- Leggi attentamente tutti i numeri evidenziati nella bolletta
+VALIDAZIONI:
+- Se total_cost_eur < 50 o > 5000: invalida e spiega in notes
+- Se annual_kwh < 200 o > 10000: invalida e spiega in notes
+- Se unit_price_eur_kwh < 0.05 o > 2.0: invalida e spiega in notes
+- Se POD non rispetta pattern: null e spiega in notes
+- Se PDR non rispetta pattern: null e spiega in notes
 
 FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no markdown):
 {
@@ -228,7 +241,10 @@ FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no 
   "billing_period_start": "2025-01-01",
   "billing_period_end": "2025-02-28",
   "provider": "A2A Energia",
-  "notes": "Consumo bimestrale 575 kWh moltiplicato per 6 per ottenere stima annuale"
+  "pod": "IT001E12345678901",
+  "pdr": null,
+  "pagina_usata": 1,
+  "notes": "Consumo bimestrale 575 kWh x6 = 3450 kWh annuale stimato"
 }`
               },
               {
@@ -308,44 +324,95 @@ FORMATO RISPOSTA - Rispondi SOLO con JSON valido (nessun testo prima o dopo, no 
       throw new Error('Invalid JSON response from OCR AI');
     }
 
+    // Validate POD/PDR patterns
+    const podRegex = /^IT[0-9A-Z]{10,25}$/;
+    const pdrRegex = /^\d{14}$/;
+    
+    let validatedPod = parsedData.pod || null;
+    let validatedPdr = parsedData.pdr || null;
+    
+    if (validatedPod && !podRegex.test(validatedPod)) {
+      console.warn('Invalid POD format:', validatedPod);
+      validatedPod = null;
+      parsedData.notes = (parsedData.notes || '') + ' - POD non valido o non trovato.';
+    }
+    
+    if (validatedPdr && !pdrRegex.test(validatedPdr)) {
+      console.warn('Invalid PDR format:', validatedPdr);
+      validatedPdr = null;
+      parsedData.notes = (parsedData.notes || '') + ' - PDR non valido o non trovato.';
+    }
+
     // Extract structured fields
     const structured = extractBillFields(jsonStr, parsedData);
     
+    // Normalize numbers
+    const normalizeNum = (val: any, min: number, max: number, defaultVal: number | null = null): number | null => {
+      if (val === null || val === undefined) return defaultVal;
+      const n = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : Number(val);
+      if (isNaN(n) || n < min || n > max) return defaultVal;
+      return n;
+    };
+
     const extractedData = {
-      total_cost_eur: structured.total_cost_eur,
-      annual_kwh: structured.kwh_period,
-      unit_price_eur_kwh: structured.unit_price_kwh,
-      gas_smc: structured.gas_smc,
-      pod: structured.pod,
-      pdr: structured.pdr,
+      total_cost_eur: normalizeNum(parsedData.total_cost_eur, 50, 5000, structured.total_cost_eur),
+      annual_kwh: normalizeNum(parsedData.annual_kwh, 200, 10000, structured.kwh_period),
+      unit_price_eur_kwh: normalizeNum(parsedData.unit_price_eur_kwh, 0.05, 2.0, structured.unit_price_kwh),
+      gas_smc: normalizeNum(parsedData.gas_smc, 0, 10000, structured.gas_smc),
+      pod: validatedPod || structured.pod,
+      pdr: validatedPdr || structured.pdr,
       f1_kwh: structured.f1_kwh,
       f2_kwh: structured.f2_kwh,
       f3_kwh: structured.f3_kwh,
       potenza_kw: structured.potenza_kw,
       tariff_hint: structured.tariff_hint,
-      billing_period_start: structured.billing_period_start,
-      billing_period_end: structured.billing_period_end,
-      provider: structured.provider,
+      billing_period_start: parsedData.billing_period_start || structured.billing_period_start,
+      billing_period_end: parsedData.billing_period_end || structured.billing_period_end,
+      provider: parsedData.provider || structured.provider,
+      pagina_usata: parsedData.pagina_usata || 1,
       quality_score: 0.95,
       notes: parsedData.notes || ''
     };
 
     console.log('Extracted data:', extractedData);
 
-    // Validate extracted data
+    // Calculate confidence score based on validations
+    let confidenceAvg = 0.95;
+    const validationErrors: string[] = [];
+
     if (!extractedData.total_cost_eur || extractedData.total_cost_eur <= 0) {
-      extractedData.quality_score = 0.50;
-      extractedData.notes = (extractedData.notes || '') + ' - ATTENZIONE: Importo non trovato o non valido. Verifica manualmente.';
+      confidenceAvg = Math.min(confidenceAvg, 0.50);
+      validationErrors.push('Importo non trovato o non valido');
     }
     
     if (extractedData.unit_price_eur_kwh && (extractedData.unit_price_eur_kwh < 0.05 || extractedData.unit_price_eur_kwh > 2.0)) {
-      extractedData.notes = (extractedData.notes || '') + ' - Prezzo unitario fuori range normale (0.05-2.0 €/kWh).';
-      extractedData.quality_score = Math.min(extractedData.quality_score, 0.70);
+      validationErrors.push('Prezzo unitario fuori range (0.05-2.0 €/kWh)');
+      confidenceAvg = Math.min(confidenceAvg, 0.70);
     }
     
-    if (extractedData.annual_kwh && (extractedData.annual_kwh < 100 || extractedData.annual_kwh > 15000)) {
-      extractedData.notes = (extractedData.notes || '') + ' - Consumo annuo fuori range tipico (100-15000 kWh).';
-      extractedData.quality_score = Math.min(extractedData.quality_score, 0.70);
+    if (extractedData.annual_kwh && (extractedData.annual_kwh < 200 || extractedData.annual_kwh > 10000)) {
+      validationErrors.push('Consumo annuo fuori range (200-10000 kWh)');
+      confidenceAvg = Math.min(confidenceAvg, 0.70);
+    }
+
+    if (!validatedPod) {
+      validationErrors.push('POD non valido o assente');
+      confidenceAvg = Math.min(confidenceAvg, 0.80);
+    }
+
+    extractedData.quality_score = confidenceAvg;
+    
+    // Log to ocr_debug table
+    try {
+      await supabase.from('ocr_debug').insert({
+        upload_id: uploadId,
+        pagina_usata: extractedData.pagina_usata,
+        raw_json: parsedData,
+        confidence_avg: confidenceAvg,
+        errors: validationErrors.length > 0 ? validationErrors.join('; ') : null
+      });
+    } catch (debugErr) {
+      console.error('Failed to log to ocr_debug:', debugErr);
     }
 
     // Get user_id from upload record
