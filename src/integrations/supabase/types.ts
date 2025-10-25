@@ -62,6 +62,42 @@ export type Database = {
         }
         Relationships: []
       }
+      calc_log: {
+        Row: {
+          consumo: number | null
+          costo_annuo: number | null
+          created_at: string
+          flags: Json | null
+          id: string
+          prezzo: number | null
+          quota_fissa_mese: number | null
+          tipo: string | null
+          upload_id: string | null
+        }
+        Insert: {
+          consumo?: number | null
+          costo_annuo?: number | null
+          created_at?: string
+          flags?: Json | null
+          id?: string
+          prezzo?: number | null
+          quota_fissa_mese?: number | null
+          tipo?: string | null
+          upload_id?: string | null
+        }
+        Update: {
+          consumo?: number | null
+          costo_annuo?: number | null
+          created_at?: string
+          flags?: Json | null
+          id?: string
+          prezzo?: number | null
+          quota_fissa_mese?: number | null
+          tipo?: string | null
+          upload_id?: string | null
+        }
+        Relationships: []
+      }
       comparison_results: {
         Row: {
           ai_explanation: Json | null
