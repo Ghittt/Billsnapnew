@@ -349,6 +349,36 @@ export type Database = {
         }
         Relationships: []
       }
+      ocr_debug: {
+        Row: {
+          confidence_avg: number | null
+          created_at: string
+          errors: string | null
+          id: string
+          pagina_usata: number | null
+          raw_json: Json | null
+          upload_id: string | null
+        }
+        Insert: {
+          confidence_avg?: number | null
+          created_at?: string
+          errors?: string | null
+          id?: string
+          pagina_usata?: number | null
+          raw_json?: Json | null
+          upload_id?: string | null
+        }
+        Update: {
+          confidence_avg?: number | null
+          created_at?: string
+          errors?: string | null
+          id?: string
+          pagina_usata?: number | null
+          raw_json?: Json | null
+          upload_id?: string | null
+        }
+        Relationships: []
+      }
       ocr_results: {
         Row: {
           annual_kwh: number | null

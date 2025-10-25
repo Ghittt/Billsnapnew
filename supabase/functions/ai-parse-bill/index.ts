@@ -44,21 +44,29 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'Sei un parser rigoroso di bollette luce/gas in Italia. Estrai e valida i campi numerici. Restituisci SOLO JSON valido con le chiavi specificate.'
+            content: `Sei un estrattore OCR rigoroso per bollette luce/gas italiane.
+
+REGOLE CRITICHE:
+- NON indovinare MAI. Se un dato non è visibile, restituisci null
+- Usa punto come separatore decimale
+- Valida range: total_cost_eur (50-5000), annual_kwh (200-10000), unit_price_eur_kwh (0.05-2.0)
+- POD regex: ^IT[0-9A-Z]{10,25}$
+- PDR regex: ^\\d{14}$
+- Se i range non sono rispettati, restituisci null e spiega in notes
+
+Restituisci SOLO JSON valido (no markdown, no testo extra):
+{
+  "total_cost_eur": float,
+  "annual_kwh": float|null,
+  "unit_price_eur_kwh": float|null,
+  "pod": string|null,
+  "pdr": string|null,
+  "notes": string
+}`
           },
           {
             role: 'user',
-            content: `Fornisco testo OCR della bolletta. Restituisci SOLO JSON valido con chiavi:
-            { 
-              "total_cost_eur": float, 
-              "annual_kwh": float|null, 
-              "unit_price_eur_kwh": float|null, 
-              "notes": string 
-            }
-            
-            Se un campo manca, stima usando i dati presenti e descrivi la logica in notes. Nessun testo fuori dal JSON.
-            
-            Testo OCR della bolletta:
+            content: `Testo OCR della bolletta:
             ${ocr_text}`
           }
         ],
@@ -92,11 +100,37 @@ serve(async (req) => {
     try {
       const parsedData = JSON.parse(aiContent);
       
-      // Validate the structure
+      // Validate POD/PDR patterns
+      const podRegex = /^IT[0-9A-Z]{10,25}$/;
+      const pdrRegex = /^\d{14}$/;
+      
+      let validatedPod = parsedData.pod || null;
+      let validatedPdr = parsedData.pdr || null;
+      
+      if (validatedPod && !podRegex.test(validatedPod)) {
+        console.warn('Invalid POD format:', validatedPod);
+        validatedPod = null;
+      }
+      
+      if (validatedPdr && !pdrRegex.test(validatedPdr)) {
+        console.warn('Invalid PDR format:', validatedPdr);
+        validatedPdr = null;
+      }
+
+      // Normalize and validate numbers
+      const normalizeNum = (val: any, min: number, max: number): number | null => {
+        if (val === null || val === undefined) return null;
+        const n = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : Number(val);
+        if (isNaN(n) || n < min || n > max) return null;
+        return n;
+      };
+
       const validatedData = {
-        total_cost_eur: typeof parsedData.total_cost_eur === 'number' ? parsedData.total_cost_eur : null,
-        annual_kwh: typeof parsedData.annual_kwh === 'number' ? parsedData.annual_kwh : null,
-        unit_price_eur_kwh: typeof parsedData.unit_price_eur_kwh === 'number' ? parsedData.unit_price_eur_kwh : null,
+        total_cost_eur: normalizeNum(parsedData.total_cost_eur, 50, 5000),
+        annual_kwh: normalizeNum(parsedData.annual_kwh, 200, 10000),
+        unit_price_eur_kwh: normalizeNum(parsedData.unit_price_eur_kwh, 0.05, 2.0),
+        pod: validatedPod,
+        pdr: validatedPdr,
         notes: typeof parsedData.notes === 'string' ? parsedData.notes : 'Parsed successfully'
       };
 
