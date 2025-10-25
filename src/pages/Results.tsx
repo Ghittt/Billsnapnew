@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProfileQuestionnaire } from '@/components/profile/ProfileQuestionnaire';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { ConfirmDataForm } from '@/components/upload/ConfirmDataForm';
 import { ArrowLeft, Zap, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { calculateWithGuardRails } from '@/lib/ocrValidation';
 import '@/types/analytics';
 
 interface Offer {
@@ -47,6 +49,8 @@ const ResultsPage = () => {
   const [showQuestionnaire, setShowQuestionnaire] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [ocrData, setOcrData] = useState<any>(null);
+  const [showConfirmForm, setShowConfirmForm] = useState(false);
+  const [calculationResult, setCalculationResult] = useState<any>(null);
 
   useEffect(() => {
     // Always attempt to load results; if uploadId is missing we proceed with defaults
@@ -97,6 +101,32 @@ const ResultsPage = () => {
           setOcrData(fetchedOcrData);
           consumption = Number(fetchedOcrData.annual_kwh ?? consumption);
           estimatedCurrentCost = Number(fetchedOcrData.total_cost_eur ?? consumption * 0.30);
+          
+          // Validate OCR data with guard-rails
+          const calcResult = calculateWithGuardRails({
+            consumo_annuo_kwh: fetchedOcrData.annual_kwh,
+            prezzo_kwh: fetchedOcrData.unit_price_eur_kwh,
+            quota_fissa_mese: null, // Not extracted from OCR yet
+            tipo: 'luce',
+            confidence: fetchedOcrData.quality_score ? {
+              consumo_annuo_kwh: fetchedOcrData.quality_score,
+              prezzo_kwh: fetchedOcrData.quality_score
+            } : undefined
+          });
+          
+          setCalculationResult(calcResult);
+          
+          // If data needs confirmation, show form before proceeding
+          if (calcResult.needsConfirmation) {
+            setShowConfirmForm(true);
+            setIsLoading(false);
+            return;
+          }
+          
+          // Use validated data
+          if (calcResult.costo_annuo) {
+            estimatedCurrentCost = calcResult.costo_annuo;
+          }
         }
       }
 
@@ -289,6 +319,65 @@ const ResultsPage = () => {
     }
   };
 
+  const handleConfirmData = async (confirmedData: { consumo: number; spesa?: number; prezzo: number }) => {
+    setShowConfirmForm(false);
+    setIsLoading(true);
+
+    try {
+      // Recalculate with confirmed data
+      const recalcResult = calculateWithGuardRails({
+        consumo_annuo_kwh: confirmedData.consumo,
+        prezzo_kwh: confirmedData.prezzo,
+        quota_fissa_mese: null,
+        tipo: 'luce',
+        confidence: { consumo_annuo_kwh: 1.0, prezzo_kwh: 1.0 } // User confirmed = 100% confidence
+      });
+
+      // Log to calc_log
+      await supabase.from('calc_log').insert({
+        upload_id: uploadId || null,
+        tipo: 'luce',
+        consumo: confirmedData.consumo,
+        prezzo: confirmedData.prezzo,
+        quota_fissa_mese: null,
+        costo_annuo: recalcResult.costo_annuo,
+        flags: recalcResult.flags
+      });
+
+      // Update state with confirmed data
+      setAnnualKwh(confirmedData.consumo);
+      setCurrentCost(confirmedData.spesa || recalcResult.costo_annuo || confirmedData.consumo * 0.30);
+      setCalculationResult(recalcResult);
+
+      // Update OCR data if uploadId exists
+      if (uploadId) {
+        await supabase.from('ocr_results').upsert({
+          upload_id: uploadId,
+          annual_kwh: confirmedData.consumo,
+          unit_price_eur_kwh: confirmedData.prezzo,
+          total_cost_eur: confirmedData.spesa || recalcResult.costo_annuo,
+          quality_score: 1.0 // User confirmed
+        });
+      }
+
+      toast({
+        title: 'Perfetto!',
+        description: 'Ora posso confrontare davvero mele con mele. 🚀'
+      });
+
+      // Reload results with confirmed data
+      await fetchResults();
+    } catch (error) {
+      console.error('Error confirming data:', error);
+      toast({
+        title: 'Errore',
+        description: 'Errore durante la conferma dei dati',
+        variant: 'destructive'
+      });
+      setIsLoading(false);
+    }
+  };
+
   // Calculate savings
   const annualSaving = offersData?.best_offer 
     ? currentCost - offersData.best_offer.offer_annual_cost_eur 
@@ -318,17 +407,48 @@ const ResultsPage = () => {
         <Header />
         <main className="container mx-auto px-4 py-12">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold mb-2">Prima di continuare...</h1>
+            <h1 className="text-4xl font-bold mb-2">Prima di tutto...</h1>
             <p className="text-muted-foreground">
-              Completa il tuo profilo per ricevere raccomandazioni AI ultra-personalizzate
+              Aiutami a personalizzare le tue offerte rispondendo a qualche domanda
             </p>
           </div>
-          <ProfileQuestionnaire 
-            onComplete={() => {
-              setShowQuestionnaire(false);
-              fetchResults();
+          <ProfileQuestionnaire onComplete={() => {
+            setShowQuestionnaire(false);
+            fetchResults();
+          }} />
+        </main>
+      </div>
+    );
+  }
+
+  if (showConfirmForm) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle">
+        <Header />
+        <main className="container mx-auto px-4 py-12">
+          <div className="mb-8">
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/upload')}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Carica un'altra bolletta
+            </Button>
+          </div>
+          <ConfirmDataForm
+            tipo="luce"
+            initialData={{
+              fornitore: ocrData?.provider || undefined,
+              consumo: ocrData?.annual_kwh || calculationResult?.consumo,
+              spesa: ocrData?.total_cost_eur,
+              prezzo: ocrData?.unit_price_eur_kwh || calculationResult?.prezzo
             }}
-            userId={userProfile?.user_id}
+            onConfirm={handleConfirmData}
+            onCancel={() => {
+              setShowConfirmForm(false);
+              setIsLoading(false);
+            }}
           />
         </main>
       </div>

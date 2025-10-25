@@ -65,19 +65,52 @@ serve(async (req) => {
       throw new Error('No active offers found');
     }
 
-    // Calculate annual cost for each offer
-    const ranked = offers.map(offer => {
-      const result = simulateAnnualCost(profile, offer);
-      return {
-        offer_id: offer.id,
-        provider: offer.provider,
-        plan_name: offer.plan_name,
-        tariff_type: offer.tariff_type,
-        ...result
-      };
-    }).sort((a, b) => a.total_year - b.total_year);
+    // Calculate annual cost for each offer and filter out invalid ones
+    const ranked = offers
+      .filter(offer => {
+        // Safety filters: exclude offers with invalid pricing
+        if (offer.tariff_type === 'monoraria' && (!offer.price_kwh || offer.price_kwh <= 0)) {
+          return false;
+        }
+        // Filter out offers with missing critical pricing
+        if (!offer.fixed_fee_eur_mo && offer.fixed_fee_eur_mo !== 0) {
+          return false;
+        }
+        // Anti-placeholder: if consumption is high, cost should be realistic
+        if (profile.total_kwh_year >= 2000 && offer.price_kwh && offer.price_kwh < 0.05) {
+          return false;
+        }
+        return true;
+      })
+      .map(offer => {
+        const result = simulateAnnualCost(profile, offer);
+        return {
+          offer_id: offer.id,
+          provider: offer.provider,
+          plan_name: offer.plan_name,
+          tariff_type: offer.tariff_type,
+          ...result
+        };
+      })
+      .filter(r => r.total_year > 0) // Exclude zero or negative costs
+      .sort((a, b) => a.total_year - b.total_year);
 
     console.log(`Ranked ${ranked.length} offers, best: ${ranked[0]?.total_year}€/year`);
+
+    // Log calculation to calc_log
+    const flags: Record<string, boolean> = {};
+    if (!ocrData) flags['used_defaults'] = true;
+    if (profile.total_kwh_year < 200 || profile.total_kwh_year > 10000) flags['bad_kwh_range'] = true;
+    
+    await supabase.from('calc_log').insert({
+      upload_id: uploadId,
+      tipo: 'luce',
+      consumo: profile.total_kwh_year,
+      prezzo: null, // Not applicable for comparison
+      quota_fissa_mese: null,
+      costo_annuo: ranked[0]?.total_year || null,
+      flags: flags
+    });
 
     // Store comparison results
     const { error: insertError } = await supabase

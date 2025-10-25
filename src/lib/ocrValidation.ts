@@ -135,3 +135,107 @@ export const calculateConfidenceScore = (data: any): number => {
   
   return Math.max(0, Math.min(1, score));
 };
+
+// Guard-rails calculator with flags
+export interface CalculatorInput {
+  consumo_annuo_kwh?: number | null;
+  consumo_annuo_smc?: number | null;
+  prezzo_kwh?: number | null;
+  prezzo_smc?: number | null;
+  quota_fissa_mese?: number | null;
+  oneri_stimati_annui?: number | null;
+  tipo: 'luce' | 'gas';
+  confidence?: Record<string, number>;
+}
+
+export interface CalculatorResult {
+  costo_annuo: number | null;
+  flags: Record<string, boolean>;
+  needsConfirmation: boolean;
+  consumo: number | null;
+  prezzo: number | null;
+  quota_fissa_mese: number | null;
+}
+
+export const calculateWithGuardRails = (input: CalculatorInput): CalculatorResult => {
+  const flags: Record<string, boolean> = {};
+  const confidence = input.confidence || {};
+  
+  // Normalize and validate consumption
+  let consumo = input.tipo === 'luce' ? input.consumo_annuo_kwh : input.consumo_annuo_smc;
+  if (consumo !== null && consumo !== undefined) {
+    if (input.tipo === 'luce') {
+      if (consumo < 200 || consumo > 10000) {
+        consumo = null;
+        flags['bad_kwh'] = true;
+      }
+    } else {
+      if (consumo < 50 || consumo > 2000) {
+        consumo = null;
+        flags['bad_smc'] = true;
+      }
+    }
+    
+    // Check confidence
+    const consumoKey = input.tipo === 'luce' ? 'consumo_annuo_kwh' : 'consumo_annuo_smc';
+    if (confidence[consumoKey] && confidence[consumoKey] < 0.85) {
+      consumo = null;
+      flags[`low_conf_${consumoKey}`] = true;
+    }
+  }
+  
+  // Normalize and validate price
+  let prezzo = input.tipo === 'luce' ? input.prezzo_kwh : input.prezzo_smc;
+  if (prezzo !== null && prezzo !== undefined) {
+    if (input.tipo === 'luce') {
+      if (prezzo < 0.10 || prezzo > 0.80) {
+        prezzo = null;
+        flags['bad_price'] = true;
+      }
+    } else {
+      if (prezzo < 0.20 || prezzo > 2.50) {
+        prezzo = null;
+        flags['bad_price'] = true;
+      }
+    }
+    
+    // Check confidence
+    const prezzoKey = input.tipo === 'luce' ? 'prezzo_kwh' : 'prezzo_smc';
+    if (confidence[prezzoKey] && confidence[prezzoKey] < 0.85) {
+      prezzo = null;
+      flags[`low_conf_${prezzoKey}`] = true;
+    }
+  }
+  
+  // Validate fixed fee
+  let quota_fissa_mese = input.quota_fissa_mese;
+  if (quota_fissa_mese !== null && quota_fissa_mese !== undefined && quota_fissa_mese < 0) {
+    quota_fissa_mese = null;
+  }
+  
+  // Handle oneri
+  const oneri_stimati_annui = input.oneri_stimati_annui || 0;
+  
+  // Calculate annual cost
+  let costo_annuo: number | null = null;
+  if (consumo !== null && prezzo !== null) {
+    costo_annuo = (consumo * prezzo) + ((quota_fissa_mese || 0) * 12) + oneri_stimati_annui;
+    costo_annuo = Math.round(costo_annuo * 100) / 100; // Round to 2 decimals
+  } else if (consumo !== null && prezzo === null) {
+    flags['missing_price'] = true;
+  } else if (consumo === null) {
+    flags['missing_consumo'] = true;
+  }
+  
+  // Determine if confirmation is needed
+  const needsConfirmation = costo_annuo === null || Object.keys(flags).length > 0;
+  
+  return {
+    costo_annuo,
+    flags,
+    needsConfirmation,
+    consumo,
+    prezzo,
+    quota_fissa_mese
+  };
+};
