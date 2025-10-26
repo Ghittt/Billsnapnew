@@ -392,8 +392,11 @@ export type Database = {
           errors: string | null
           id: string
           pagina_usata: number | null
+          provider_detected: string | null
           raw_json: Json | null
+          routing_choice: string | null
           upload_id: string | null
+          used_defaults: boolean | null
         }
         Insert: {
           confidence_avg?: number | null
@@ -401,8 +404,11 @@ export type Database = {
           errors?: string | null
           id?: string
           pagina_usata?: number | null
+          provider_detected?: string | null
           raw_json?: Json | null
+          routing_choice?: string | null
           upload_id?: string | null
+          used_defaults?: boolean | null
         }
         Update: {
           confidence_avg?: number | null
@@ -410,8 +416,11 @@ export type Database = {
           errors?: string | null
           id?: string
           pagina_usata?: number | null
+          provider_detected?: string | null
           raw_json?: Json | null
+          routing_choice?: string | null
           upload_id?: string | null
+          used_defaults?: boolean | null
         }
         Relationships: []
       }
