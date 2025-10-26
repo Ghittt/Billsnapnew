@@ -15,11 +15,11 @@ interface AlternativeOfferCardProps {
   urlVerified?: boolean;
   explanation?: {
     headline: string;
-    simple_explanation: string;
-    why_this_price: string;
-    best_for: string;
-    savings_vs_current: number | null;
-    tariff_recommendation?: string;
+    in_breve: string;
+    perche_per_te: string;
+    cosa_non_fare: string;
+    numeri_chiari: string;
+    prossimo_passo: string;
   };
 }
 
@@ -84,26 +84,26 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
             <span className="text-sm text-muted-foreground">Costo annuo</span>
             <span className="text-xl font-bold">{fmt(annualCost)}</span>
           </div>
-          {explanation?.savings_vs_current && explanation.savings_vs_current > 0 && (
-            <p className="text-xs text-success font-medium mt-1">
-              Risparmi {fmt(explanation.savings_vs_current)}
-            </p>
-          )}
         </div>
 
-        {/* AI Explanation */}
+        {/* AI Explanation - Always-On 5 Blocks */}
         {explanation && (
-          <div className="space-y-2 p-3 bg-muted/30 rounded-lg text-sm">
-            <p className="font-medium text-foreground">{explanation.headline}</p>
-            <p className="text-muted-foreground leading-snug">{explanation.simple_explanation}</p>
-            {explanation.tariff_recommendation && (
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium">⚡ Fasce orarie:</span> {explanation.tariff_recommendation}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              <span className="font-medium">Ideale per:</span> {explanation.best_for}
-            </p>
+          <div className="space-y-2 p-3 bg-muted/30 rounded-lg text-xs">
+            <p className="font-semibold text-foreground text-sm">{explanation.headline}</p>
+            <div className="space-y-1.5">
+              <div>
+                <span className="font-medium text-foreground">In breve:</span>{' '}
+                <span className="text-muted-foreground">{explanation.in_breve}</span>
+              </div>
+              <div>
+                <span className="font-medium text-foreground">Perché per te:</span>{' '}
+                <span className="text-muted-foreground">{explanation.perche_per_te}</span>
+              </div>
+              <div>
+                <span className="font-medium text-foreground">Numeri chiari:</span>{' '}
+                <span className="text-muted-foreground">{explanation.numeri_chiari}</span>
+              </div>
+            </div>
           </div>
         )}
 
