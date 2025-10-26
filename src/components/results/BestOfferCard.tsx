@@ -17,11 +17,11 @@ interface BestOfferCardProps {
   urlVerified?: boolean;
   explanation?: {
     headline: string;
-    simple_explanation: string;
-    why_this_price: string;
-    best_for: string;
-    savings_vs_current: number | null;
-    tariff_recommendation?: string;
+    in_breve: string;
+    perche_per_te: string;
+    cosa_non_fare: string;
+    numeri_chiari: string;
+    prossimo_passo: string;
   };
 }
 
@@ -97,35 +97,38 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
         <div className="text-center p-4 bg-primary/10 rounded-lg">
           <p className="text-sm text-muted-foreground mb-1">Costo annuo stimato</p>
           <p className="text-3xl font-bold text-primary">{fmt(annualCost)}</p>
-          {explanation?.savings_vs_current && explanation.savings_vs_current > 0 && (
-            <p className="text-sm text-success font-medium mt-2">
-              Risparmi {fmt(explanation.savings_vs_current)} all'anno
-            </p>
-          )}
         </div>
 
-        {/* AI Explanation */}
+        {/* AI Explanation - Always-On 5 Blocks */}
         {explanation && (
           <div className="space-y-3 p-4 bg-background/50 rounded-lg border border-primary/20">
             <div>
               <h4 className="font-semibold text-primary mb-2">{explanation.headline}</h4>
-              <p className="text-sm text-foreground leading-relaxed">{explanation.simple_explanation}</p>
             </div>
             
-            <div className="space-y-2 text-sm">
+            <div className="space-y-3 text-sm">
               <div>
-                <span className="font-medium text-muted-foreground">💰 Perché questo prezzo: </span>
-                <span className="text-foreground">{explanation.why_this_price}</span>
+                <p className="font-medium text-foreground">In breve:</p>
+                <p className="text-muted-foreground leading-relaxed">{explanation.in_breve}</p>
               </div>
-              {explanation.tariff_recommendation && (
-                <div>
-                  <span className="font-medium text-muted-foreground">⚡ Consiglio fasce orarie: </span>
-                  <span className="text-foreground">{explanation.tariff_recommendation}</span>
-                </div>
-              )}
+              
               <div>
-                <span className="font-medium text-muted-foreground">✅ Ideale per: </span>
-                <span className="text-foreground">{explanation.best_for}</span>
+                <p className="font-medium text-foreground">Perché per te:</p>
+                <p className="text-muted-foreground leading-relaxed">{explanation.perche_per_te}</p>
+              </div>
+              
+              <div>
+                <p className="font-medium text-foreground">Cosa non devi più fare:</p>
+                <p className="text-muted-foreground leading-relaxed">{explanation.cosa_non_fare}</p>
+              </div>
+              
+              <div>
+                <p className="font-medium text-foreground">Numeri chiari:</p>
+                <p className="text-muted-foreground leading-relaxed">{explanation.numeri_chiari}</p>
+              </div>
+              
+              <div className="pt-2 border-t border-primary/10">
+                <p className="font-medium text-primary">{explanation.prossimo_passo}</p>
               </div>
             </div>
           </div>

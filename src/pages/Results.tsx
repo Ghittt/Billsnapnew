@@ -208,57 +208,72 @@ const ResultsPage = () => {
         setOffersData(finalPayload);
       }
 
-      // Generate AI explanations for all offers
-      if (finalPayload && uploadId) {
+      // ALWAYS-ON: Generate AI explanations even without OCR or uploadId
+      if (finalPayload) {
         try {
-          // Get OCR data to build profile
-          const { data: ocrData } = await supabase
-            .from('ocr_results')
-            .select('*')
-            .eq('upload_id', uploadId)
-            .maybeSingle();
+          // Build profile from OCR if available, else use defaults
+          let profile = {
+            total_kwh_year: consumption,
+            provider_attuale: null,
+            prezzo_kwh_attuale: null,
+            quota_fissa_mese: null,
+            potenza_kw: 3
+          };
 
-          if (ocrData) {
-            const profile = {
-              total_kwh_year: Number(ocrData.annual_kwh ?? consumption),
-              f1_share: Number(ocrData.f1_kwh ?? 0) / Number(ocrData.annual_kwh ?? consumption) || 0.33,
-              f2_share: Number(ocrData.f2_kwh ?? 0) / Number(ocrData.annual_kwh ?? consumption) || 0.33,
-              f3_share: Number(ocrData.f3_kwh ?? 0) / Number(ocrData.annual_kwh ?? consumption) || 0.34,
-              potenza_kw: Number(ocrData.potenza_kw ?? 3)
-            };
+          let flags = {
+            price_missing: false,
+            low_confidence: false,
+            already_best: false,
+            tier_consumi: consumption < 2000 ? 'low' : consumption > 3500 ? 'high' : 'med'
+          };
 
-            // Prepare offers to explain (best + top 5 alternatives)
-            const offersToExplain = [
-              finalPayload.best_offer,
-              ...finalPayload.offers.filter(o => o.id !== finalPayload.best_offer.id).slice(0, 5)
-            ].map(o => ({
-              offer_id: o.id,
-              provider: o.provider,
-              plan_name: o.offer_name,
-              tariff_type: 'trioraria', // Default assumption
-              price_f1: o.price_kwh,
-              price_f2: o.price_kwh,
-              price_f3: o.price_kwh,
-              price_kwh: o.price_kwh,
-              fee_month: o.fixed_fee_month,
-              total_year: o.offer_annual_cost_eur,
-              current_cost_eur: estimatedCurrentCost
-            }));
+          if (uploadId) {
+            const { data: ocrData } = await supabase
+              .from('ocr_results')
+              .select('*')
+              .eq('upload_id', uploadId)
+              .maybeSingle();
 
-            const { data: aiExplanations, error: aiError } = await supabase.functions.invoke(
-              'explain-choice',
-              { body: { profile, offers: offersToExplain, userProfile } }
-            );
-
-            if (!aiError && Array.isArray(aiExplanations)) {
-              const explainMap: Record<string, any> = {};
-              aiExplanations.forEach((exp: any) => {
-                if (exp.offer_id) {
-                  explainMap[exp.offer_id] = exp;
-                }
-              });
-              setExplanations(explainMap);
+            if (ocrData) {
+              profile = {
+                total_kwh_year: Number(ocrData.annual_kwh ?? consumption),
+                provider_attuale: null,
+                prezzo_kwh_attuale: Number(ocrData.unit_price_eur_kwh) || null,
+                quota_fissa_mese: null,
+                potenza_kw: Number(ocrData.potenza_kw ?? 3)
+              };
+              flags.price_missing = !ocrData.unit_price_eur_kwh || Number(ocrData.unit_price_eur_kwh) === 0;
+              flags.low_confidence = (ocrData.quality_score || 1) < 0.85;
             }
+          }
+
+          // Prepare offers to explain (best + top 5 alternatives)
+          const offersToExplain = [
+            finalPayload.best_offer,
+            ...finalPayload.offers.filter(o => o.id !== finalPayload.best_offer.id).slice(0, 5)
+          ].map(o => ({
+            offer_id: o.id,
+            provider: o.provider,
+            plan_name: o.offer_name,
+            price_kwh: o.price_kwh,
+            fee_month: o.fixed_fee_month,
+            total_year: o.offer_annual_cost_eur,
+            current_cost_eur: estimatedCurrentCost
+          }));
+
+          const { data: aiExplanations, error: aiError } = await supabase.functions.invoke(
+            'explain-choice',
+            { body: { profile, offers: offersToExplain, userProfile, flags } }
+          );
+
+          if (!aiError && Array.isArray(aiExplanations)) {
+            const explainMap: Record<string, any> = {};
+            aiExplanations.forEach((exp: any) => {
+              if (exp.offer_id) {
+                explainMap[exp.offer_id] = exp;
+              }
+            });
+            setExplanations(explainMap);
           }
         } catch (aiErr) {
           console.error('Error generating AI explanations:', aiErr);
