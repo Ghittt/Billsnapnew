@@ -511,9 +511,12 @@ const ResultsPage = () => {
                 <span className="text-sm font-medium uppercase tracking-wide">Il tuo risparmio</span>
               </div>
               <p className="text-5xl font-bold text-primary">
-                💸 {fmt(Math.round(annualSaving))}<span className="text-2xl">/anno</span>
+                Risparmi {fmt(Math.round(annualSaving))} <span className="text-2xl">all'anno</span>
               </p>
-              <p className="text-muted-foreground text-sm max-w-md mx-auto">
+              <p className="text-base font-medium text-foreground/70 mt-2">
+                Stessa energia, meno costi.
+              </p>
+              <p className="text-muted-foreground text-sm max-w-md mx-auto mt-3">
                 {annualSaving < 50 
                   ? "La tua offerta è già tra le migliori. Ti avviserò se trovo opportunità migliori."
                   : "Questa offerta ti fa risparmiare senza cambiare abitudini."
