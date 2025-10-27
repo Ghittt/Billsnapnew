@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ProfileQuestionnaire } from '@/components/profile/ProfileQuestionnaire';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { ConfirmDataForm } from '@/components/upload/ConfirmDataForm';
-import { ArrowLeft, Zap, Loader2 } from 'lucide-react';
+import { ArrowLeft, Zap, Loader2, TrendingDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { calculateWithGuardRails } from '@/lib/ocrValidation';
@@ -503,25 +503,36 @@ const ResultsPage = () => {
             </Button>
           </div>
 
-          {/* Savings message */}
-          <div className="text-center space-y-3">
-            <div className="flex items-center justify-center gap-2 text-primary">
-              <Zap className="w-5 h-5" />
-              <span className="text-sm font-medium">Analisi completata</span>
-            </div>
-            <p className="text-2xl font-semibold max-w-2xl mx-auto">
-              {getSavingsMessage()}
-            </p>
-          </div>
-
-          {/* Current cost */}
-          <Card>
-            <CardContent className="p-6 text-center space-y-2">
-              <p className="text-sm text-muted-foreground">Costo attuale stimato</p>
-              <p className="text-4xl font-semibold">{fmt(currentCost)}</p>
-              <p className="text-xs text-muted-foreground">all'anno • {annualKwh.toLocaleString()} kWh</p>
+          {/* Savings highlight - PRIMARY FOCUS */}
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
+            <CardContent className="p-8 text-center space-y-3">
+              <div className="flex items-center justify-center gap-2 text-primary">
+                <TrendingDown className="w-6 h-6" />
+                <span className="text-sm font-medium uppercase tracking-wide">Il tuo risparmio</span>
+              </div>
+              <p className="text-5xl font-bold text-primary">
+                💸 {fmt(Math.round(annualSaving))}<span className="text-2xl">/anno</span>
+              </p>
+              <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                {annualSaving < 50 
+                  ? "La tua offerta è già tra le migliori. Ti avviserò se trovo opportunità migliori."
+                  : "Questa offerta ti fa risparmiare senza cambiare abitudini."
+                }
+              </p>
             </CardContent>
           </Card>
+
+          {/* Current cost - SECONDARY INFO */}
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">Costo stimato con la nuova offerta</p>
+            <p className="text-2xl font-semibold text-foreground/80">
+              {offersData?.best_offer ? fmt(offersData.best_offer.offer_annual_cost_eur) : fmt(currentCost)}
+              <span className="text-base text-muted-foreground ml-2">
+                (da {fmt(currentCost)})
+              </span>
+            </p>
+            <p className="text-xs text-muted-foreground">{annualKwh.toLocaleString()} kWh all'anno</p>
+          </div>
 
           {/* Providers analyzed */}
           {offersData && offersData.offers.length > 0 && (
