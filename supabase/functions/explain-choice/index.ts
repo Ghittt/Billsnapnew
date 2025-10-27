@@ -53,9 +53,13 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = `Sei l'assistente di BillSnap. Spiega SEMPRE il risultato in 5 blocchi brevi, tono umano e leggero.
-Non usare gergo tecnico. Non inventare numeri: se un dato è nullo o poco affidabile, parla in modo qualitativo.
-Stile: frasi corte, massimo 3 emoji totali, niente fuffa.
+    // Calculate costs and consumption before building prompts
+    const currentCost = offers[0]?.current_cost_eur || (profile?.total_kwh_year ? profile.total_kwh_year * 0.30 : 810);
+    const consumption = profile?.total_kwh_year || 2700;
+
+    const systemPrompt = `Sei l'assistente AI di BillSnap.
+Scrivi SEMPRE una spiegazione chiara, onesta e professionale del risultato, anche se i dati sono parziali.
+Non inventare numeri o frasi sensazionalistiche. Parla come un consulente esperto che spiega i dati in modo semplice.
 
 DATI (possono essere null):
 - provider_attuale: ${profile?.provider_attuale || 'non disponibile'}
@@ -63,37 +67,37 @@ DATI (possono essere null):
 - prezzo_kwh_attuale: ${profile?.prezzo_kwh_attuale || 'non disponibile'}
 - quota_fissa_mese: ${profile?.quota_fissa_mese || 'non disponibile'}
 - best_offer: ${offers.length > 0 ? offers[0].provider + ' - ' + offers[0].plan_name : 'nessuna'}
+- costo_attuale_annuo: ${currentCost.toFixed(0)}€
 - flags: price_missing=${priceMissing}, low_confidence=${lowConfidence}, already_best=${alreadyBest}, tier_consumi=${tierConsumi}
 
-REGOLE FERREE:
-- Se manca il prezzo_kWh o è 0 → NON scrivere cifre precise di risparmio; usa range ('tra X e Y') o 'ti avviso appena c'è un'offerta concreta'.
-- Se flags.already_best = true → celebra il fatto che è già una delle migliori, spiega perché e attiva monitoraggio.
-- Se consumo_annuo_kwh > 3500 → consiglia offerte senza fasce; se < 2000 → suggerisci piani semplici e quota fissa bassa.
-- Mai citare 0.0000 €/kWh. Se vedi 0 o null, ignoralo.
-- Chiudi SEMPRE con una CTA umana ('Attiva il monitoraggio intelligente' o 'Vedi i dettagli e attiva in 1 click').
-${userContext}
+USA SEMPRE questa struttura obbligatoria:
+1️⃣ **In breve:** riassumi in 1 riga l'esito (es. "Stai già pagando una delle migliori tariffe del mercato" oppure "Puoi risparmiare circa 5–10% con una nuova offerta stabile")
+2️⃣ **Perché per te:** spiega in 1–2 frasi come questa offerta si adatta al profilo dell'utente (consumi, fascia, semplicità, sicurezza)
+3️⃣ **Cosa non devi più fare:** spiega quale fatica o incertezza risparmia (es. niente più confronti mensili, niente cambi di fascia)
+4️⃣ **Numeri chiari:**
+  - Se il risparmio è noto e realistico, scrivi "Risparmi circa {{delta_euro}} €/anno, pari a ~{{percentuale}}% della spesa attuale".
+  - Se il dato è incerto, scrivi "Differenza stimata di poche decine di euro/anno. Ti avviserò appena trovo un valore preciso".
 
-OUTPUT (testo, 5 blocchi con titoletti in grassetto):
-1) **In breve:** …
-2) **Perché per te:** …
-3) **Cosa non devi più fare:** …
-4) **Numeri chiari:** …
-5) **Prossimo passo:** …
+REGOLE FERREE:
+- Non usare metafore tipo "mesi gratis", "bollette zero", "festa del risparmio".
+- Usa toni calmi, credibili, come se parlassi a un cliente reale.
+- Niente emoji tranne ⚡ o 🔔 se davvero servono.
+- Se il risparmio è inferiore a 50 €/anno, sottolinea la stabilità più che il guadagno.
+- Se la tariffa attuale è già tra le migliori, celebra la serenità ("non serve cambiare ora, ma ti tengo aggiornato").
+- Mai citare 0.0000 €/kWh. Se vedi 0 o null, ignoralo.
+- Se consumo_annuo_kwh > 3500 → consiglia offerte senza fasce; se < 2000 → suggerisci piani semplici.
+${userContext}
 
 Restituisci un JSON array con un oggetto per ogni offerta. Ogni oggetto deve avere:
 {
   "offer_id": "id_offerta",
-  "headline": "Titolo emozionale breve",
-  "in_breve": "1-2 frasi",
-  "perche_per_te": "1-2 frasi personalizzate",
-  "cosa_non_fare": "1-2 frasi",
-  "numeri_chiari": "1-2 frasi con numeri REALI o senza se mancanti",
-  "prossimo_passo": "CTA umana"
+  "headline": "Titolo chiaro e professionale",
+  "in_breve": "1 riga riassuntiva dell'esito",
+  "perche_per_te": "1-2 frasi su come si adatta al profilo utente",
+  "cosa_non_fare": "1-2 frasi su quale fatica risparmia",
+  "numeri_chiari": "Risparmio preciso se noto, altrimenti range qualitativo",
+  "prossimo_passo": "CTA chiara e umana (es. 'Vedi dettagli e attiva' o 'Attiva monitoraggio')"
 }`;
-
-    // Build user content
-    const currentCost = offers[0]?.current_cost_eur || (profile?.total_kwh_year ? profile.total_kwh_year * 0.30 : 810);
-    const consumption = profile?.total_kwh_year || 2700;
 
     const userContent = `Profilo consumo dell'utente (possibile null):
 - Consumo annuo totale: ${consumption} kWh
@@ -126,6 +130,7 @@ Spiega ogni offerta in modo comprensibile nei 5 blocchi richiesti.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent }
         ],
+        temperature: 0.4,
         response_format: { type: 'json_object' }
       })
     });
@@ -152,17 +157,39 @@ Spiega ogni offerta in modo comprensibile nei 5 blocchi richiesti.`;
       if (!Array.isArray(parsed)) {
         parsed = [parsed];
       }
+
+      // Anti-fuffa filter: check for banned marketing words
+      const bannedWords = ['gratis', 'regalo', 'festa', '🎉', 'zero', 'incredibile', 'straordinario'];
+      const needsRegeneration = parsed.some((item: any) => {
+        const fullText = JSON.stringify(item).toLowerCase();
+        return bannedWords.some(word => fullText.includes(word));
+      });
+
+      if (needsRegeneration) {
+        console.warn('AI output contained banned marketing words, using fallback');
+        throw new Error('Marketing tone detected');
+      }
     } catch (e) {
-      console.error('Failed to parse AI response:', content);
-      // Fallback: Always-On explainer
+      console.error('Failed to parse AI response or marketing tone detected:', content);
+      // Fallback: Professional explainer
+      const savings = offers[0]?.total_year ? Math.max(0, currentCost - offers[0].total_year) : 0;
+      const savingsPercent = currentCost > 0 ? ((savings / currentCost) * 100).toFixed(0) : 0;
+
       parsed = offers.map((offer: any, i: number) => ({
         offer_id: offer.offer_id,
-        headline: i === 0 ? 'La tua migliore scelta ⚡' : 'Alternativa valida',
-        in_breve: i === 0 ? 'Passi a un piano più semplice e conveniente.' : 'Un\'altra opzione da considerare.',
-        perche_per_te: `Con ${consumption} kWh/anno, questa offerta è adatta ai tuoi consumi.`,
-        cosa_non_fare: 'Niente più confronti infiniti tra offerte: ci penso io.',
-        numeri_chiari: priceMissing ? 'Ti avviserò quando avremo dati precisi.' : `Costo annuo circa ${offer.total_year}€.`,
-        prossimo_passo: 'Vedi i dettagli e attiva in 1 click ⚡'
+        headline: i === 0 ? (alreadyBest ? 'Sei già su una delle migliori tariffe' : 'Piano semplice e trasparente') : 'Alternativa valida',
+        in_breve: i === 0 ? 
+          (alreadyBest ? 'Stai già pagando una delle migliori tariffe del mercato.' : 
+          savings >= 50 ? `Puoi risparmiare circa ${savingsPercent}% con questa offerta stabile.` :
+          'Puoi ridurre leggermente la spesa, restando su un piano semplice.') : 
+          'Un\'altra opzione da considerare per i tuoi consumi.',
+        perche_per_te: `Con ${consumption} kWh/anno, questa offerta a prezzo ${offer.price_kwh ? 'fisso' : 'variabile'} garantisce ${tierConsumi === 'high' ? 'stabilità anche con consumi elevati' : 'semplicità e trasparenza'}.`,
+        cosa_non_fare: 'Niente più confronti mensili o cambi di fascia: stabilità garantita.',
+        numeri_chiari: priceMissing || !offer.total_year ? 
+          'Differenza stimata di poche decine di euro/anno. Ti avviserò appena i dati saranno precisi 🔔' : 
+          savings >= 50 ? `Risparmi circa ${savings.toFixed(0)} €/anno, pari a ~${savingsPercent}% della spesa attuale.` :
+          'Differenza minima rispetto alla tariffa attuale. Stabilità e trasparenza garantite.',
+        prossimo_passo: i === 0 ? 'Vedi i dettagli e attiva in 1 click' : 'Confronta con altre offerte'
       }));
     }
 
