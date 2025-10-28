@@ -18,14 +18,15 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    const { profile, offers, userProfile, flags } = await req.json();
+    const { profile, offers, userProfile, flags, billType } = await req.json();
 
     // Always-On: anche senza offers possiamo dare spiegazioni
     if (!offers || !Array.isArray(offers)) {
       throw new Error('offers array is required');
     }
 
-    console.log('Generating AI explanations (Always-On mode) for', offers.length, 'offers');
+    const tipo = billType || 'luce'; // luce | gas | combo
+    console.log(`Generating AI explanations (Always-On mode) for ${offers.length} offers, bill type: ${tipo}`);
 
     // Detect flags
     const detectedFlags = flags || {};
@@ -55,16 +56,29 @@ serve(async (req) => {
 
     // Calculate costs and consumption before building prompts
     const currentCost = offers[0]?.current_cost_eur || (profile?.total_kwh_year ? profile.total_kwh_year * 0.30 : 810);
-    const consumption = profile?.total_kwh_year || 2700;
+    const consumption = tipo === 'gas' 
+      ? (profile?.total_smc_year || 1200)
+      : (profile?.total_kwh_year || 2700);
+
+    // Adapt messaging based on bill type
+    const commodityLabel = tipo === 'gas' ? 'gas' : 'energia elettrica';
+    const unitLabel = tipo === 'gas' ? 'Smc' : 'kWh';
+    const priceLabel = tipo === 'gas' ? 'prezzo_gas_attuale' : 'prezzo_kwh_attuale';
+    
+    const typeSpecificGuidance = tipo === 'gas' 
+      ? '- Per GAS: parla di stagionalità e prevedibilità consumi; usa unità Smc.'
+      : '- Per LUCE: parla di fasce orarie/semplicità; evita jargon tecnico.';
 
     const systemPrompt = `Sei l'assistente AI di BillSnap.
 Scrivi SEMPRE una spiegazione chiara, onesta e professionale del risultato, anche se i dati sono parziali.
 Non inventare numeri o frasi sensazionalistiche. Parla come un consulente esperto che spiega i dati in modo semplice.
 
+TIPOLOGIA BOLLETTA: ${tipo.toUpperCase()} (${commodityLabel})
+
 DATI (possono essere null):
 - provider_attuale: ${profile?.provider_attuale || 'non disponibile'}
-- consumo_annuo_kwh: ${profile?.total_kwh_year || 'non disponibile'}
-- prezzo_kwh_attuale: ${profile?.prezzo_kwh_attuale || 'non disponibile'}
+- consumo_annuo_${unitLabel.toLowerCase()}: ${consumption || 'non disponibile'}
+- ${priceLabel}: ${profile?.[priceLabel] || 'non disponibile'}
 - quota_fissa_mese: ${profile?.quota_fissa_mese || 'non disponibile'}
 - best_offer: ${offers.length > 0 ? offers[0].provider + ' - ' + offers[0].plan_name : 'nessuna'}
 - costo_attuale_annuo: ${currentCost.toFixed(0)}€
@@ -84,8 +98,9 @@ REGOLE FERREE:
 - Niente emoji tranne ⚡ o 🔔 se davvero servono.
 - Se il risparmio è inferiore a 50 €/anno, sottolinea la stabilità più che il guadagno.
 - Se la tariffa attuale è già tra le migliori, celebra la serenità ("non serve cambiare ora, ma ti tengo aggiornato").
-- Mai citare 0.0000 €/kWh. Se vedi 0 o null, ignoralo.
-- Se consumo_annuo_kwh > 3500 → consiglia offerte senza fasce; se < 2000 → suggerisci piani semplici.
+- Mai citare prezzi 0.0000. Se vedi 0 o null, ignoralo.
+- Se consumo > 3500 → consiglia offerte semplici; se < 2000 → suggerisci piani base.
+${typeSpecificGuidance}
 ${userContext}
 
 Restituisci un JSON array con un oggetto per ogni offerta. Ogni oggetto deve avere:

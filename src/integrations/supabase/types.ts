@@ -387,6 +387,7 @@ export type Database = {
       }
       ocr_debug: {
         Row: {
+          classification_confidence: number | null
           confidence_avg: number | null
           created_at: string
           errors: string | null
@@ -395,10 +396,12 @@ export type Database = {
           provider_detected: string | null
           raw_json: Json | null
           routing_choice: string | null
+          tipo_bolletta: string | null
           upload_id: string | null
           used_defaults: boolean | null
         }
         Insert: {
+          classification_confidence?: number | null
           confidence_avg?: number | null
           created_at?: string
           errors?: string | null
@@ -407,10 +410,12 @@ export type Database = {
           provider_detected?: string | null
           raw_json?: Json | null
           routing_choice?: string | null
+          tipo_bolletta?: string | null
           upload_id?: string | null
           used_defaults?: boolean | null
         }
         Update: {
+          classification_confidence?: number | null
           confidence_avg?: number | null
           created_at?: string
           errors?: string | null
@@ -419,6 +424,7 @@ export type Database = {
           provider_detected?: string | null
           raw_json?: Json | null
           routing_choice?: string | null
+          tipo_bolletta?: string | null
           upload_id?: string | null
           used_defaults?: boolean | null
         }
@@ -429,6 +435,9 @@ export type Database = {
           annual_kwh: number | null
           billing_period_end: string | null
           billing_period_start: string | null
+          consumo_annuo_smc: number | null
+          costo_annuo_gas: number | null
+          costo_annuo_totale: number | null
           created_at: string
           f1_kwh: number | null
           f2_kwh: number | null
@@ -438,6 +447,7 @@ export type Database = {
           pdr: string | null
           pod: string | null
           potenza_kw: number | null
+          prezzo_gas_eur_smc: number | null
           provider: string | null
           quality_score: number | null
           raw_json: Json | null
@@ -451,6 +461,9 @@ export type Database = {
           annual_kwh?: number | null
           billing_period_end?: string | null
           billing_period_start?: string | null
+          consumo_annuo_smc?: number | null
+          costo_annuo_gas?: number | null
+          costo_annuo_totale?: number | null
           created_at?: string
           f1_kwh?: number | null
           f2_kwh?: number | null
@@ -460,6 +473,7 @@ export type Database = {
           pdr?: string | null
           pod?: string | null
           potenza_kw?: number | null
+          prezzo_gas_eur_smc?: number | null
           provider?: string | null
           quality_score?: number | null
           raw_json?: Json | null
@@ -473,6 +487,9 @@ export type Database = {
           annual_kwh?: number | null
           billing_period_end?: string | null
           billing_period_start?: string | null
+          consumo_annuo_smc?: number | null
+          costo_annuo_gas?: number | null
+          costo_annuo_totale?: number | null
           created_at?: string
           f1_kwh?: number | null
           f2_kwh?: number | null
@@ -482,6 +499,7 @@ export type Database = {
           pdr?: string | null
           pod?: string | null
           potenza_kw?: number | null
+          prezzo_gas_eur_smc?: number | null
           provider?: string | null
           quality_score?: number | null
           raw_json?: Json | null
@@ -799,6 +817,8 @@ export type Database = {
           ocr_error: string | null
           ocr_started_at: string | null
           ocr_status: string | null
+          pdr: string | null
+          tipo_bolletta: string | null
           user_id: string | null
         }
         Insert: {
@@ -811,6 +831,8 @@ export type Database = {
           ocr_error?: string | null
           ocr_started_at?: string | null
           ocr_status?: string | null
+          pdr?: string | null
+          tipo_bolletta?: string | null
           user_id?: string | null
         }
         Update: {
@@ -823,6 +845,8 @@ export type Database = {
           ocr_error?: string | null
           ocr_started_at?: string | null
           ocr_status?: string | null
+          pdr?: string | null
+          tipo_bolletta?: string | null
           user_id?: string | null
         }
         Relationships: []
