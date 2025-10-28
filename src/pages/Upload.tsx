@@ -201,12 +201,39 @@ const UploadPage = () => {
         body: { uploadId: uploadData.id }
       });
 
+      // Guard clause: Even if compare fails, show mock results instead of blocking
       if (compareError) {
         console.error('Compare offers error:', compareError);
-        throw new Error('Errore nel confronto delle offerte');
+        
+        // Log the error but don't throw
+        await logError({
+          type: 'network',
+          message: 'Compare offers failed, showing mock results',
+          uploadId: uploadData.id,
+          payload: { error: compareError }
+        });
+        
+        // Show warning but continue with mock data
+        toast({
+          title: "Analisi parziale",
+          description: "Ti mostriamo un esempio. I dati reali potrebbero variare.",
+          variant: "default"
+        });
+        
+        // The edge function should have already stored mock results
+        // Just proceed to results page
+      } else {
+        console.log('Offers compared successfully:', compareData);
+        
+        // Show info if mock results were used
+        if (compareData?.is_mock) {
+          toast({
+            title: "Esempio di analisi",
+            description: "Al momento non abbiamo offerte disponibili. Questo è un esempio indicativo.",
+            variant: "default"
+          });
+        }
       }
-
-      console.log('Offers compared successfully:', compareData);
       
       // Step 4: Complete (AI explanations will be generated in Results page)
       setCurrentStep('complete');
@@ -265,6 +292,20 @@ const UploadPage = () => {
             </Button>
           )
         });
+      } else if (errorMessage.includes('confronto') || errorMessage.includes('offerte')) {
+        // If comparison failed, still try to show results page with mock data
+        toast({
+          title: "Analisi esemplificativa",
+          description: "Ti mostriamo un esempio di come apparirà la tua analisi.",
+          variant: "default",
+        });
+        
+        // Navigate to results anyway - the compare-offers function should have stored mock data
+        if (pendingUploadId) {
+          setTimeout(() => {
+            navigate(`/results?uploadId=${pendingUploadId}`);
+          }, 1500);
+        }
       } else {
         toast({
           title: "Errore nell'analisi",
