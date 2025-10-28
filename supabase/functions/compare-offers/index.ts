@@ -25,6 +25,16 @@ serve(async (req) => {
 
     console.log(`Comparing offers for upload: ${uploadId}`);
 
+    // Get upload info to determine bill type
+    const { data: uploadData } = await supabase
+      .from('uploads')
+      .select('tipo_bolletta')
+      .eq('id', uploadId)
+      .maybeSingle();
+
+    const billType = uploadData?.tipo_bolletta || 'luce';
+    console.log(`Bill type: ${billType}`);
+
     // Get OCR results
     const { data: ocrData, error: ocrError } = await supabase
       .from('ocr_results')
@@ -45,17 +55,26 @@ serve(async (req) => {
       potenza_kw: 3.0,
       tariff_hint: 'trioraria',
       user_id: null,
+      consumo_annuo_smc: 1200,
+      prezzo_gas_eur_smc: null,
     };
 
-    // Build consumption profile
-    const profile = buildProfile(safeOcr);
+    // Build consumption profile based on bill type
+    const profile = billType === 'gas' ? buildGasProfile(safeOcr) : buildProfile(safeOcr);
     console.log('Consumption profile:', profile);
 
-    // Get active offers
-    const { data: offers, error: offersError } = await supabase
+    // Get active offers filtered by commodity type
+    const commodityFilter = billType === 'combo' ? undefined : billType;
+    let offersQuery = supabase
       .from('offers')
       .select('*')
       .eq('is_active', true);
+    
+    if (commodityFilter) {
+      offersQuery = offersQuery.eq('commodity', commodityFilter);
+    }
+
+    const { data: offers, error: offersError } = await offersQuery;
 
     if (offersError) {
       throw new Error(`Failed to fetch offers: ${offersError.message}`);
@@ -68,47 +87,67 @@ serve(async (req) => {
     // Calculate annual cost for each offer and filter out invalid ones
     const ranked = offers
       .filter(offer => {
-        // Safety filters: exclude offers with invalid pricing
-        if (offer.tariff_type === 'monoraria' && (!offer.price_kwh || offer.price_kwh <= 0)) {
-          return false;
+        // Filter based on commodity type
+        if (billType === 'gas' && offer.commodity !== 'gas') return false;
+        if (billType === 'luce' && offer.commodity !== 'luce') return false;
+        
+        // Safety filters for luce offers
+        if (offer.commodity === 'luce') {
+          if (offer.tariff_type === 'monoraria' && (!offer.price_kwh || offer.price_kwh <= 0)) {
+            return false;
+          }
+          const totalKwh = (profile as any).total_kwh_year || 0;
+          if (totalKwh >= 2000 && offer.price_kwh && offer.price_kwh < 0.05) {
+            console.warn(`Rejecting unrealistic offer ${offer.id}: very low price`);
+            return false;
+          }
         }
-        // Filter out offers with missing critical pricing
-        if (!offer.fixed_fee_eur_mo && offer.fixed_fee_eur_mo !== 0) {
-          return false;
+        
+        // Safety filters for gas offers
+        if (offer.commodity === 'gas') {
+          if (!offer.unit_price_eur_smc || offer.unit_price_eur_smc <= 0) {
+            return false;
+          }
         }
-        // Anti-placeholder: if consumption is high, cost should be realistic
-        if (profile.total_kwh_year >= 2000 && offer.price_kwh && offer.price_kwh < 0.05) {
-          return false;
-        }
+        
         return true;
       })
       .map(offer => {
-        const result = simulateAnnualCost(profile, offer);
+        const simResult = offer.commodity === 'gas' 
+          ? simulateGasAnnualCost(profile, offer)
+          : simulateAnnualCost(profile, offer);
         return {
-          offer_id: offer.id,
-          provider: offer.provider,
-          plan_name: offer.plan_name,
-          tariff_type: offer.tariff_type,
-          ...result
+          ...offer,
+          simulated_cost: simResult.total,
+          breakdown: simResult
         };
       })
-      .filter(r => r.total_year > 0) // Exclude zero or negative costs
-      .sort((a, b) => a.total_year - b.total_year);
+      .sort((a, b) => a.simulated_cost - b.simulated_cost)
+      .slice(0, 5);
 
-    console.log(`Ranked ${ranked.length} offers, best: ${ranked[0]?.total_year}€/year`);
+    console.log(`Ranked ${ranked.length} offers, best: ${ranked[0]?.simulated_cost}€/year`);
 
     // Log calculation to calc_log
     const flags: Record<string, boolean> = {};
     if (!ocrData) flags['used_defaults'] = true;
-    if (profile.total_kwh_year < 200 || profile.total_kwh_year > 10000) flags['bad_kwh_range'] = true;
+    
+    const totalKwh = (profile as any).total_kwh_year;
+    const totalSmc = (profile as any).total_smc_year;
+    
+    if (billType === 'luce' && totalKwh && (totalKwh < 200 || totalKwh > 10000)) {
+      flags['bad_kwh_range'] = true;
+    }
+    if (billType === 'gas' && totalSmc && (totalSmc < 50 || totalSmc > 2000)) {
+      flags['bad_smc_range'] = true;
+    }
     
     await supabase.from('calc_log').insert({
       upload_id: uploadId,
-      tipo: 'luce',
-      consumo: profile.total_kwh_year,
-      prezzo: null, // Not applicable for comparison
+      tipo: billType,
+      consumo: billType === 'gas' ? totalSmc : totalKwh,
+      prezzo: null,
       quota_fissa_mese: null,
-      costo_annuo: ranked[0]?.total_year || null,
+      costo_annuo: ranked[0]?.simulated_cost || null,
       flags: flags
     });
 
@@ -118,9 +157,9 @@ serve(async (req) => {
       .insert({
         upload_id: uploadId,
         user_id: safeOcr.user_id,
-        profile_json: profile,
+        profile_json: { ...profile, bill_type: billType },
         ranked_offers: ranked,
-        best_offer_id: ranked[0]?.offer_id || null
+        best_offer_id: ranked[0]?.id || null
       });
 
     if (insertError) {
@@ -129,7 +168,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ 
       ok: true, 
-      profile, 
+      profile: { ...profile, bill_type: billType }, 
       ranked,
       best: ranked[0],
       runnerUp: ranked[1] || null
@@ -158,30 +197,53 @@ function num(x: any, d = 0): number {
 }
 
 function buildProfile(ocr: any) {
-  const f1 = num(ocr.f1_kwh, 0);
-  const f2 = num(ocr.f2_kwh, 0);
-  const f3 = num(ocr.f3_kwh, 0);
-  const total = f1 + f2 + f3 || num(ocr.annual_kwh, 2700);
-  
-  // Normalize to annual if period consumption
-  const annual = normalizeToYear(total, ocr.billing_period_start, ocr.billing_period_end);
-  
-  const shareF1 = total > 0 ? f1 / total : 0.35;
-  const shareF2 = total > 0 ? f2 / total : 0.35;
-  const shareF3 = total > 0 ? f3 / total : 0.30;
+  const totalAnnual = num(ocr.annual_kwh, 2700);
+  const f1 = num(ocr.f1_kwh);
+  const f2 = num(ocr.f2_kwh);
+  const f3 = num(ocr.f3_kwh);
+
+  // Derive shares
+  let shareF1 = 0.35, shareF2 = 0.35, shareF3 = 0.30;
+  if (f1 + f2 + f3 > 100) {
+    const sumF = f1 + f2 + f3;
+    shareF1 = f1 / sumF;
+    shareF2 = f2 / sumF;
+    shareF3 = f3 / sumF;
+  }
+
+  // Detect tariff type
+  let tariffHint = 'monoraria';
+  if (ocr.tariff_hint) {
+    tariffHint = ocr.tariff_hint;
+  } else if (f1 > 0 || f2 > 0 || f3 > 0) {
+    tariffHint = 'trioraria';
+  }
+
+  return {
+    total_kwh_year: totalAnnual,
+    share_f1: shareF1,
+    share_f2: shareF2,
+    share_f3: shareF3,
+    power_kw: num(ocr.potenza_kw, 3.0),
+    tariff_hint: tariffHint,
+    provider_attuale: ocr.provider || 'Fornitore Corrente',
+    prezzo_kwh_attuale: num(ocr.unit_price_eur_kwh),
+    quota_fissa_mese: num(ocr.total_cost_eur) ? num(ocr.total_cost_eur) / 12 : null
+  };
+}
+
+function buildGasProfile(ocr: any) {
+  const totalAnnualSmc = num(ocr.consumo_annuo_smc, 1200);
   
   return {
-    total_kwh_year: annual,
-    f1_share: shareF1,
-    f2_share: shareF2,
-    f3_share: shareF3,
-    potenza_kw: num(ocr.potenza_kw, 3.0),
-    tariff_hint: ocr.tariff_hint || 'monoraria'
+    total_smc_year: totalAnnualSmc,
+    provider_attuale: ocr.provider || 'Fornitore Corrente',
+    prezzo_gas_attuale: num(ocr.prezzo_gas_eur_smc),
+    quota_fissa_mese: num(ocr.costo_annuo_gas) ? num(ocr.costo_annuo_gas) / 12 : null
   };
 }
 
 function normalizeToYear(kwh: number, start: string | null, end: string | null): number {
-  // If we have period dates, calculate multiplier
   if (start && end) {
     const s = new Date(start);
     const e = new Date(end);
@@ -190,42 +252,49 @@ function normalizeToYear(kwh: number, start: string | null, end: string | null):
       return Math.round(kwh * (365 / days));
     }
   }
-  // Default: assume bimonthly period (2 months)
   return Math.round(kwh * 6);
 }
 
 function simulateAnnualCost(profile: any, offer: any) {
-  const fixedFee = num(offer.fixed_fee_eur_mo, 7.5) * 12;
   const totalKwh = profile.total_kwh_year || 2700;
-  
+  const fixedAnnual = (offer.fixed_fee_eur_mo || 0) * 12;
+  const powerAnnual = (offer.power_fee_year || 0) * (profile.power_kw || 3);
+
   let energyCost = 0;
-  
+
   if (offer.tariff_type === 'monoraria') {
-    energyCost = totalKwh * num(offer.price_kwh, 0.23);
+    energyCost = totalKwh * (offer.price_kwh || 0);
   } else if (offer.tariff_type === 'bioraria') {
-    const priceF1 = num(offer.price_f1, num(offer.price_kwh, 0.25));
-    const priceF23 = num(offer.price_f23, num(offer.price_kwh, 0.21));
-    energyCost = totalKwh * (profile.f1_share * priceF1 + (1 - profile.f1_share) * priceF23);
+    const f1Kwh = totalKwh * profile.share_f1;
+    const f23Kwh = totalKwh * (profile.share_f2 + profile.share_f3);
+    energyCost = 
+      f1Kwh * (offer.price_f1 || offer.price_kwh || 0) +
+      f23Kwh * (offer.price_f23 || offer.price_kwh || 0);
   } else if (offer.tariff_type === 'trioraria') {
-    const priceF1 = num(offer.price_f1, 0.26);
-    const priceF2 = num(offer.price_f2, 0.22);
-    const priceF3 = num(offer.price_f3, 0.20);
-    energyCost = totalKwh * (
-      profile.f1_share * priceF1 + 
-      profile.f2_share * priceF2 + 
-      profile.f3_share * priceF3
-    );
-  } else {
-    energyCost = totalKwh * num(offer.price_kwh, 0.23);
+    energyCost = 
+      totalKwh * profile.share_f1 * (offer.price_f1 || offer.price_kwh || 0) +
+      totalKwh * profile.share_f2 * (offer.price_f2 || offer.price_kwh || 0) +
+      totalKwh * profile.share_f3 * (offer.price_f3 || offer.price_kwh || 0);
   }
-  
-  const powerCost = num(offer.power_fee_year, 0) * num(profile.potenza_kw, 3);
-  const total = Number((energyCost + fixedFee + powerCost).toFixed(2));
-  
+
   return {
-    energy_year: Number(energyCost.toFixed(2)),
-    fee_year: Number(fixedFee.toFixed(2)),
-    potenza_year: Number(powerCost.toFixed(2)),
-    total_year: total
+    total: fixedAnnual + powerAnnual + energyCost,
+    fixed: fixedAnnual,
+    power: powerAnnual,
+    energy: energyCost
+  };
+}
+
+function simulateGasAnnualCost(profile: any, offer: any) {
+  const totalSmc = profile.total_smc_year || 1200;
+  const fixedAnnual = (offer.fixed_fee_eur_mo || 0) * 12;
+  
+  const gasCost = totalSmc * (offer.unit_price_eur_smc || 0);
+
+  return {
+    total: fixedAnnual + gasCost,
+    fixed: fixedAnnual,
+    power: 0,
+    energy: gasCost
   };
 }

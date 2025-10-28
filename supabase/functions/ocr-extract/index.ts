@@ -414,7 +414,7 @@ Esempio 2 - Edison Gas:
       .eq('id', uploadId)
       .maybeSingle();
 
-    // Store OCR results in database
+    // Store OCR results in database with gas fields
     const { error: insertError } = await supabase
       .from('ocr_results')
       .insert({
@@ -435,6 +435,11 @@ Esempio 2 - Edison Gas:
         billing_period_end: extractedData.billing_period_end,
         provider: extractedData.provider,
         quality_score: extractedData.quality_score,
+        consumo_annuo_smc: parsedData.consumo_annuo_smc || null,
+        prezzo_gas_eur_smc: parsedData.prezzo_gas_eur_smc || null,
+        costo_annuo_gas: parsedData.consumo_annuo_smc && parsedData.prezzo_gas_eur_smc 
+          ? (parsedData.consumo_annuo_smc * parsedData.prezzo_gas_eur_smc) + ((parsedData.quota_fissa_mese_eur || 0) * 12)
+          : null,
         raw_json: extractedData
       });
 

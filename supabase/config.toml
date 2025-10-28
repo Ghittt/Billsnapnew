@@ -95,6 +95,9 @@ verify_jwt = false
 [functions.qa-check-offer-links]
 verify_jwt = false
 
+[functions.classify-bill]
+verify_jwt = false
+
 [edge-runtime]
 enabled = true
 ip_version = "ipv6"

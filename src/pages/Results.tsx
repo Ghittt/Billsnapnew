@@ -51,6 +51,7 @@ const ResultsPage = () => {
   const [ocrData, setOcrData] = useState<any>(null);
   const [showConfirmForm, setShowConfirmForm] = useState(false);
   const [calculationResult, setCalculationResult] = useState<any>(null);
+  const [billType, setBillType] = useState<'luce' | 'gas' | 'combo'>('luce');
 
   useEffect(() => {
     // Always attempt to load results; if uploadId is missing we proceed with defaults
@@ -95,6 +96,17 @@ const ResultsPage = () => {
 
         if (ocrError) {
           console.warn('OCR fetch warning (non-blocking):', ocrError);
+        }
+
+        // Get bill type from upload
+        const { data: uploadData } = await supabase
+          .from('uploads')
+          .select('tipo_bolletta')
+          .eq('id', uploadId)
+          .maybeSingle();
+        
+        if (uploadData?.tipo_bolletta) {
+          setBillType(uploadData.tipo_bolletta as 'luce' | 'gas' | 'combo');
         }
 
         if (fetchedOcrData) {
@@ -263,7 +275,7 @@ const ResultsPage = () => {
 
           const { data: aiExplanations, error: aiError } = await supabase.functions.invoke(
             'explain-choice',
-            { body: { profile, offers: offersToExplain, userProfile, flags } }
+            { body: { profile, offers: offersToExplain, userProfile, flags, billType } }
           );
 
           if (!aiError && Array.isArray(aiExplanations)) {
@@ -491,16 +503,23 @@ const ResultsPage = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-8">
           
-          {/* Header */}
+          {/* Header with bill type */}
           <div className="flex items-center justify-between">
-            <Button 
-              variant="ghost" 
-              onClick={() => navigate('/')}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Nuova analisi
-            </Button>
+            <div className="space-y-1">
+              <Button 
+                variant="ghost" 
+                onClick={() => navigate('/')}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Nuova analisi
+              </Button>
+              <h1 className="text-xl font-semibold text-muted-foreground ml-2">
+                {billType === 'gas' ? 'Analisi bolletta gas' : 
+                 billType === 'combo' ? 'Analisi combinata luce + gas' : 
+                 'Analisi bolletta luce'}
+              </h1>
+            </div>
           </div>
 
           {/* Savings highlight - PRIMARY FOCUS */}
@@ -514,7 +533,10 @@ const ResultsPage = () => {
                 Risparmi {fmt(Math.round(annualSaving))} <span className="text-2xl">all'anno</span>
               </p>
               <p className="text-base font-medium text-foreground/70 mt-2">
-                Stessa energia, meno costi.
+                {billType === 'gas' 
+                  ? 'Stesso gas, meno costi.' 
+                  : 'Stessa energia, meno costi.'
+                }
               </p>
               <p className="text-muted-foreground text-sm max-w-md mx-auto mt-3">
                 {annualSaving < 50 
@@ -534,7 +556,12 @@ const ResultsPage = () => {
                 (da {fmt(currentCost)})
               </span>
             </p>
-            <p className="text-xs text-muted-foreground">{annualKwh.toLocaleString()} kWh all'anno</p>
+            <p className="text-xs text-muted-foreground">
+              {billType === 'gas' 
+                ? `${annualKwh.toLocaleString()} Smc all'anno`
+                : `${annualKwh.toLocaleString()} kWh all'anno`
+              }
+            </p>
           </div>
 
           {/* Providers analyzed */}
