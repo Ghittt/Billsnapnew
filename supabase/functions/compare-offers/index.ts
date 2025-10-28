@@ -46,18 +46,44 @@ serve(async (req) => {
       console.warn('OCR results lookup error, proceeding with defaults');
     }
 
-    // Use defaults if OCR data is missing
-    const safeOcr = ocrData ?? {
-      annual_kwh: 2700,
-      f1_kwh: 945,
-      f2_kwh: 945,
-      f3_kwh: 810,
-      potenza_kw: 3.0,
-      tariff_hint: 'trioraria',
-      user_id: null,
-      consumo_annuo_smc: 1200,
-      prezzo_gas_eur_smc: null,
+    // Guard clause: Use safe defaults if OCR data is missing or incomplete
+    const safeDefaults = billType === 'gas' 
+      ? {
+          consumo_annuo_smc: 1200,
+          prezzo_gas_eur_smc: 0.85,
+          potenza_kw: null,
+          tariff_hint: 'gas',
+          user_id: null,
+        }
+      : {
+          annual_kwh: 2700,
+          f1_kwh: 945,
+          f2_kwh: 945,
+          f3_kwh: 810,
+          potenza_kw: 3.0,
+          tariff_hint: 'trioraria',
+          user_id: null,
+        };
+
+    // Normalize and validate OCR data with fallbacks
+    const normalizeOcrValue = (value: any, min: number, max: number, defaultVal: number): number => {
+      if (value === null || value === undefined) return defaultVal;
+      const num = Number(value);
+      if (isNaN(num) || num < min || num > max) return defaultVal;
+      return num;
     };
+
+    const safeOcr = ocrData ? {
+      ...safeDefaults,
+      ...ocrData,
+      annual_kwh: normalizeOcrValue(ocrData.annual_kwh, 200, 10000, 2700),
+      consumo_annuo_smc: normalizeOcrValue(ocrData.consumo_annuo_smc, 50, 2000, 1200),
+      potenza_kw: normalizeOcrValue(ocrData.potenza_kw, 1, 10, 3.0),
+      f1_kwh: normalizeOcrValue(ocrData.f1_kwh, 0, 10000, 945),
+      f2_kwh: normalizeOcrValue(ocrData.f2_kwh, 0, 10000, 945),
+      f3_kwh: normalizeOcrValue(ocrData.f3_kwh, 0, 10000, 810),
+      user_id: ocrData.user_id,
+    } : safeDefaults;
 
     // Build consumption profile based on bill type
     const profile = billType === 'gas' ? buildGasProfile(safeOcr) : buildProfile(safeOcr);
@@ -80,8 +106,61 @@ serve(async (req) => {
       throw new Error(`Failed to fetch offers: ${offersError.message}`);
     }
 
+    // Guard clause: If no offers found, return mock results instead of throwing
     if (!offers || offers.length === 0) {
-      throw new Error('No active offers found');
+      console.warn('No active offers found, generating mock result');
+      
+      const mockOffer = {
+        id: 'mock-offer-id',
+        provider: 'Esempio Energia',
+        plan_name: billType === 'gas' ? 'Click Gas Base' : 'Click Luce Base',
+        commodity: billType,
+        tariff_type: 'monoraria',
+        pricing_type: 'fisso',
+        price_kwh: billType === 'luce' ? 0.25 : null,
+        unit_price_eur_smc: billType === 'gas' ? 0.85 : null,
+        fixed_fee_eur_mo: billType === 'gas' ? 8.50 : 6.90,
+        power_fee_year: 0,
+        is_green: false,
+        is_active: true,
+        simulated_cost: billType === 'gas' ? 1122 : 758,
+        breakdown: {
+          total: billType === 'gas' ? 1122 : 758,
+          fixed: billType === 'gas' ? 102 : 82.8,
+          power: 0,
+          energy: billType === 'gas' ? 1020 : 675
+        }
+      };
+
+      await supabase.from('comparison_results').insert({
+        upload_id: uploadId,
+        user_id: safeOcr.user_id,
+        profile_json: { ...profile, bill_type: billType, is_mock: true },
+        ranked_offers: [mockOffer],
+        best_offer_id: mockOffer.id
+      });
+
+      await supabase.from('calc_log').insert({
+        upload_id: uploadId,
+        tipo: billType,
+        consumo: billType === 'gas' ? (profile as any).total_smc_year : (profile as any).total_kwh_year,
+        prezzo: null,
+        quota_fissa_mese: null,
+        costo_annuo: mockOffer.simulated_cost,
+        flags: { no_offers_found: true, used_mock: true }
+      });
+
+      return new Response(JSON.stringify({ 
+        ok: true, 
+        profile: { ...profile, bill_type: billType, is_mock: true }, 
+        ranked: [mockOffer],
+        best: mockOffer,
+        runnerUp: null,
+        is_mock: true,
+        message: 'Questo è un esempio di come apparirà la tua analisi. Al momento non abbiamo offerte disponibili.'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Calculate annual cost for each offer and filter out invalid ones
