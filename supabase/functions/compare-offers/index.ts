@@ -230,7 +230,64 @@ serve(async (req) => {
       flags: flags
     });
 
-    // Store comparison results
+    // Calculate personalized offer
+    // Best absolute = lowest cost (already first in ranked)
+    const bestAbsolute = ranked[0];
+    
+    // Best personalized = consider tariff type matching and consumption patterns
+    let bestPersonalized = bestAbsolute;
+    const personalizationFactors: any = { method: 'absolute' };
+    
+    if (ranked.length > 1 && profile) {
+      // Detect user's consumption pattern
+      const userTariffType = profile.tariff_hint || 'monoraria';
+      const userF1Share = profile.share_f1 || 0.33;
+      const userPeakConsumption = userF1Share > 0.5 ? 'F1' : (userF1Share < 0.25 ? 'F2-F3' : 'balanced');
+      
+      // Score each offer for personalization
+      const scoredOffers = ranked.map((offer: any) => {
+        let personalScore = 0;
+        const costDiffPercent = bestAbsolute.simulated_cost > 0 
+          ? ((offer.simulated_cost - bestAbsolute.simulated_cost) / bestAbsolute.simulated_cost) * 100 
+          : 0;
+        
+        // Penalize if cost is >5% higher than absolute best
+        if (costDiffPercent > 5) {
+          personalScore -= 100;
+        } else {
+          // Reward tariff type match
+          if (offer.tariff_type === userTariffType) personalScore += 30;
+          
+          // Reward if bioraria/trioraria and user consumes mainly off-peak
+          if ((offer.tariff_type === 'bioraria' || offer.tariff_type === 'trioraria') && userPeakConsumption === 'F2-F3') {
+            personalScore += 20;
+          }
+          
+          // Reward if monoraria and user has balanced consumption
+          if (offer.tariff_type === 'monoraria' && userPeakConsumption === 'balanced') {
+            personalScore += 15;
+          }
+          
+          // Penalize slightly for cost difference
+          personalScore -= costDiffPercent;
+        }
+        
+        return { ...offer, personalScore };
+      });
+      
+      // Sort by personal score
+      scoredOffers.sort((a: any, b: any) => b.personalScore - a.personalScore);
+      
+      if (scoredOffers[0] && scoredOffers[0].id !== bestAbsolute.id) {
+        bestPersonalized = scoredOffers[0];
+        personalizationFactors.method = 'personalized';
+        personalizationFactors.userTariffType = userTariffType;
+        personalizationFactors.userPeakConsumption = userPeakConsumption;
+        personalizationFactors.personalScore = scoredOffers[0].personalScore;
+      }
+    }
+
+    // Store comparison results with both offers
     const { error: insertError } = await supabase
       .from('comparison_results')
       .insert({
@@ -238,7 +295,9 @@ serve(async (req) => {
         user_id: safeOcr.user_id,
         profile_json: { ...profile, bill_type: billType },
         ranked_offers: ranked,
-        best_offer_id: ranked[0]?.id || null
+        best_offer_id: bestAbsolute?.id || null,
+        best_personalized_offer_id: bestPersonalized?.id || null,
+        personalization_factors: personalizationFactors
       });
 
     if (insertError) {
@@ -249,7 +308,9 @@ serve(async (req) => {
       ok: true, 
       profile: { ...profile, bill_type: billType }, 
       ranked,
-      best: ranked[0],
+      best: bestAbsolute,
+      best_personalized: bestPersonalized,
+      personalization_factors: personalizationFactors,
       runnerUp: ranked[1] || null
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

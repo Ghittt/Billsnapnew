@@ -18,12 +18,15 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    const { profile, offers, userProfile, flags, billType } = await req.json();
+    const { profile, offers, userProfile, flags, billType, bestAbsolute, bestPersonalized, personalizationFactors } = await req.json();
 
     // Always-On: anche senza offers possiamo dare spiegazioni
     if (!offers || !Array.isArray(offers)) {
       throw new Error('offers array is required');
     }
+    
+    // Identify which offers to explain
+    const isDifferent = bestAbsolute && bestPersonalized && bestAbsolute.offer_id !== bestPersonalized.offer_id;
 
     const tipo = billType || 'luce'; // luce | gas | combo
     console.log(`Generating AI explanations (Always-On mode) for ${offers.length} offers, bill type: ${tipo}`);
@@ -73,10 +76,24 @@ serve(async (req) => {
 Il tuo tono deve essere empatico, realistico e motivante — mai eccessivamente tecnico o pubblicitario.
 
 Scrivi una spiegazione breve, scorrevole e umana, come se parlassi direttamente all'utente.
-Devi fargli capire:
-1. Perché questa offerta è vantaggiosa per lui (in base ai dati letti).
-2. Quanto risparmia in modo concreto.
-3. Cosa non dovrà più fare o di cosa non dovrà più preoccuparsi.
+
+${isDifferent ? `
+IMPORTANTE: Devi spiegare DUE offerte diverse:
+1️⃣ MIGLIORE IN ASSOLUTO: l'offerta con il prezzo più basso sul mercato (${bestAbsolute.provider} - ${bestAbsolute.plan_name})
+2️⃣ MIGLIORE PER TE: l'offerta più adatta al profilo dell'utente considerando abitudini di consumo (${bestPersonalized.provider} - ${bestPersonalized.plan_name})
+
+Per la "Migliore in assoluto" spiega:
+- È la più economica in termini assoluti
+- Quanto si risparmia
+- Eventuali compromessi (es. "è monoraria ma consumi principalmente di sera")
+
+Per la "Migliore per te" spiega:
+- Perché si adatta meglio alle abitudini dell'utente
+- Come ottimizza i consumi nelle fasce orarie prevalenti
+- Il risparmio realistico considerando il profilo
+` : `
+Spiega l'offerta migliore trovata, che è sia la più economica che la più adatta al profilo dell'utente.
+`}
 
 TIPOLOGIA BOLLETTA: ${tipo.toUpperCase()} (${commodityLabel})
 
@@ -91,6 +108,16 @@ DATI DISPONIBILI:
 
 STRUTTURA OBBLIGATORIA:
 
+${isDifferent ? `
+Per CIASCUNA delle due offerte, fornisci:
+
+**💰 [Migliore in assoluto / Migliore per te]**
+1️⃣ **In breve:** Sintesi del vantaggio specifico
+2️⃣ **Perché questa:** Spiega il vantaggio principale (prezzo basso assoluto o match con profilo)
+3️⃣ **Risparmio:** Cifra concreta in €/anno
+4️⃣ **Nota:** Eventuale compromesso o considerazione importante
+
+` : `
 1️⃣ **In breve:** Sintesi del vantaggio in modo diretto e naturale.
 
 2️⃣ **Perché per te:** Spiega come questa offerta si adatta ai suoi consumi specifici e al suo profilo. Usa un linguaggio semplice e diretto, come se parlassi a un amico.
@@ -98,6 +125,7 @@ STRUTTURA OBBLIGATORIA:
 3️⃣ **Cosa non devi più fare:** Descrivi quale fatica o preoccupazione risparmia (es. "Dimentica i confronti infiniti tra tariffe" o "Niente più sorprese a fine mese").
 
 4️⃣ **Numeri chiari:** Presenta il risparmio in modo tangibile e concreto. Se il risparmio è significativo (>50€), usa comparazioni realistiche come "circa {{X}} € all'anno" o "pari a circa {{Y}} mesi di bollette in meno". Se il dato è incerto o il risparmio minimo, sii onesto: "Differenza minima, ma con maggiore stabilità".
+`}
 
 REGOLE ESSENZIALI:
 - Evita toni freddi o burocratici (mai dire "spesa annuale per l'energia elettrica", usa "bolletta").
@@ -112,6 +140,31 @@ ${userContext}
 
 CHIUSURA: Ogni spiegazione deve concludere con il messaggio: "Stessa energia, meno stress. BillSnap pensa al resto."
 
+${isDifferent ? `
+Restituisci un JSON con questa struttura:
+{
+  "migliore_assoluta": {
+    "offer_id": "id_offerta",
+    "categoria": "Migliore in assoluto",
+    "emoji": "💰",
+    "in_breve": "Sintesi vantaggio prezzo",
+    "perche_questa": "Spiegazione prezzo più basso",
+    "risparmio_anno": "Cifra in €",
+    "nota": "Eventuale compromesso o considerazione",
+    "conclusione": "Stessa energia, meno stress. BillSnap pensa al resto."
+  },
+  "migliore_personalizzata": {
+    "offer_id": "id_offerta",
+    "categoria": "Migliore per te",
+    "emoji": "💡",
+    "in_breve": "Sintesi match con profilo",
+    "perche_questa": "Spiegazione adattamento abitudini",
+    "risparmio_anno": "Cifra in €",
+    "nota": "Vantaggio specifico per il profilo",
+    "conclusione": "Stessa energia, meno stress. BillSnap pensa al resto."
+  }
+}
+` : `
 Restituisci un JSON array con un oggetto per ogni offerta. Ogni oggetto deve avere:
 {
   "offer_id": "id_offerta",
@@ -122,26 +175,50 @@ Restituisci un JSON array con un oggetto per ogni offerta. Ogni oggetto deve ave
   "numeri_chiari": "Risparmio concreto e tangibile",
   "prossimo_passo": "CTA chiara e umana",
   "conclusione": "Stessa energia, meno stress. BillSnap pensa al resto."
-}`;
+}
+`}`;
 
-    const userContent = `Profilo consumo dell'utente (possibile null):
-- Consumo annuo totale: ${consumption} kWh
+    const userContent = `Profilo consumo dell'utente:
+- Consumo annuo totale: ${consumption} ${unitLabel}
 - Potenza: ${profile?.potenza_kw || 3} kW
+- Tipo tariffa: ${profile?.tariff_type || 'monoraria'}
+- Fascia prevalente: ${profile?.f1_share > 0.5 ? 'F1 (picco)' : profile?.f1_share < 0.25 ? 'F2-F3 (fuori picco)' : 'Bilanciato'}
 - Costo attuale stimato: ${currentCost.toFixed(0)}€/anno
 
+${isDifferent ? `
+OFFERTA MIGLIORE IN ASSOLUTO (prezzo più basso):
+- ${bestAbsolute.provider} - ${bestAbsolute.plan_name}
+- ID: ${bestAbsolute.offer_id}
+- Tipo: ${bestAbsolute.tariff_type || 'monoraria'}
+- Prezzo: ${bestAbsolute.price_kwh || bestAbsolute.unit_price_eur_smc || 'n/d'}€/${unitLabel}
+- Costo annuo: ${bestAbsolute.annual_cost_offer}€
+- Risparmio: ${Math.max(0, currentCost - bestAbsolute.annual_cost_offer).toFixed(0)}€/anno
+
+OFFERTA MIGLIORE PERSONALIZZATA (per profilo utente):
+- ${bestPersonalized.provider} - ${bestPersonalized.plan_name}
+- ID: ${bestPersonalized.offer_id}
+- Tipo: ${bestPersonalized.tariff_type || 'monoraria'}
+- Prezzo: ${bestPersonalized.price_kwh || bestPersonalized.unit_price_eur_smc || 'n/d'}€/${unitLabel}
+- Costo annuo: ${bestPersonalized.annual_cost_offer}€
+- Risparmio: ${Math.max(0, currentCost - bestPersonalized.annual_cost_offer).toFixed(0)}€/anno
+- Motivo personalizzazione: ${personalizationFactors?.userPeakConsumption ? `Consumi prevalenti in ${personalizationFactors.userPeakConsumption}` : 'Match con profilo'}
+
+Genera spiegazioni per ENTRAMBE le offerte nel formato richiesto.
+` : `
 Offerte da spiegare:
 ${offers.map((o: any, i: number) => `
 ${i + 1}. ${o.provider} - ${o.plan_name}
    - ID: ${o.offer_id}
-   - Prezzo: ${o.price_kwh || 'n/d'}€/kWh
+   - Prezzo: ${o.price_kwh || o.unit_price_eur_smc || 'n/d'}€/${unitLabel}
    - Quota fissa: ${o.fee_month || 'n/d'}€/mese
    - Costo totale annuo: ${o.total_year || 'n/d'}€
    ${i === 0 ? '★ MIGLIORE OFFERTA' : ''}
 `).join('\n')}
+`}
 
 Flags: ${JSON.stringify(detectedFlags)}
 
-Spiega ogni offerta in modo comprensibile nei 5 blocchi richiesti.`;
+Spiega in modo comprensibile e umano.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
