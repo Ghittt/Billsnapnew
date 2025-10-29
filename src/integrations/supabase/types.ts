@@ -102,8 +102,10 @@ export type Database = {
         Row: {
           ai_explanation: Json | null
           best_offer_id: string | null
+          best_personalized_offer_id: string | null
           created_at: string | null
           id: string
+          personalization_factors: Json | null
           profile_json: Json
           ranked_offers: Json
           upload_id: string
@@ -112,8 +114,10 @@ export type Database = {
         Insert: {
           ai_explanation?: Json | null
           best_offer_id?: string | null
+          best_personalized_offer_id?: string | null
           created_at?: string | null
           id?: string
+          personalization_factors?: Json | null
           profile_json: Json
           ranked_offers: Json
           upload_id: string
@@ -122,14 +126,23 @@ export type Database = {
         Update: {
           ai_explanation?: Json | null
           best_offer_id?: string | null
+          best_personalized_offer_id?: string | null
           created_at?: string | null
           id?: string
+          personalization_factors?: Json | null
           profile_json?: Json
           ranked_offers?: Json
           upload_id?: string
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "comparison_results_best_personalized_offer_id_fkey"
+            columns: ["best_personalized_offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "comparison_results_upload_id_fkey"
             columns: ["upload_id"]
