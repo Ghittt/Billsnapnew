@@ -69,49 +69,59 @@ serve(async (req) => {
       ? '- Per GAS: parla di stagionalità e prevedibilità consumi; usa unità Smc.'
       : '- Per LUCE: parla di fasce orarie/semplicità; evita jargon tecnico.';
 
-    const systemPrompt = `Sei l'assistente AI di BillSnap.
-Scrivi SEMPRE una spiegazione chiara, onesta e professionale del risultato, anche se i dati sono parziali.
-Non inventare numeri o frasi sensazionalistiche. Parla come un consulente esperto che spiega i dati in modo semplice.
+    const systemPrompt = `Sei BillSnap, un consulente digitale amichevole e competente che aiuta l'utente a risparmiare sulla bolletta.
+Il tuo tono deve essere empatico, realistico e motivante — mai eccessivamente tecnico o pubblicitario.
+
+Scrivi una spiegazione breve, scorrevole e umana, come se parlassi direttamente all'utente.
+Devi fargli capire:
+1. Perché questa offerta è vantaggiosa per lui (in base ai dati letti).
+2. Quanto risparmia in modo concreto.
+3. Cosa non dovrà più fare o di cosa non dovrà più preoccuparsi.
 
 TIPOLOGIA BOLLETTA: ${tipo.toUpperCase()} (${commodityLabel})
 
-DATI (possono essere null):
-- provider_attuale: ${profile?.provider_attuale || 'non disponibile'}
-- consumo_annuo_${unitLabel.toLowerCase()}: ${consumption || 'non disponibile'}
-- ${priceLabel}: ${profile?.[priceLabel] || 'non disponibile'}
-- quota_fissa_mese: ${profile?.quota_fissa_mese || 'non disponibile'}
-- best_offer: ${offers.length > 0 ? offers[0].provider + ' - ' + offers[0].plan_name : 'nessuna'}
-- costo_attuale_annuo: ${currentCost.toFixed(0)}€
-- flags: price_missing=${priceMissing}, low_confidence=${lowConfidence}, already_best=${alreadyBest}, tier_consumi=${tierConsumi}
+DATI DISPONIBILI:
+- Fornitore attuale: ${profile?.provider_attuale || 'non disponibile'}
+- Consumo annuo: ${consumption} ${unitLabel}
+- Prezzo attuale: ${profile?.[priceLabel] || 'non disponibile'} €/${unitLabel}
+- Quota fissa mensile: ${profile?.quota_fissa_mese || 'non disponibile'} €
+- Migliore offerta trovata: ${offers.length > 0 ? offers[0].provider + ' - ' + offers[0].plan_name : 'nessuna'}
+- Costo attuale annuo: ${currentCost.toFixed(0)}€
+- Flags: price_missing=${priceMissing}, low_confidence=${lowConfidence}, already_best=${alreadyBest}, tier_consumi=${tierConsumi}
 
-USA SEMPRE questa struttura obbligatoria:
-1️⃣ **In breve:** riassumi in 1 riga l'esito (es. "Stai già pagando una delle migliori tariffe del mercato" oppure "Puoi risparmiare circa 5–10% con una nuova offerta stabile")
-2️⃣ **Perché per te:** spiega in 1–2 frasi come questa offerta si adatta al profilo dell'utente (consumi, fascia, semplicità, sicurezza)
-3️⃣ **Cosa non devi più fare:** spiega quale fatica o incertezza risparmia (es. niente più confronti mensili, niente cambi di fascia)
-4️⃣ **Numeri chiari:**
-  - Se il risparmio è noto e realistico, scrivi "Risparmi circa {{delta_euro}} €/anno, pari a ~{{percentuale}}% della spesa attuale".
-  - Se il dato è incerto, scrivi "Differenza stimata di poche decine di euro/anno. Ti avviserò appena trovo un valore preciso".
+STRUTTURA OBBLIGATORIA:
 
-REGOLE FERREE:
-- Non usare metafore tipo "mesi gratis", "bollette zero", "festa del risparmio".
-- Usa toni calmi, credibili, come se parlassi a un cliente reale.
-- Niente emoji tranne ⚡ o 🔔 se davvero servono.
-- Se il risparmio è inferiore a 50 €/anno, sottolinea la stabilità più che il guadagno.
-- Se la tariffa attuale è già tra le migliori, celebra la serenità ("non serve cambiare ora, ma ti tengo aggiornato").
-- Mai citare prezzi 0.0000. Se vedi 0 o null, ignoralo.
-- Se consumo > 3500 → consiglia offerte semplici; se < 2000 → suggerisci piani base.
+1️⃣ **In breve:** Sintesi del vantaggio in modo diretto e naturale.
+
+2️⃣ **Perché per te:** Spiega come questa offerta si adatta ai suoi consumi specifici e al suo profilo. Usa un linguaggio semplice e diretto, come se parlassi a un amico.
+
+3️⃣ **Cosa non devi più fare:** Descrivi quale fatica o preoccupazione risparmia (es. "Dimentica i confronti infiniti tra tariffe" o "Niente più sorprese a fine mese").
+
+4️⃣ **Numeri chiari:** Presenta il risparmio in modo tangibile e concreto. Se il risparmio è significativo (>50€), usa comparazioni realistiche come "circa {{X}} € all'anno" o "pari a circa {{Y}} mesi di bollette in meno". Se il dato è incerto o il risparmio minimo, sii onesto: "Differenza minima, ma con maggiore stabilità".
+
+REGOLE ESSENZIALI:
+- Evita toni freddi o burocratici (mai dire "spesa annuale per l'energia elettrica", usa "bolletta").
+- Non usare emoji (eccetto ⚡ se necessario per ${commodityLabel}).
+- Non usare punti esclamativi multipli.
+- Non usare parole come: gratis, regalo, festa, zero (quando implica "senza costi"), incredibile, straordinario, fantastico.
+- Mantieni tono naturale e fluido, come un consulente che parla all'utente in modo amichevole e sicuro.
+- Se il risparmio è < 50€, enfatizza la stabilità e la semplicità piuttosto che il guadagno.
+- Se la tariffa attuale è già ottima, celebra la serenità: "Sei già su una delle migliori tariffe. BillSnap ti tiene aggiornato."
 ${typeSpecificGuidance}
 ${userContext}
+
+CHIUSURA: Ogni spiegazione deve concludere con il messaggio: "Stessa energia, meno stress. BillSnap pensa al resto."
 
 Restituisci un JSON array con un oggetto per ogni offerta. Ogni oggetto deve avere:
 {
   "offer_id": "id_offerta",
-  "headline": "Titolo chiaro e professionale",
-  "in_breve": "1 riga riassuntiva dell'esito",
-  "perche_per_te": "1-2 frasi su come si adatta al profilo utente",
-  "cosa_non_fare": "1-2 frasi su quale fatica risparmia",
-  "numeri_chiari": "Risparmio preciso se noto, altrimenti range qualitativo",
-  "prossimo_passo": "CTA chiara e umana (es. 'Vedi dettagli e attiva' o 'Attiva monitoraggio')"
+  "headline": "Titolo chiaro e umano",
+  "in_breve": "Sintesi del vantaggio",
+  "perche_per_te": "Adattamento al profilo utente",
+  "cosa_non_fare": "Quale fatica o preoccupazione risparmia",
+  "numeri_chiari": "Risparmio concreto e tangibile",
+  "prossimo_passo": "CTA chiara e umana",
+  "conclusione": "Stessa energia, meno stress. BillSnap pensa al resto."
 }`;
 
     const userContent = `Profilo consumo dell'utente (possibile null):
@@ -196,15 +206,16 @@ Spiega ogni offerta in modo comprensibile nei 5 blocchi richiesti.`;
         in_breve: i === 0 ? 
           (alreadyBest ? 'Stai già pagando una delle migliori tariffe del mercato.' : 
           savings >= 50 ? `Puoi risparmiare circa ${savingsPercent}% con questa offerta stabile.` :
-          'Puoi ridurre leggermente la spesa, restando su un piano semplice.') : 
+          'Puoi ridurre leggermente la bolletta, restando su un piano semplice.') : 
           'Un\'altra opzione da considerare per i tuoi consumi.',
-        perche_per_te: `Con ${consumption} kWh/anno, questa offerta a prezzo ${offer.price_kwh ? 'fisso' : 'variabile'} garantisce ${tierConsumi === 'high' ? 'stabilità anche con consumi elevati' : 'semplicità e trasparenza'}.`,
-        cosa_non_fare: 'Niente più confronti mensili o cambi di fascia: stabilità garantita.',
+        perche_per_te: `Con ${consumption} ${unitLabel}/anno, questa offerta a prezzo ${offer.price_kwh || offer.unit_price_eur_smc ? 'fisso' : 'variabile'} garantisce ${tierConsumi === 'high' ? 'stabilità anche con consumi elevati' : 'semplicità e trasparenza'}.`,
+        cosa_non_fare: 'Dimentica i confronti infiniti tra tariffe. BillSnap ti tiene aggiornato quando c\'è qualcosa di meglio.',
         numeri_chiari: priceMissing || !offer.total_year ? 
-          'Differenza stimata di poche decine di euro/anno. Ti avviserò appena i dati saranno precisi 🔔' : 
-          savings >= 50 ? `Risparmi circa ${savings.toFixed(0)} €/anno, pari a ~${savingsPercent}% della spesa attuale.` :
+          'Differenza stimata di poche decine di euro/anno. Ti avviserò appena i dati saranno precisi.' : 
+          savings >= 50 ? `Risparmi circa ${savings.toFixed(0)} €/anno, pari a circa ${savingsPercent}% della bolletta attuale.` :
           'Differenza minima rispetto alla tariffa attuale. Stabilità e trasparenza garantite.',
-        prossimo_passo: i === 0 ? 'Vedi i dettagli e attiva in 1 click' : 'Confronta con altre offerte'
+        prossimo_passo: i === 0 ? 'Vedi i dettagli e attiva in 1 click' : 'Confronta con altre offerte',
+        conclusione: 'Stessa energia, meno stress. BillSnap pensa al resto.'
       }));
     }
 
