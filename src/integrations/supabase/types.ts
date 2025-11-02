@@ -98,6 +98,54 @@ export type Database = {
         }
         Relationships: []
       }
+      collective_signups: {
+        Row: {
+          commodity: string
+          created_at: string
+          email: string
+          id: string
+          source: string | null
+          user_id: string | null
+        }
+        Insert: {
+          commodity: string
+          created_at?: string
+          email: string
+          id?: string
+          source?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          commodity?: string
+          created_at?: string
+          email?: string
+          id?: string
+          source?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      collective_stats: {
+        Row: {
+          current_count: number
+          id: number
+          target: number
+          updated_at: string
+        }
+        Insert: {
+          current_count?: number
+          id?: number
+          target?: number
+          updated_at?: string
+        }
+        Update: {
+          current_count?: number
+          id?: number
+          target?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       comparison_results: {
         Row: {
           ai_explanation: Json | null
