@@ -5,7 +5,8 @@ import UploadZone from '@/components/upload/UploadZone';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Sparkles, TrendingDown, Lock, Zap, Award, ArrowRight } from 'lucide-react';
+import { Sparkles, TrendingDown, Lock, Zap, Award, ArrowRight, Users } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -65,6 +66,46 @@ const Index = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Collective Offer Teaser */}
+      <section className="py-12 bg-background">
+        <div className="container mx-auto px-4">
+          <div className="max-w-2xl mx-auto">
+            <Card className="border-primary/30 shadow-xl hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-primary/5 to-primary/10">
+              <CardContent className="p-8">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <Users className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold mb-2">Offerta Collettiva BillSnap</h3>
+                    <p className="text-muted-foreground mb-4">
+                      A 2.000 adesioni negoziamo l'offerta più bassa del mercato
+                    </p>
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2 text-sm">
+                        <span className="font-medium">Progresso</span>
+                        <span className="text-muted-foreground">1.247 / 2.000</span>
+                      </div>
+                      <Progress value={62} className="h-2" />
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      ✓ 0 spam • Disiscrizione con un tap
+                    </p>
+                    <Button 
+                      className="w-full sm:w-auto" 
+                      size="lg"
+                      onClick={() => window.location.href = '/offerta-collettiva'}
+                    >
+                      Partecipa ora
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
