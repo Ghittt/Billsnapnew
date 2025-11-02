@@ -20,6 +20,7 @@ import Admin from "./pages/Admin";
 import OffersManagement from "./pages/OffersManagement";
 import Debug from "./pages/Debug";
 import NotFound from "./pages/NotFound";
+import CollectiveOffer from "./pages/CollectiveOffer";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/terms" element={<Terms />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/debug" element={<Debug />} />
+            <Route path="/offerta-collettiva" element={<CollectiveOffer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

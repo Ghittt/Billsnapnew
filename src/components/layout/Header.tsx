@@ -1,4 +1,4 @@
-import { Zap, MessageSquare, User, LogOut } from "lucide-react";
+import { Zap, MessageSquare, User, LogOut, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +23,14 @@ const Header = () => {
         </Link>
         
         <div className="flex items-center gap-4">
+          <Link 
+            to="/offerta-collettiva" 
+            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors"
+          >
+            <Users className="w-4 h-4" />
+            <span className="hidden sm:inline">Offerta Collettiva</span>
+          </Link>
+          
           {user ? (
             <>
               <Link 
