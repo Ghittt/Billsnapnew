@@ -238,8 +238,9 @@ serve(async (req) => {
     let bestPersonalized = bestAbsolute;
     const personalizationFactors: any = { method: 'absolute' };
     
-    if (ranked.length > 1 && profile) {
-      // Detect user's consumption pattern
+    // Only do personalization for electricity bills (luce)
+    if (ranked.length > 1 && profile && 'share_f1' in profile) {
+      // Detect user's consumption pattern (only for electricity)
       const userTariffType = profile.tariff_hint || 'monoraria';
       const userF1Share = profile.share_f1 || 0.33;
       const userPeakConsumption = userF1Share > 0.5 ? 'F1' : (userF1Share < 0.25 ? 'F2-F3' : 'balanced');

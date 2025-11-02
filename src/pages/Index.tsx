@@ -29,7 +29,7 @@ const Index = () => {
             {/* Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 backdrop-blur-sm border border-primary/10">
               <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-foreground">Analisi AI in tempo reale</span>
+              <span className="text-sm font-medium text-foreground">Powered by SnapAi™</span>
             </div>
             
             {/* Hero Title */}
@@ -41,7 +41,7 @@ const Index = () => {
             
             {/* Hero Description */}
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Carica la tua bolletta. La nostra AI trova automaticamente l'offerta perfetta per te. 
+              Carica la tua bolletta. SnapAi™ trova automaticamente l'offerta perfetta per te. 
               <span className="text-foreground font-semibold"> Zero stress, massimo risparmio.</span>
             </p>
             
@@ -160,7 +160,7 @@ const Index = () => {
                   </div>
                   <h3 className="text-2xl font-bold">Analizza</h3>
                   <p className="text-muted-foreground leading-relaxed">
-                    La nostra AI confronta 50+ fornitori in tempo reale per trovare l'offerta perfetta.
+                    SnapAi™ confronta 50+ fornitori in tempo reale per trovare l'offerta perfetta.
                   </p>
                 </div>
               </div>
