@@ -8,11 +8,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ProfileQuestionnaire } from '@/components/profile/ProfileQuestionnaire';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { ConfirmDataForm } from '@/components/upload/ConfirmDataForm';
-import { ArrowLeft, Zap, Loader2, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Zap, Loader2, TrendingDown, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { calculateWithGuardRails } from '@/lib/ocrValidation';
 import '@/types/analytics';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
 
 interface Offer {
   id: string;
@@ -603,6 +605,30 @@ const ResultsPage = () => {
               currentProvider={ocrData?.provider}
               estimatedSaving={currentCost - offersData.best_offer.offer_annual_cost_eur}
             />
+          )}
+
+          {/* SnapAI Badge */}
+          {offersData?.best_offer && (
+            <div className="flex justify-center">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge 
+                      variant="outline" 
+                      className="px-4 py-2 text-sm bg-primary/5 border-primary/20 hover:bg-primary/10 transition-colors cursor-help"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2 text-primary" />
+                      Powered by SnapAI™
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-center">
+                    <p className="text-sm">
+                      SnapAI è la nostra intelligenza proprietaria. Presto disponibile in versione completa.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           )}
 
           {/* C) Best offer card with CTA */}
