@@ -81,26 +81,29 @@ const Index = () => {
                     <Users className="w-6 h-6 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-2xl font-bold mb-2">Offerta Collettiva BillSnap</h3>
-                    <p className="text-muted-foreground mb-4">
-                      A 2.000 adesioni negoziamo l'offerta più bassa del mercato
-                    </p>
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-2 text-sm">
-                        <span className="font-medium">Progresso</span>
-                        <span className="text-muted-foreground">1.247 / 2.000</span>
-                      </div>
-                      <Progress value={62} className="h-2" />
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-2xl font-bold">Offerta Collettiva BillSnap</h3>
+                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-xs font-medium text-yellow-700 dark:text-yellow-400">
+                        In arrivo
+                      </span>
                     </div>
+                    <p className="text-muted-foreground mb-4">
+                      Unisciti al gruppo: a 2.000 adesioni negoziamo l'offerta più bassa
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Più siamo, meno paghiamo. Stiamo costruendo la prima offerta di gruppo sull'energia.
+                    </p>
                     <p className="text-xs text-muted-foreground mb-4">
-                      ✓ 0 spam • Disiscrizione con un tap
+                      ✓ Tariffa esclusiva • Zero vincoli • Info chiare
                     </p>
                     <Button 
+                      variant="outline"
                       className="w-full sm:w-auto" 
                       size="lg"
-                      onClick={() => window.location.href = '/offerta-collettiva'}
+                      onClick={() => navigate('/offerta-collettiva')}
                     >
-                      Partecipa ora
+                      Scopri di più
+                      <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                   </div>
                 </div>
