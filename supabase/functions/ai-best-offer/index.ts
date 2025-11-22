@@ -21,10 +21,10 @@ serve(async (req) => {
       );
     }
 
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
       return new Response(
-        JSON.stringify({ error: 'OpenAI API key not configured' }),
+        JSON.stringify({ error: 'Lovable AI key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -57,26 +57,72 @@ Rispondi in formato JSON con questa struttura:
   "highlights": ["punto 1", "punto 2", "punto 3"]
 }`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        response_format: { type: 'json_object' },
+        model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: 'Sei un consulente energetico italiano che risponde sempre in JSON valido.' },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.7,
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "recommend_best_offer",
+              description: "Restituisce la raccomandazione della migliore offerta energetica",
+              parameters: {
+                type: "object",
+                properties: {
+                  best_offer_id: {
+                    type: "string",
+                    description: "UUID dell'offerta migliore"
+                  },
+                  motivation: {
+                    type: "string",
+                    description: "Breve spiegazione (max 100 caratteri) del perché è la scelta migliore"
+                  },
+                  annual_saving_vs_worst: {
+                    type: "number",
+                    description: "Risparmio annuo rispetto alla peggiore offerta"
+                  },
+                  highlights: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Array di 3 punti chiave"
+                  }
+                },
+                required: ["best_offer_id", "motivation", "annual_saving_vs_worst", "highlights"]
+              }
+            }
+          }
+        ],
+        tool_choice: { type: "function", function: { name: "recommend_best_offer" } }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', response.status, errorText);
+      console.error('Lovable AI error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'Payment required. Please add credits to your workspace.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       return new Response(
         JSON.stringify({ error: 'Failed to get AI recommendation' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -84,9 +130,9 @@ Rispondi in formato JSON con questa struttura:
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    
+    if (!toolCall?.function?.arguments) {
       return new Response(
         JSON.stringify({ error: 'Empty response from AI' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -95,9 +141,9 @@ Rispondi in formato JSON con questa struttura:
 
     let recommendation;
     try {
-      recommendation = JSON.parse(content);
+      recommendation = JSON.parse(toolCall.function.arguments);
     } catch (e) {
-      console.error('Failed to parse AI response:', content);
+      console.error('Failed to parse AI response:', toolCall.function.arguments);
       return new Response(
         JSON.stringify({ error: 'Invalid AI response format' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
