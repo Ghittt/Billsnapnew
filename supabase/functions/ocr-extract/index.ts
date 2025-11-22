@@ -111,7 +111,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -124,10 +123,10 @@ serve(async (req) => {
       throw new Error('File and uploadId are required');
     }
 
-    console.log(`[OCR-V2] Processing: ${file.name}, size: ${file.size}, type: ${file.type}`);
+    console.log(`[OCR-V2-Gemini] Processing: ${file.name}, size: ${file.size}, type: ${file.type}`);
 
-    if (!openaiApiKey) {
-      throw new Error('OPENAI_API_KEY not configured');
+    if (!lovableApiKey) {
+      throw new Error('LOVABLE_API_KEY not configured');
     }
 
     // Read file and convert to base64
@@ -146,7 +145,7 @@ serve(async (req) => {
     
     // PDF Fallback (routing)
     if (mimeType === 'application/pdf') {
-      console.log('[OCR-V2] PDF detected - using fallback');
+      console.log('[OCR-V2-Gemini] PDF detected - using fallback');
 
       const { data: uploadRecord } = await supabase
         .from('uploads')
@@ -233,18 +232,18 @@ Esempio 1 - Enel Luce:
 Esempio 2 - Edison Gas:
 {"tipo":"gas","fornitore":"Edison Energia","pdr":"12345678901234","consumo_annuo_smc":1200,"prezzo_gas_eur_smc":0.85,"quota_fissa_mese_eur":8.50,"note":"","confidence":{"consumo_annuo_smc":0.95,"prezzo_gas_eur_smc":0.95}}`;
 
-    // Multi-pass extraction function
+    // Multi-pass extraction function using Google Gemini
     const callVisionAPI = async (passNum: number, additionalPrompt?: string) => {
       const userPrompt = additionalPrompt || 'Analizza questa bolletta e restituisci i dati in formato JSON.';
       
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
+          'Authorization': `Bearer ${lovableApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'google/gemini-2.5-pro',
           messages: [
             { role: 'system', content: systemPrompt },
             {
@@ -254,45 +253,51 @@ Esempio 2 - Edison Gas:
                 { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } }
               ]
             }
-          ],
-          max_tokens: 1000,
-          temperature: 0.1
+          ]
         }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[OCR-V2] Pass ${passNum} API error:`, response.status, errorText);
-        throw new Error(`OpenAI API error pass ${passNum}: ${response.status}`);
+        console.error(`[OCR-V2-Gemini] Pass ${passNum} API error:`, response.status, errorText);
+        
+        if (response.status === 429) {
+          throw new Error(`Rate limit exceeded: ${errorText}`);
+        }
+        if (response.status === 402) {
+          throw new Error(`Payment required: ${errorText}`);
+        }
+        
+        throw new Error(`Lovable AI error pass ${passNum}: ${response.status}`);
       }
 
       return await response.json();
     };
 
     // Pass 1: Initial extraction
-    console.log("[OCR-V2] Starting Pass 1...");
+    console.log("[OCR-V2-Gemini] Starting Pass 1 with Google Gemini Pro...");
     let aiResponse = await callVisionAPI(1);
     let extractedText = aiResponse.choices?.[0]?.message?.content || '{}';
     
-    console.log("[OCR-V2] Pass 1 raw response:", extractedText.substring(0, 300));
+    console.log("[OCR-V2-Gemini] Pass 1 raw response:", extractedText.substring(0, 300));
 
     // Parse and clean JSON
     extractedText = extractedText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     let llmData = JSON.parse(extractedText);
     
-    console.log("[OCR-V2] Pass 1 parsed:", JSON.stringify(llmData, null, 2));
+    console.log("[OCR-V2-Gemini] Pass 1 parsed:", JSON.stringify(llmData, null, 2));
     
     // Calculate confidence for multi-pass decision
     const keyFields = ['consumo_annuo_kwh', 'consumo_annuo_smc', 'prezzo_energia_eur_kwh', 'prezzo_gas_eur_smc'];
     const confidences = keyFields.map(f => llmData.confidence?.[f] || 0).filter(c => c > 0);
     const avgConfidence = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
     
-    console.log(`[OCR-V2] Pass 1 avg confidence: ${avgConfidence.toFixed(2)}`);
+    console.log(`[OCR-V2-Gemini] Pass 1 avg confidence: ${avgConfidence.toFixed(2)}`);
     
     // Pass 2: If low confidence or missing critical fields, try corrective pass
     const missingCritical = !llmData.prezzo_energia_eur_kwh && !llmData.prezzo_gas_eur_smc;
     if (avgConfidence < 0.85 || missingCritical) {
-      console.log("[OCR-V2] Low confidence or missing price, attempting pass 2...");
+      console.log("[OCR-V2-Gemini] Low confidence or missing price, attempting pass 2...");
       try {
         const pass2Response = await callVisionAPI(
           2,
@@ -305,11 +310,11 @@ Esempio 2 - Edison Gas:
         for (const key of Object.keys(pass2Data)) {
           if (!llmData[key] && pass2Data[key]) {
             llmData[key] = pass2Data[key];
-            console.log(`[OCR-V2] Pass 2 filled: ${key} = ${pass2Data[key]}`);
+            console.log(`[OCR-V2-Gemini] Pass 2 filled: ${key} = ${pass2Data[key]}`);
           }
         }
       } catch (e) {
-        console.error("[OCR-V2] Pass 2 failed:", e);
+        console.error("[OCR-V2-Gemini] Pass 2 failed:", e);
       }
     }
     
@@ -320,7 +325,7 @@ Esempio 2 - Edison Gas:
     // Merge results (in full implementation, prioritize template on key fields)
     let parsedData = { ...llmData };
     
-    console.log("[OCR-V2] Final merged data:", JSON.stringify(parsedData, null, 2));
+    console.log("[OCR-V2-Gemini] Final merged data:", JSON.stringify(parsedData, null, 2));
 
     // Validate POD/PDR patterns
     const podRegex = /^IT[0-9A-Z]{10,25}$/;
@@ -330,12 +335,12 @@ Esempio 2 - Edison Gas:
     let validatedPdr = parsedData.pdr || null;
     
     if (validatedPod && !podRegex.test(validatedPod)) {
-      console.warn('[OCR-V2] Invalid POD format:', validatedPod);
+      console.warn('[OCR-V2-Gemini] Invalid POD format:', validatedPod);
       validatedPod = null;
     }
     
     if (validatedPdr && !pdrRegex.test(validatedPdr)) {
-      console.warn('[OCR-V2] Invalid PDR format:', validatedPdr);
+      console.warn('[OCR-V2-Gemini] Invalid PDR format:', validatedPdr);
       validatedPdr = null;
     }
 
@@ -366,7 +371,7 @@ Esempio 2 - Edison Gas:
       notes: parsedData.note || ''
     };
 
-    console.log('[OCR-V2] Extracted data:', extractedData);
+    console.log('[OCR-V2-Gemini] Extracted data:', extractedData);
 
     // Calculate validation errors
     const validationErrors: string[] = [];
@@ -448,14 +453,14 @@ Esempio 2 - Edison Gas:
       throw new Error('Failed to save OCR results to database');
     }
 
-    console.log('[OCR-V2] Extraction completed successfully');
+    console.log('[OCR-V2-Gemini] Extraction completed successfully');
 
     return new Response(JSON.stringify(extractedData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('[OCR-V2] Error in ocr-extract function:', error);
+    console.error('[OCR-V2-Gemini] Error in ocr-extract function:', error);
     
     // Fallback: return minimal result to allow manual input
     const formDataFallback = await req.formData().catch(() => new FormData());
