@@ -13,10 +13,10 @@ serve(async (req) => {
   }
 
   try {
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     
-    if (!openaiApiKey) {
-      return new Response(JSON.stringify({ error: 'OpenAI API key not configured' }), {
+    if (!lovableApiKey) {
+      return new Response(JSON.stringify({ error: 'Lovable AI key not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -31,16 +31,16 @@ serve(async (req) => {
       });
     }
 
-    console.log('Parsing bill with OpenAI...');
+    console.log('Parsing bill with Google Gemini...');
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
+        'Authorization': `Bearer ${lovableApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'system',
@@ -69,17 +69,36 @@ Restituisci SOLO JSON valido (no markdown, no testo extra):
             content: `Testo OCR della bolletta:
             ${ocr_text}`
           }
-        ],
-        max_tokens: 500,
-        temperature: 0.1
+        ]
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', response.status, errorText);
+      console.error('Lovable AI error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ 
+          error: 'Rate limit exceeded. Please try again later.',
+          details: errorText 
+        }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ 
+          error: 'Payment required. Please add credits to your workspace.',
+          details: errorText 
+        }), {
+          status: 402,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
       return new Response(JSON.stringify({ 
-        error: `OpenAI API error: ${response.status}`,
+        error: `Lovable AI error: ${response.status}`,
         details: errorText 
       }), {
         status: response.status,
@@ -91,7 +110,7 @@ Restituisci SOLO JSON valido (no markdown, no testo extra):
     const aiContent = aiResult.choices?.[0]?.message?.content?.trim();
     
     if (!aiContent) {
-      return new Response(JSON.stringify({ error: 'Empty response from OpenAI' }), {
+      return new Response(JSON.stringify({ error: 'Empty response from Gemini' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

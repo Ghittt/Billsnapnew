@@ -19,9 +19,9 @@ serve(async (req) => {
       throw new Error('Missing required parameters: text and uploadId');
     }
 
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      console.error('OPENAI_API_KEY not configured');
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    if (!lovableApiKey) {
+      console.error('LOVABLE_API_KEY not configured');
       throw new Error('AI service not configured');
     }
 
@@ -45,32 +45,68 @@ Rispondi SOLO con JSON valido nel formato:
 
 Non inventare dati. Se non sei sicuro, indica una confidenza bassa.`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${lovableApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Classifica questa bolletta:\n\n${text.substring(0, 3000)}` }
         ],
-        temperature: 0.3,
-        response_format: { type: "json_object" }
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "classify_bill",
+              description: "Classifica il tipo di bolletta energetica italiana",
+              parameters: {
+                type: "object",
+                properties: {
+                  tipo_bolletta: {
+                    type: "string",
+                    enum: ["luce", "gas", "combo"],
+                    description: "Il tipo di bolletta identificato"
+                  },
+                  confid: {
+                    type: "number",
+                    description: "Livello di confidenza della classificazione (0-1)"
+                  },
+                  reasoning: {
+                    type: "string",
+                    description: "Breve spiegazione della classificazione"
+                  }
+                },
+                required: ["tipo_bolletta", "confid", "reasoning"]
+              }
+            }
+          }
+        ],
+        tool_choice: { type: "function", function: { name: "classify_bill" } }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', response.status, errorText);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error('Lovable AI error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again later.');
+      }
+      
+      if (response.status === 402) {
+        throw new Error('Payment required. Please add credits to your workspace.');
+      }
+      
+      throw new Error(`Lovable AI error: ${response.status}`);
     }
 
     const data = await response.json();
-    const aiResponse = data.choices[0].message.content;
-    const classification = JSON.parse(aiResponse);
+    const toolCall = data.choices[0].message.tool_calls?.[0];
+    const classification = JSON.parse(toolCall.function.arguments);
 
     console.log('Classification result:', classification);
 

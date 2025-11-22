@@ -13,10 +13,10 @@ serve(async (req) => {
   }
 
   try {
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
 
-    if (!openaiApiKey) {
-      return new Response(JSON.stringify({ error: 'OpenAI API key not configured' }), {
+    if (!lovableApiKey) {
+      return new Response(JSON.stringify({ error: 'Lovable AI key not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -31,7 +31,7 @@ serve(async (req) => {
       });
     }
 
-    console.log('Generating copy message with OpenAI...');
+    console.log('Generating copy message with Google Gemini...');
 
     const savingAmount = Math.round(annual_saving_eur);
     
@@ -46,14 +46,14 @@ serve(async (req) => {
     let finalMessage = defaultMessage;
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
+          'Authorization': `Bearer ${lovableApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'google/gemini-2.5-flash',
           messages: [
             {
               role: 'system',
@@ -65,9 +65,7 @@ serve(async (req) => {
                 ? `L'utente può risparmiare €${savingAmount} all'anno cambiando da un costo attuale di €${Math.round(current_annual_cost_eur)} a un'offerta di €${Math.round(best_offer_annual_cost_eur)}${provider ? ` con ${provider}` : ''}. Scrivi una frase di presentazione del risparmio.`
                 : `L'utente ha già una buona offerta, può risparmiare solo €${savingAmount} all'anno. Scrivi una frase che lo rassicuri che la sua offerta è già competitiva.`
             }
-          ],
-          max_tokens: 100,
-          temperature: 0.3
+          ]
         })
       });
 
@@ -81,7 +79,11 @@ serve(async (req) => {
         }
       } else {
         const errorText = await response.text();
-        console.error('OpenAI API error:', response.status, errorText);
+        console.error('Lovable AI error:', response.status, errorText);
+        
+        if (response.status === 429 || response.status === 402) {
+          console.log('Rate limit or payment issue, using default message');
+        }
       }
     } catch (aiError) {
       console.error('AI copy generation failed, using default message:', aiError);
