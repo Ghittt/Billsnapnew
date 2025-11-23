@@ -12,7 +12,7 @@ const Header = () => {
         
         <nav className="flex items-center gap-2 sm:gap-3 md:gap-6 flex-shrink min-w-0">
           <Link 
-            to="/terms-and-conditions#chi-siamo" 
+            to="/chi-siamo" 
             className="text-[13px] sm:text-[15px] md:text-[16px] text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap px-1"
           >
             Chi siamo
