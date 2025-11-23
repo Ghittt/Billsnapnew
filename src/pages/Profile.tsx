@@ -14,8 +14,11 @@ interface BadgeType {
   criteria_json: any;
   created_at: string;
 }
-import { Crown, Gift, Star, Users } from "lucide-react";
+import { Crown, Gift, Star, Users, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import AIRecommendations from "@/components/profile/AIRecommendations";
+import ScheduledReminders from "@/components/profile/ScheduledReminders";
+import { useNavigate } from "react-router-dom";
 
 interface UserBadge {
   badge_id: string;
@@ -36,6 +39,7 @@ export default function Profile() {
   const [referralCode, setReferralCode] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchUserData();
@@ -195,6 +199,32 @@ export default function Profile() {
             </Button>
           </div>
         </Card>
+
+        {/* Contracts Card */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/20 rounded-lg">
+                <FileText className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold">I tuoi Contratti</h3>
+                <p className="text-sm text-muted-foreground">
+                  Visualizza lo storico dei tuoi contratti
+                </p>
+              </div>
+            </div>
+            <Button onClick={() => navigate('/contracts')} variant="outline">
+              Vedi tutto
+            </Button>
+          </div>
+        </Card>
+
+        {/* AI Recommendations */}
+        <AIRecommendations />
+
+        {/* Scheduled Reminders */}
+        <ScheduledReminders />
 
         {/* Badges */}
         <Card className="p-6">
