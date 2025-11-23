@@ -113,6 +113,12 @@ verify_jwt = false
 [functions.send-confirmation-email]
 verify_jwt = false
 
+[functions.send-deletion-confirmation]
+verify_jwt = false
+
+[functions.analyze-consumption]
+verify_jwt = false
+
 [edge-runtime]
 enabled = true
 ip_version = "ipv6"
