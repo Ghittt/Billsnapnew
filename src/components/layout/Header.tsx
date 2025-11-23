@@ -6,7 +6,7 @@ const Header = () => {
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center hover:opacity-70 transition-all">
-          <span className="text-2xl font-bold text-primary">BillSnap</span>
+          <span className="text-2xl md:text-3xl font-extrabold text-primary tracking-tight">BillSnap</span>
         </Link>
         
         <nav className="flex items-center gap-2 md:gap-4">

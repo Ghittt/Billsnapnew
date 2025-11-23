@@ -347,7 +347,10 @@ const ResultsPage = () => {
       return;
     }
 
-    // Tracciamento lead (no apertura finestra, ci pensa il link diretto)
+    // Calculate savings for lead tracking
+    const annualSavingForLead = Math.max(0, currentCost - offer.offer_annual_cost_eur);
+
+    // Tracciamento lead completo
     void supabase
       .from('leads')
       .insert({
@@ -356,6 +359,8 @@ const ResultsPage = () => {
         offer_id: offer.id,
         redirect_url: offer.source_url,
         offer_annual_cost_eur: offer.offer_annual_cost_eur,
+        annual_saving_eur: annualSavingForLead,
+        current_annual_cost_eur: currentCost,
       })
       .select();
 
@@ -363,7 +368,8 @@ const ResultsPage = () => {
       gtag('event', 'offer_click', {
         event_category: 'conversion',
         provider: offer.provider,
-        annual_cost: offer.offer_annual_cost_eur
+        annual_cost: offer.offer_annual_cost_eur,
+        annual_saving: annualSavingForLead
       });
     }
   };
