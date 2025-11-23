@@ -42,26 +42,26 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onFileUpload, isUploading = fal
 
   return (
     <Card className={cn(
-      "border-2 border-dashed p-12 text-center cursor-pointer transition-all",
+      "border-2 border-dashed p-6 sm:p-8 md:p-12 text-center cursor-pointer transition-all w-full",
       isDragActive 
         ? "border-primary bg-primary/5" 
         : "border-border hover:border-primary/50",
       isUploading && "pointer-events-none opacity-50"
     )}>
-      <div {...getRootProps()} className="space-y-6">
+      <div {...getRootProps()} className="space-y-4 sm:space-y-6">
         <input {...getInputProps()} />
         
         <div className="flex justify-center">
-          <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
+          <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto">
             <Upload className="w-8 h-8 text-primary-foreground" />
           </div>
         </div>
 
         <div className="space-y-2">
-          <h3 className="text-xl font-semibold">
+          <h3 className="text-lg sm:text-xl font-semibold">
             {isDragActive ? "Rilascia qui" : "Carica la tua bolletta"}
           </h3>
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base text-muted-foreground">
             Trascina un file qui o clicca per selezionare
           </p>
         </div>
@@ -77,11 +77,12 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onFileUpload, isUploading = fal
           </div>
         </div>
 
-        <div className="flex gap-3 justify-center flex-wrap">
+        <div className="flex gap-2 sm:gap-3 justify-center flex-wrap">
           <Button 
             variant="default" 
             size="lg" 
             disabled={isUploading}
+            className="text-sm sm:text-base"
           >
             Seleziona file
           </Button>
@@ -91,7 +92,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onFileUpload, isUploading = fal
             size="lg" 
             onClick={triggerCamera}
             disabled={isUploading}
-            className="gap-2"
+            className="gap-2 text-sm sm:text-base"
           >
             <Camera className="w-4 h-4" />
             Scatta foto

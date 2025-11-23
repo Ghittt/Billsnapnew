@@ -31,7 +31,7 @@ const Index = () => {
             </div>
             
             {/* Hero Title */}
-            <h1 className="font-bold leading-tight tracking-tight" style={{ fontSize: 'clamp(2rem, 8vw, 6rem)', lineHeight: '1.1' }}>
+            <h1 className="font-bold tracking-tight px-4" style={{ fontSize: 'clamp(2rem, 8vw, 6rem)', lineHeight: '1.1' }}>
               <span className="text-gradient">Risparmia</span>
               <br />
               <span className="text-foreground">sulle tue bollette</span>
@@ -44,7 +44,7 @@ const Index = () => {
             </p>
             
             {/* Upload Zone */}
-            <div className="w-full max-w-2xl mx-auto pt-2 sm:pt-4 md:pt-6">
+            <div className="w-full max-w-2xl mx-auto pt-2 sm:pt-4 md:pt-6 px-4">
               <UploadZone onFileUpload={handleFileUpload} />
               
               {/* Trust Indicators */}
