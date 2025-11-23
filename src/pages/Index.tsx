@@ -48,18 +48,18 @@ const Index = () => {
               <UploadZone onFileUpload={handleFileUpload} />
               
               {/* Trust Indicators */}
-              <div className="flex items-center justify-center gap-6 mt-6 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 mt-6 text-xs md:text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Lock className="w-4 h-4 text-primary" />
-                  <span>100% Sicuro</span>
+                  <span className="whitespace-nowrap">Dati GDPR</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Zap className="w-4 h-4 text-primary" />
-                  <span>Risultati in 25s</span>
+                  <span className="whitespace-nowrap">Analisi 25s</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Award className="w-4 h-4 text-primary" />
-                  <span>50+ Fornitori</span>
+                  <span className="whitespace-nowrap">50+ Offerte</span>
                 </div>
               </div>
             </div>
