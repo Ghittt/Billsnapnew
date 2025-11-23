@@ -18,6 +18,8 @@ import { Crown, Gift, Star, Users, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AIRecommendations from "@/components/profile/AIRecommendations";
 import ScheduledReminders from "@/components/profile/ScheduledReminders";
+import ConsumptionPredictions from "@/components/profile/ConsumptionPredictions";
+import NotificationsList from "@/components/notifications/NotificationsList";
 import { useNavigate } from "react-router-dom";
 
 interface UserBadge {
@@ -220,8 +222,14 @@ export default function Profile() {
           </div>
         </Card>
 
+        {/* Notifications */}
+        <NotificationsList />
+
         {/* AI Recommendations */}
         <AIRecommendations />
+
+        {/* Consumption Predictions */}
+        <ConsumptionPredictions />
 
         {/* Scheduled Reminders */}
         <ScheduledReminders />

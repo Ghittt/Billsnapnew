@@ -239,6 +239,25 @@ const UploadPage = () => {
       setCurrentStep('complete');
       setUploadedFiles(files);
       
+      // Generate AI recommendations, schedule reminders, and save contract in parallel
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser && uploadData.id) {
+        Promise.all([
+          supabase.functions.invoke('generate-recommendations', {
+            body: { upload_id: uploadData.id, user_id: currentUser.id }
+          }),
+          supabase.functions.invoke('schedule-reminders', {
+            body: { user_id: currentUser.id }
+          }),
+          supabase.functions.invoke('save-contract', {
+            body: { upload_id: uploadData.id, user_id: currentUser.id }
+          })
+        ]).catch(err => {
+          console.error('Error in background tasks:', err);
+          // Don't block the flow if these fail
+        });
+      }
+      
       // Track result shown
       if (typeof gtag !== 'undefined') {
         gtag('event', 'result_shown', {
