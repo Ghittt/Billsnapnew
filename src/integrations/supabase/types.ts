@@ -174,20 +174,55 @@ export type Database = {
           },
         ]
       }
+      billsnap_offers: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          raw_data: Json | null
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          raw_data?: Json | null
+          source: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          raw_data?: Json | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billsnap_offers_email_fkey"
+            columns: ["email"]
+            isOneToOne: false
+            referencedRelation: "billsnap_users"
+            referencedColumns: ["email"]
+          },
+        ]
+      }
       billsnap_users: {
         Row: {
           created_at: string
           email: string
+          energy_type: string | null
           notifications_opt_in: boolean | null
         }
         Insert: {
           created_at?: string
           email: string
+          energy_type?: string | null
           notifications_opt_in?: boolean | null
         }
         Update: {
           created_at?: string
           email?: string
+          energy_type?: string | null
           notifications_opt_in?: boolean | null
         }
         Relationships: []
