@@ -15,6 +15,7 @@ export default {
     extend: {
       fontFamily: {
         inter: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        'sf-pro': ['-apple-system', 'system-ui', 'BlinkMacSystemFont', '"SF Pro Text"', '"SF Pro Display"', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
