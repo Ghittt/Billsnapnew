@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
-import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Analytics from "@/components/analytics/Analytics";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -39,27 +38,11 @@ const App = () => (
             <Route path="/upload" element={<Upload />} />
             <Route path="/results" element={<Results />} />
             <Route path="/offer/:id" element={<OfferDetail />} />
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            } />
-            <Route path="/contracts" element={
-              <ProtectedRoute>
-                <Contracts />
-              </ProtectedRoute>
-            } />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/contracts" element={<Contracts />} />
             <Route path="/qa" element={<QA />} />
-            <Route path="/admin" element={
-              <ProtectedRoute>
-                <Admin />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/offers" element={
-              <ProtectedRoute>
-                <OffersManagement />
-              </ProtectedRoute>
-            } />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/offers" element={<OffersManagement />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/feedback" element={<Feedback />} />
