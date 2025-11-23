@@ -580,7 +580,7 @@ const UploadPage = () => {
               
               <div className="text-center text-sm text-muted-foreground">
                 <Shield className="w-4 h-4 inline mr-1" />
-                Dati protetti e cancellati dopo l'analisi
+                Analisi gratuita - Nessun obbligo
               </div>
             </>
           )}
