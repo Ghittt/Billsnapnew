@@ -4,6 +4,7 @@ import Header from '@/components/layout/Header';
 import { BestOfferCard } from '@/components/results/BestOfferCard';
 import { AlternativeOfferCard } from '@/components/results/AlternativeOfferCard';
 import { EmailOptInBox } from '@/components/results/EmailOptInBox';
+import { ConsumptionAnalysis } from '@/components/results/ConsumptionAnalysis';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProfileQuestionnaire } from '@/components/profile/ProfileQuestionnaire';
@@ -55,6 +56,7 @@ const ResultsPage = () => {
   const [showConfirmForm, setShowConfirmForm] = useState(false);
   const [calculationResult, setCalculationResult] = useState<any>(null);
   const [billType, setBillType] = useState<'luce' | 'gas' | 'combo'>('luce');
+  const [consumptionAnalysis, setConsumptionAnalysis] = useState<any>(null);
 
   useEffect(() => {
     // Always attempt to load results; if uploadId is missing we proceed with defaults
@@ -141,6 +143,22 @@ const ResultsPage = () => {
           // Use validated data
           if (calcResult.costo_annuo) {
             estimatedCurrentCost = calcResult.costo_annuo;
+          }
+
+          // Generate consumption analysis with AI
+          try {
+            const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
+              'analyze-consumption',
+              { body: { ocrData: fetchedOcrData, uploadId, userProfile, billType } }
+            );
+
+            if (!analysisError && analysisData) {
+              setConsumptionAnalysis(analysisData);
+              console.log('Consumption analysis generated successfully');
+            }
+          } catch (analysisErr) {
+            console.error('Error generating consumption analysis:', analysisErr);
+            // Continue without analysis
           }
         }
       }
