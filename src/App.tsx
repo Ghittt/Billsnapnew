@@ -13,6 +13,7 @@ import OfferDetail from "./pages/OfferDetail";
 import QA from "./pages/QA";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import TermsAndConditions from "./pages/TermsAndConditions";
 import Feedback from "./pages/Feedback";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/admin/offers" element={<OffersManagement />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/debug" element={<Debug />} />
             <Route path="/offerta-collettiva" element={<CollectiveOffer />} />
