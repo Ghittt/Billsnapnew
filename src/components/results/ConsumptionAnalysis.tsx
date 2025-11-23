@@ -8,13 +8,24 @@ interface ConsumptionAnalysisProps {
   analysis: {
     sintesi: string;
     cosa_capito: string;
+    spesa_mensile_attuale?: {
+      importo_mese: number;
+      importo_anno: number;
+      messaggio: string;
+    };
     quanto_spendi: string;
     fasce_orarie?: {
       prevalente: string;
       distribuzione: string;
       suggerimento: string;
+      impatto_mensile?: string;
     } | null;
-    risparmio_potenziale: string;
+    risparmio_potenziale: string | {
+      mensile: string;
+      annuale: string;
+      vita_reale: string;
+      messaggio_completo: string;
+    };
     consiglio_pratico: string;
     confronto_nazionale: {
       messaggio: string;
@@ -77,31 +88,48 @@ export const ConsumptionAnalysis: React.FC<ConsumptionAnalysisProps> = ({ analys
         </CardContent>
       </Card>
 
-      {/* Quanto Spendi + Confronto Nazionale */}
+      {/* Spesa Mensile Attuale (principale) + Confronto Nazionale */}
       <div className="grid md:grid-cols-2 gap-4">
-        <Card>
+        <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-900/20">
           <CardHeader>
-            <CardTitle className="text-base">La tua spesa attuale</CardTitle>
+            <CardTitle className="text-base">Quanto spendi ora</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm leading-relaxed">{analysis.quanto_spendi}</p>
-            {analysis.raw_data && (
-              <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Costo annuo</span>
-                  <span className="text-2xl font-bold text-primary">
-                    {analysis.raw_data.annual_cost.toFixed(0)} €
-                  </span>
+            {analysis.spesa_mensile_attuale ? (
+              <>
+                <div className="mb-4">
+                  <div className="text-4xl font-bold text-orange-700 dark:text-orange-400">
+                    {analysis.spesa_mensile_attuale.importo_mese} €
+                    <span className="text-lg text-muted-foreground">/mese</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    (circa {analysis.spesa_mensile_attuale.importo_anno} € all'anno)
+                  </p>
                 </div>
-                {analysis.raw_data.price_unit > 0 && (
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-muted-foreground">Prezzo unitario</span>
-                    <span className="text-sm font-medium">
-                      {analysis.raw_data.price_unit.toFixed(3)} €/{analysis.raw_data.unit}
-                    </span>
+                <p className="text-sm leading-relaxed">
+                  {analysis.spesa_mensile_attuale.messaggio}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm leading-relaxed mb-4">{analysis.quanto_spendi}</p>
+                {analysis.raw_data && (
+                  <div className="p-3 bg-white/60 dark:bg-black/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <div className="mb-3">
+                      <span className="text-sm text-muted-foreground">Al mese</span>
+                      <div className="text-3xl font-bold text-orange-700 dark:text-orange-400">
+                        {(analysis.raw_data.annual_cost / 12).toFixed(0)} €
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-orange-200 dark:border-orange-800">
+                      <span className="text-xs text-muted-foreground">All'anno: </span>
+                      <span className="text-sm font-medium">
+                        {analysis.raw_data.annual_cost.toFixed(0)} €
+                      </span>
+                    </div>
                   </div>
                 )}
-              </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -154,6 +182,11 @@ export const ConsumptionAnalysis: React.FC<ConsumptionAnalysisProps> = ({ analys
             <div>
               <p className="text-sm font-medium mb-2">Fascia prevalente: <span className="text-primary">{analysis.fasce_orarie.prevalente}</span></p>
               <p className="text-sm text-muted-foreground">{analysis.fasce_orarie.distribuzione}</p>
+              {analysis.fasce_orarie.impatto_mensile && (
+                <p className="text-sm font-medium text-orange-600 dark:text-orange-400 mt-2">
+                  💰 {analysis.fasce_orarie.impatto_mensile}
+                </p>
+              )}
             </div>
             <Alert>
               <Lightbulb className="h-4 w-4" />
@@ -193,8 +226,27 @@ export const ConsumptionAnalysis: React.FC<ConsumptionAnalysisProps> = ({ analys
           <CardHeader>
             <CardTitle className="text-base">Risparmio potenziale</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm leading-relaxed">{analysis.risparmio_potenziale}</p>
+          <CardContent className="space-y-3">
+            {typeof analysis.risparmio_potenziale === 'object' ? (
+              <>
+                <div>
+                  <p className="text-3xl font-bold text-green-700 dark:text-green-400">
+                    {analysis.risparmio_potenziale.mensile}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    ({analysis.risparmio_potenziale.annuale})
+                  </p>
+                </div>
+                <p className="text-sm leading-relaxed font-medium">
+                  {analysis.risparmio_potenziale.vita_reale}
+                </p>
+                <p className="text-sm text-muted-foreground pt-2 border-t border-green-200 dark:border-green-800">
+                  {analysis.risparmio_potenziale.messaggio_completo}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm leading-relaxed">{analysis.risparmio_potenziale}</p>
+            )}
           </CardContent>
         </Card>
 
