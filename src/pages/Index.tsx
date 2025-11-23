@@ -257,7 +257,7 @@ const Index = () => {
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
             <div>
-              <p>© {new Date().getFullYear()} BillSnap - Progetto in fase di test</p>
+              <p>© {new Date().getFullYear()} BillSnap.it - Progetto in fase di test</p>
             </div>
             <div className="flex flex-wrap gap-4 justify-center">
               <Link to="/terms-and-conditions" className="hover:text-foreground transition-colors">
