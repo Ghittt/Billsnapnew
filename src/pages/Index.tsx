@@ -260,7 +260,10 @@ const Index = () => {
               <p>© {new Date().getFullYear()} BillSnap.it - Progetto in fase di test</p>
             </div>
             <div className="flex flex-wrap gap-4 justify-center">
-              <Link to="/terms-and-conditions" className="hover:text-foreground transition-colors">
+              <Link to="/chi-siamo" className="hover:text-foreground transition-colors">
+                Chi Siamo
+              </Link>
+              <Link to="/terms" className="hover:text-foreground transition-colors">
                 Termini e Condizioni
               </Link>
               <Link to="/privacy" className="hover:text-foreground transition-colors">
