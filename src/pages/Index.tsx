@@ -22,7 +22,7 @@ const Index = () => {
         {/* Gradient Background */}
         <div className="absolute inset-0 gradient-glow" />
         
-        <div className="relative container mx-auto px-4 py-20 md:py-32">
+        <div className="relative container mx-auto px-4 py-12 md:py-20">
           <div className="max-w-5xl mx-auto text-center space-y-8">
             {/* Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 backdrop-blur-sm border border-primary/10">
@@ -31,34 +31,34 @@ const Index = () => {
             </div>
             
             {/* Hero Title */}
-            <h1 className="text-6xl md:text-8xl font-bold leading-tight tracking-tight">
+            <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold leading-tight tracking-tight">
               <span className="text-gradient">Risparmia</span>
               <br />
               <span className="text-foreground">sulle tue bollette</span>
             </h1>
             
             {/* Hero Description */}
-            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed px-4">
               Carica la tua bolletta. SnapAi™ trova automaticamente l'offerta perfetta per te. 
               <span className="text-foreground font-semibold"> Zero stress, massimo risparmio.</span>
             </p>
             
             {/* Upload Zone */}
-            <div className="max-w-2xl mx-auto pt-8">
+            <div className="max-w-2xl mx-auto pt-4 md:pt-8">
               <UploadZone onFileUpload={handleFileUpload} />
               
               {/* Trust Indicators */}
-              <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 mt-6 text-xs md:text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-primary" />
+              <div className="flex flex-wrap items-center justify-center gap-3 md:gap-6 mt-4 md:mt-6 text-xs md:text-sm text-muted-foreground">
+                <div className="flex items-center gap-1.5 md:gap-2">
+                  <Lock className="w-3.5 h-3.5 md:w-4 md:h-4 text-primary flex-shrink-0" />
                   <span className="whitespace-nowrap">Dati GDPR</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-primary" />
+                <div className="flex items-center gap-1.5 md:gap-2">
+                  <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 text-primary flex-shrink-0" />
                   <span className="whitespace-nowrap">Analisi 25s</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Award className="w-4 h-4 text-primary" />
+                <div className="flex items-center gap-1.5 md:gap-2">
+                  <Award className="w-3.5 h-3.5 md:w-4 md:h-4 text-primary flex-shrink-0" />
                   <span className="whitespace-nowrap">50+ Offerte</span>
                 </div>
               </div>
