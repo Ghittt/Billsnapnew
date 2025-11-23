@@ -224,21 +224,55 @@ export default function TermsAndConditions() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Info className="w-5 h-5 text-primary" />
-                5. Mission e Valori
+                5. Chi Siamo - Mission e Valori
               </CardTitle>
             </CardHeader>
             <CardContent className="prose prose-sm dark:prose-invert max-w-none">
+              <h3 className="text-lg font-semibold mb-3">La nostra storia</h3>
               <p>
-                BillSnap nasce con l'obiettivo di semplificare la comprensione delle bollette energetiche e 
-                aiutare le persone a identificare offerte più convenienti in modo <strong>immediato e trasparente</strong>.
+                BillSnap nasce dalla frustrazione condivisa di migliaia di italiani di fronte alle bollette energetiche: 
+                <strong> troppe voci incomprensibili, tariffe nascoste, confronti impossibili</strong>.
               </p>
               <p>
-                Il progetto mira a creare la prima AI realmente focalizzata sul risparmio energetico personale: 
-                rapida, precisa, intelligente, e costruita per funzionare con <strong>zero sforzo</strong> da parte dell'utente.
+                Abbiamo creato la prima AI <strong>realmente focalizzata sul risparmio energetico personale</strong>: 
+                non un semplice comparatore, ma un consulente digitale che legge, capisce e confronta la tua bolletta 
+                con centinaia di offerte reali, <strong>in meno di 30 secondi</strong>.
               </p>
-              <p className="font-semibold">
-                Stessa energia, meno stress. BillSnap pensa al resto.
+
+              <h3 className="text-lg font-semibold mt-6 mb-3">La nostra mission</h3>
+              <p>
+                Semplificare la comprensione delle bollette energetiche e aiutare le persone a identificare 
+                offerte più convenienti in modo <strong>immediato, trasparente e senza stress</strong>.
               </p>
+
+              <h3 className="text-lg font-semibold mt-6 mb-3">I nostri valori</h3>
+              <ul>
+                <li><strong>Trasparenza totale</strong>: nessuna commissione nascosta, nessun vincolo</li>
+                <li><strong>Tecnologia al servizio delle persone</strong>: AI che lavora per te, non per le compagnie</li>
+                <li><strong>Semplicità radicale</strong>: zero sforzo, massimo risultato</li>
+                <li><strong>Privacy first</strong>: i tuoi dati sono tuoi, punto</li>
+                <li><strong>Risparmio reale</strong>: consigliamo solo cambi che valgono davvero la pena</li>
+              </ul>
+
+              <h3 className="text-lg font-semibold mt-6 mb-3">La tecnologia SnapAI™</h3>
+              <p>
+                SnapAI™ è il motore intelligente di BillSnap: analizza pattern di consumo, comprende abitudini familiari, 
+                confronta 50+ fornitori in tempo reale e suggerisce solo offerte che <strong>generano risparmio concreto</strong>.
+              </p>
+              <p>
+                Non siamo un comparatore generico: siamo il tuo <strong>consulente energetico personale</strong>, 
+                disponibile 24/7, che parla la tua lingua e pensa al tuo portafoglio.
+              </p>
+
+              <div className="mt-6 p-4 bg-primary/5 rounded-lg border border-primary/10">
+                <p className="font-semibold text-primary text-lg mb-2">
+                  Stessa energia, meno stress. BillSnap pensa al resto.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Questa è la nostra promessa: rendere il risparmio energetico alla portata di tutti, 
+                  senza burocrazia, senza tecnicismi, senza sorprese.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -278,8 +312,8 @@ export default function TermsAndConditions() {
               <div>
                 <h4 className="font-semibold text-base mb-2">Q: Posso cancellare i miei dati?</h4>
                 <p>
-                  <strong>A:</strong> Sì, in qualsiasi momento. Contatta privacy@billsnap.it (simulato) per richiedere 
-                  la cancellazione completa dei tuoi dati dal database.
+                  <strong>A:</strong> Sì, in qualsiasi momento. Usa il <Link to="/data-deletion" className="text-primary hover:underline">modulo di richiesta cancellazione dati</Link> oppure contatta privacy@billsnap.it per esercitare il tuo diritto all'oblio (GDPR Art. 17). 
+                  Riceverai conferma entro 30 giorni.
                 </p>
               </div>
 
@@ -356,6 +390,10 @@ export default function TermsAndConditions() {
             <span>•</span>
             <Link to="/privacy" className="hover:text-foreground transition-colors">
               Privacy Policy
+            </Link>
+            <span>•</span>
+            <Link to="/data-deletion" className="hover:text-foreground transition-colors">
+              Cancella i miei dati
             </Link>
             <span>•</span>
             <Link to="/feedback" className="hover:text-foreground transition-colors">

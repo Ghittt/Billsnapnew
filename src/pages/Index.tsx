@@ -266,6 +266,9 @@ const Index = () => {
               <Link to="/privacy" className="hover:text-foreground transition-colors">
                 Privacy Policy
               </Link>
+              <Link to="/data-deletion" className="hover:text-foreground transition-colors">
+                Cancella i miei dati
+              </Link>
               <Link to="/feedback" className="hover:text-foreground transition-colors">
                 Feedback
               </Link>

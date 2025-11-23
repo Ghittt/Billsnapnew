@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import CookieConsent from "@/components/CookieConsent";
 import Analytics from "@/components/analytics/Analytics";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -14,6 +15,7 @@ import QA from "./pages/QA";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import TermsAndConditions from "./pages/TermsAndConditions";
+import DataDeletion from "./pages/DataDeletion";
 import Feedback from "./pages/Feedback";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
@@ -33,6 +35,7 @@ const App = () => (
       <Sonner />
       <AuthProvider>
         <BrowserRouter>
+          <CookieConsent />
           <Analytics />
           <Routes>
             <Route path="/" element={<Index />} />
@@ -49,6 +52,7 @@ const App = () => (
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+            <Route path="/data-deletion" element={<DataDeletion />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/debug" element={<Debug />} />
             <Route path="/offerta-collettiva" element={<CollectiveOffer />} />
