@@ -5,6 +5,7 @@ import { BestOfferCard } from '@/components/results/BestOfferCard';
 import { AlternativeOfferCard } from '@/components/results/AlternativeOfferCard';
 import { EmailOptInBox } from '@/components/results/EmailOptInBox';
 import { ConsumptionAnalysis } from '@/components/results/ConsumptionAnalysis';
+import { MonthlySavingsHighlight } from '@/components/results/MonthlySavingsHighlight';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProfileQuestionnaire } from '@/components/profile/ProfileQuestionnaire';
@@ -426,16 +427,21 @@ const ResultsPage = () => {
     }
   };
 
-  // Calculate savings
+  // Calculate savings (monthly focus)
   const annualSaving = offersData?.best_offer 
     ? currentCost - offersData.best_offer.offer_annual_cost_eur 
     : 0;
+  const monthlySaving = annualSaving / 12;
+  const currentMonthlyCost = currentCost / 12;
+  const newMonthlyCost = offersData?.best_offer 
+    ? offersData.best_offer.offer_annual_cost_eur / 12 
+    : currentMonthlyCost;
 
   const getSavingsMessage = () => {
-    if (annualSaving < 50) {
-      return `La tua offerta è già tra le migliori (risparmio minimo €${Math.round(annualSaving)}/anno)`;
+    if (monthlySaving < 5) {
+      return `La tua offerta è già tra le migliori (risparmio minimo di circa €${Math.round(monthlySaving)}/mese)`;
     }
-    return `Ti ho trovato un'offerta che ti fa risparmiare €${Math.round(annualSaving)}/anno rispetto alla tua bolletta attuale.`;
+    return `Ti ho trovato un'offerta che ti fa risparmiare circa €${Math.round(monthlySaving)}/mese (circa €${Math.round(annualSaving)}/anno)`;
   };
 
   // Get alternative offers (exclude best offer, show max 5)
@@ -647,6 +653,27 @@ const ResultsPage = () => {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+            </div>
+          )}
+
+          {/* Consumption Analysis Section */}
+          {consumptionAnalysis && (
+            <div className="mb-8">
+              <ConsumptionAnalysis analysis={consumptionAnalysis} />
+            </div>
+          )}
+
+          {/* Monthly Savings Highlight */}
+          {offersData?.best_offer && monthlySaving >= 5 && (
+            <div className="mb-8">
+              <MonthlySavingsHighlight
+                monthlySaving={monthlySaving}
+                annualSaving={annualSaving}
+                currentMonthlyCost={currentMonthlyCost}
+                newMonthlyCost={newMonthlyCost}
+                currentAnnualCost={currentCost}
+                newAnnualCost={offersData.best_offer.offer_annual_cost_eur}
+              />
             </div>
           )}
 
