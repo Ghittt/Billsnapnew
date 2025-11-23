@@ -8,7 +8,6 @@ import { ConsumptionAnalysis } from '@/components/results/ConsumptionAnalysis';
 import { MonthlySavingsHighlight } from '@/components/results/MonthlySavingsHighlight';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ProfileQuestionnaire } from '@/components/profile/ProfileQuestionnaire';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { ConfirmDataForm } from '@/components/upload/ConfirmDataForm';
 import { ArrowLeft, Zap, Loader2, TrendingDown, Sparkles } from 'lucide-react';
@@ -51,7 +50,6 @@ const ResultsPage = () => {
   const [currentCost, setCurrentCost] = useState<number>(0);
   const [annualKwh, setAnnualKwh] = useState<number>(2700);
   const [explanations, setExplanations] = useState<Record<string, any>>({});
-  const [showQuestionnaire, setShowQuestionnaire] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [ocrData, setOcrData] = useState<any>(null);
   const [showConfirmForm, setShowConfirmForm] = useState(false);
@@ -69,7 +67,7 @@ const ResultsPage = () => {
       setIsLoading(true);
       setError(null);
 
-      // Fetch user profile if authenticated
+      // Fetch user profile if authenticated (for AI personalization only, not required)
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase
@@ -79,13 +77,6 @@ const ResultsPage = () => {
           .single();
         
         setUserProfile(profile);
-        
-        // Show questionnaire if profile not completed
-        if (!profile?.profile_completed) {
-          setShowQuestionnaire(true);
-          setIsLoading(false);
-          return;
-        }
       }
 
       // Defaults if no OCR or no uploadId
@@ -461,25 +452,6 @@ const ResultsPage = () => {
     maximumFractionDigits: 0
   }).format(n);
 
-  if (showQuestionnaire) {
-    return (
-      <div className="min-h-screen bg-gradient-subtle">
-        <Header />
-        <main className="container mx-auto px-4 py-12">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-2">Prima di tutto...</h1>
-            <p className="text-muted-foreground">
-              Aiutami a personalizzare le tue offerte rispondendo a qualche domanda
-            </p>
-          </div>
-          <ProfileQuestionnaire onComplete={() => {
-            setShowQuestionnaire(false);
-            fetchResults();
-          }} />
-        </main>
-      </div>
-    );
-  }
 
   if (showConfirmForm) {
     return (
