@@ -14,6 +14,71 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_recommendations: {
+        Row: {
+          actioned_at: string | null
+          created_at: string
+          description: string
+          dismissed_at: string | null
+          estimated_saving_eur: number | null
+          expires_at: string | null
+          id: string
+          is_actioned: boolean | null
+          is_dismissed: boolean | null
+          priority: number | null
+          reasoning: Json | null
+          recommendation_type: string
+          title: string
+          updated_at: string
+          upload_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          actioned_at?: string | null
+          created_at?: string
+          description: string
+          dismissed_at?: string | null
+          estimated_saving_eur?: number | null
+          expires_at?: string | null
+          id?: string
+          is_actioned?: boolean | null
+          is_dismissed?: boolean | null
+          priority?: number | null
+          reasoning?: Json | null
+          recommendation_type: string
+          title: string
+          updated_at?: string
+          upload_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          actioned_at?: string | null
+          created_at?: string
+          description?: string
+          dismissed_at?: string | null
+          estimated_saving_eur?: number | null
+          expires_at?: string | null
+          id?: string
+          is_actioned?: boolean | null
+          is_dismissed?: boolean | null
+          priority?: number | null
+          reasoning?: Json | null
+          recommendation_type?: string
+          title?: string
+          updated_at?: string
+          upload_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_recommendations_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       badges: {
         Row: {
           created_at: string
@@ -193,6 +258,121 @@ export type Database = {
           },
           {
             foreignKeyName: "comparison_results_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consumption_prediction: {
+        Row: {
+          actual_kwh: number | null
+          actual_smc: number | null
+          confidence_score: number | null
+          created_at: string
+          factors: Json | null
+          id: string
+          predicted_kwh: number | null
+          predicted_smc: number | null
+          prediction_date: string
+          updated_at: string
+          upload_id: string | null
+          user_id: string
+        }
+        Insert: {
+          actual_kwh?: number | null
+          actual_smc?: number | null
+          confidence_score?: number | null
+          created_at?: string
+          factors?: Json | null
+          id?: string
+          predicted_kwh?: number | null
+          predicted_smc?: number | null
+          prediction_date: string
+          updated_at?: string
+          upload_id?: string | null
+          user_id: string
+        }
+        Update: {
+          actual_kwh?: number | null
+          actual_smc?: number | null
+          confidence_score?: number | null
+          created_at?: string
+          factors?: Json | null
+          id?: string
+          predicted_kwh?: number | null
+          predicted_smc?: number | null
+          prediction_date?: string
+          updated_at?: string
+          upload_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consumption_prediction_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contracts_history: {
+        Row: {
+          annual_cost_eur: number | null
+          annual_kwh: number | null
+          annual_smc: number | null
+          commodity: string
+          created_at: string
+          end_date: string | null
+          id: string
+          is_current: boolean | null
+          notes: string | null
+          plan_name: string | null
+          provider: string
+          start_date: string
+          updated_at: string
+          upload_id: string | null
+          user_id: string
+        }
+        Insert: {
+          annual_cost_eur?: number | null
+          annual_kwh?: number | null
+          annual_smc?: number | null
+          commodity: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          is_current?: boolean | null
+          notes?: string | null
+          plan_name?: string | null
+          provider: string
+          start_date: string
+          updated_at?: string
+          upload_id?: string | null
+          user_id: string
+        }
+        Update: {
+          annual_cost_eur?: number | null
+          annual_kwh?: number | null
+          annual_smc?: number | null
+          commodity?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          is_current?: boolean | null
+          notes?: string | null
+          plan_name?: string | null
+          provider?: string
+          start_date?: string
+          updated_at?: string
+          upload_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contracts_history_upload_id_fkey"
             columns: ["upload_id"]
             isOneToOne: false
             referencedRelation: "uploads"
@@ -688,6 +868,75 @@ export type Database = {
         }
         Relationships: []
       }
+      offers_scraped: {
+        Row: {
+          commodity: string
+          created_at: string
+          fixed_fee_eur_mo: number
+          id: string
+          is_green: boolean | null
+          is_verified: boolean | null
+          notes: string | null
+          plan_name: string
+          power_fee_year: number | null
+          price_f1: number | null
+          price_f2: number | null
+          price_f3: number | null
+          price_kwh: number | null
+          pricing_type: string
+          provider: string
+          raw_data: Json | null
+          scraped_url: string | null
+          unit_price_eur_smc: number | null
+          updated_at: string
+          verified_at: string | null
+        }
+        Insert: {
+          commodity: string
+          created_at?: string
+          fixed_fee_eur_mo?: number
+          id?: string
+          is_green?: boolean | null
+          is_verified?: boolean | null
+          notes?: string | null
+          plan_name: string
+          power_fee_year?: number | null
+          price_f1?: number | null
+          price_f2?: number | null
+          price_f3?: number | null
+          price_kwh?: number | null
+          pricing_type: string
+          provider: string
+          raw_data?: Json | null
+          scraped_url?: string | null
+          unit_price_eur_smc?: number | null
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Update: {
+          commodity?: string
+          created_at?: string
+          fixed_fee_eur_mo?: number
+          id?: string
+          is_green?: boolean | null
+          is_verified?: boolean | null
+          notes?: string | null
+          plan_name?: string
+          power_fee_year?: number | null
+          price_f1?: number | null
+          price_f2?: number | null
+          price_f3?: number | null
+          price_kwh?: number | null
+          pricing_type?: string
+          provider?: string
+          raw_data?: Json | null
+          scraped_url?: string | null
+          unit_price_eur_smc?: number | null
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           children_ages: number[] | null
@@ -828,6 +1077,48 @@ export type Database = {
           referred_user_id?: string | null
           referrer_user_id?: string
           status?: string
+        }
+        Relationships: []
+      }
+      scheduled_reminders: {
+        Row: {
+          created_at: string
+          id: string
+          is_sent: boolean | null
+          message: string
+          metadata: Json | null
+          reminder_type: string
+          scheduled_for: string
+          sent_at: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_sent?: boolean | null
+          message: string
+          metadata?: Json | null
+          reminder_type: string
+          scheduled_for: string
+          sent_at?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_sent?: boolean | null
+          message?: string
+          metadata?: Json | null
+          reminder_type?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
