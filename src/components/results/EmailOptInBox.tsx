@@ -65,6 +65,11 @@ export const EmailOptInBox: React.FC<EmailOptInBoxProps> = ({
 
       if (error) throw error;
 
+      // Invia email di conferma
+      await supabase.functions.invoke('send-confirmation-email', {
+        body: { email, notifications_opt_in: notificationsOptIn }
+      });
+
       setSaved(true);
       toast({
         title: 'Dati salvati!',
