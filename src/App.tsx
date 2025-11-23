@@ -21,6 +21,7 @@ import OffersManagement from "./pages/OffersManagement";
 import Debug from "./pages/Debug";
 import NotFound from "./pages/NotFound";
 import CollectiveOffer from "./pages/CollectiveOffer";
+import Contracts from "./pages/Contracts";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,11 @@ const App = () => (
             <Route path="/profile" element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            } />
+            <Route path="/contracts" element={
+              <ProtectedRoute>
+                <Contracts />
               </ProtectedRoute>
             } />
             <Route path="/qa" element={<QA />} />
