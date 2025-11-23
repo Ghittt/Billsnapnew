@@ -13,7 +13,7 @@ import { toast } from "@/hooks/use-toast";
 export default function CollectiveOffer() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
-  const [commodity, setCommodity] = useState<'luce' | 'gas'>('luce');
+  const [commodity, setCommodity] = useState<'energy' | 'gas' | 'dual'>('energy');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
@@ -202,12 +202,11 @@ export default function CollectiveOffer() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Tipo energia</label>
-                <div className="flex gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <Button
-                    variant={commodity === 'luce' ? 'default' : 'outline'}
-                    onClick={() => setCommodity('luce')}
+                    variant={commodity === 'energy' ? 'default' : 'outline'}
+                    onClick={() => setCommodity('energy')}
                     disabled={isSubmitting}
-                    className="flex-1"
                   >
                     ⚡ Luce
                   </Button>
@@ -215,9 +214,15 @@ export default function CollectiveOffer() {
                     variant={commodity === 'gas' ? 'default' : 'outline'}
                     onClick={() => setCommodity('gas')}
                     disabled={isSubmitting}
-                    className="flex-1"
                   >
                     🔥 Gas
+                  </Button>
+                  <Button
+                    variant={commodity === 'dual' ? 'default' : 'outline'}
+                    onClick={() => setCommodity('dual')}
+                    disabled={isSubmitting}
+                  >
+                    ⚡🔥 Entrambi
                   </Button>
                 </div>
               </div>
