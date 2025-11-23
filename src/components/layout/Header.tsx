@@ -1,17 +1,7 @@
-import { Zap, MessageSquare, User, LogOut, Users } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
+import { Zap, MessageSquare, Users } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Header = () => {
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
-  };
-
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -30,35 +20,6 @@ const Header = () => {
             <Users className="w-4 h-4" />
             <span className="hidden sm:inline">Offerta Collettiva</span>
           </Link>
-          
-          {user ? (
-            <>
-              <Link 
-                to="/profile" 
-                className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors"
-              >
-                <User className="w-4 h-4" />
-                <span className="hidden sm:inline">Profilo</span>
-              </Link>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={handleSignOut}
-                className="text-sm"
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Esci</span>
-              </Button>
-            </>
-          ) : (
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate('/auth')}
-            >
-              Accedi
-            </Button>
-          )}
           
           <Link 
             to="/feedback" 
