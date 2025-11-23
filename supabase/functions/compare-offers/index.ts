@@ -305,6 +305,27 @@ serve(async (req) => {
       console.error('Failed to store comparison results:', insertError);
     }
 
+    // Store in billsnap_offers for each ranked offer
+    for (const offer of ranked.slice(0, 3)) { // Store top 3 offers
+      const { error: offerError } = await supabase.from('billsnap_offers').insert({
+        raw_data: {
+          upload_id: uploadId,
+          offer_id: offer.id,
+          provider: offer.provider,
+          plan_name: offer.plan_name,
+          commodity: offer.commodity,
+          simulated_cost: offer.simulated_cost,
+          breakdown: offer.breakdown,
+          is_best: offer.id === bestAbsolute?.id
+        },
+        source: 'compare-offers'
+      });
+      
+      if (offerError) {
+        console.error('Error storing billsnap_offer:', offerError);
+      }
+    }
+
     return new Response(JSON.stringify({ 
       ok: true, 
       profile: { ...profile, bill_type: billType }, 
