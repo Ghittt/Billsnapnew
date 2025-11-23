@@ -17,13 +17,6 @@ export default function TermsAndConditions() {
           </p>
         </div>
 
-        <Alert className="mb-8 border-yellow-500/50 bg-yellow-500/10">
-          <Info className="h-4 w-4 text-yellow-600" />
-          <AlertDescription className="text-yellow-900 dark:text-yellow-200">
-            <strong>Servizio in fase di test:</strong> BillSnap è un prototipo dimostrativo. Non effettua transazioni economiche e non costituisce offerta commerciale.
-          </AlertDescription>
-        </Alert>
-
         <div className="space-y-8">
           {/* Stato del Progetto */}
           <Card>
