@@ -9,23 +9,32 @@ const Header = () => {
           <span className="text-2xl font-bold text-primary">BillSnap</span>
         </Link>
         
-        <div className="flex items-center gap-4">
+        <nav className="flex items-center gap-2 md:gap-4">
+          <Link 
+            to="/terms-and-conditions#chi-siamo" 
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
+          >
+            <span className="hidden md:inline">Chi siamo</span>
+            <span className="md:hidden">Chi</span>
+          </Link>
+          
           <Link 
             to="/offerta-collettiva" 
-            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors"
+            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors px-2 py-1"
           >
             <Users className="w-4 h-4" />
             <span className="hidden sm:inline">Offerta Collettiva</span>
+            <span className="sm:hidden">Gruppo</span>
           </Link>
           
           <Link 
             to="/feedback" 
-            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors"
+            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors px-2 py-1"
           >
             <MessageSquare className="w-4 h-4" />
             <span className="hidden sm:inline">Feedback</span>
           </Link>
-        </div>
+        </nav>
       </div>
     </header>
   );

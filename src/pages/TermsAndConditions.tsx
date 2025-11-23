@@ -220,7 +220,7 @@ export default function TermsAndConditions() {
           </Card>
 
           {/* Mission e Valori */}
-          <Card>
+          <Card id="chi-siamo">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Info className="w-5 h-5 text-primary" />
