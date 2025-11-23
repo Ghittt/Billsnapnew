@@ -54,7 +54,7 @@ export default function DataDeletion() {
 
     try {
       // Salva la richiesta nel database
-      const { error } = await supabase
+      const { error: dbError } = await supabase
         .from('feedback')
         .insert({
           email: email,
@@ -65,13 +65,28 @@ export default function DataDeletion() {
           status: 'pending'
         });
 
-      if (error) throw error;
+      if (dbError) throw dbError;
+
+      // Invia email di conferma
+      const { error: emailError } = await supabase.functions.invoke('send-deletion-confirmation', {
+        body: { email, reason }
+      });
+
+      if (emailError) {
+        console.error('Email error:', emailError);
+        // Non bloccare il flusso se l'email fallisce
+        toast({
+          title: "Richiesta registrata",
+          description: "Email di conferma non inviata. Riceverai comunque conferma entro 30 giorni.",
+          variant: "default"
+        });
+      }
 
       setIsSuccess(true);
       
       toast({
         title: "Richiesta inviata",
-        description: "Riceverai conferma via email entro 30 giorni come previsto dal GDPR."
+        description: "Controlla la tua email per la conferma. Riceverai aggiornamenti entro 30 giorni."
       });
 
       // Reset form
@@ -123,13 +138,13 @@ export default function DataDeletion() {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-12 max-w-3xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-4 flex items-center gap-3">
-            <Trash2 className="w-8 h-8 text-destructive" />
-            Richiesta Cancellazione Dati
+      <main className="container mx-auto px-4 py-8 md:py-12 max-w-3xl">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-4xl font-bold mb-3 md:mb-4 flex items-center gap-2 md:gap-3">
+            <Trash2 className="w-6 h-6 md:w-8 md:h-8 text-destructive flex-shrink-0" />
+            <span>Richiesta Cancellazione Dati</span>
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-base md:text-lg">
             Esercita il tuo diritto all'oblio previsto dal GDPR (Art. 17)
           </p>
         </div>
