@@ -19,6 +19,7 @@ serve(async (req) => {
     const { 
       email, 
       notifications_opt_in = true,
+      energy_type,
       raw_data,
       ai_output,
       provider,
@@ -34,7 +35,7 @@ serve(async (req) => {
     const { error: userError } = await supabase
       .from('billsnap_users')
       .upsert(
-        { email, notifications_opt_in },
+        { email, notifications_opt_in, energy_type },
         { onConflict: 'email' }
       );
 

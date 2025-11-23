@@ -15,6 +15,7 @@ interface User {
   email: string;
   created_at: string;
   notifications_opt_in: boolean;
+  energy_type?: string;
 }
 
 interface Bill {
@@ -204,10 +205,11 @@ const AdminDashboard = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Data Registrazione</TableHead>
-                  <TableHead>Notifiche</TableHead>
-                </TableRow>
+              <TableHead>Email</TableHead>
+              <TableHead>Data Registrazione</TableHead>
+              <TableHead>Notifiche</TableHead>
+              <TableHead>Tipo Energia</TableHead>
+            </TableRow>
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
@@ -218,6 +220,17 @@ const AdminDashboard = () => {
                       <Badge variant={user.notifications_opt_in ? 'default' : 'secondary'}>
                         {user.notifications_opt_in ? 'Attive' : 'Disattivate'}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {user.energy_type ? (
+                        <Badge variant="outline">
+                          {user.energy_type === 'luce' ? '⚡ Luce' : 
+                           user.energy_type === 'gas' ? '🔥 Gas' : 
+                           '⚡🔥 Entrambi'}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Non specificato</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
