@@ -127,6 +127,71 @@ export type Database = {
         }
         Relationships: []
       }
+      billsnap_bills: {
+        Row: {
+          ai_output: Json | null
+          created_at: string
+          email: string | null
+          id: string
+          kwh: number | null
+          m3: number | null
+          predicted_savings: number | null
+          price: number | null
+          provider: string | null
+          raw_data: Json | null
+        }
+        Insert: {
+          ai_output?: Json | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          kwh?: number | null
+          m3?: number | null
+          predicted_savings?: number | null
+          price?: number | null
+          provider?: string | null
+          raw_data?: Json | null
+        }
+        Update: {
+          ai_output?: Json | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          kwh?: number | null
+          m3?: number | null
+          predicted_savings?: number | null
+          price?: number | null
+          provider?: string | null
+          raw_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billsnap_bills_email_fkey"
+            columns: ["email"]
+            isOneToOne: false
+            referencedRelation: "billsnap_users"
+            referencedColumns: ["email"]
+          },
+        ]
+      }
+      billsnap_users: {
+        Row: {
+          created_at: string
+          email: string
+          notifications_opt_in: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          notifications_opt_in?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          notifications_opt_in?: boolean | null
+        }
+        Relationships: []
+      }
       calc_log: {
         Row: {
           consumo: number | null

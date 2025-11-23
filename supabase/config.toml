@@ -107,6 +107,9 @@ verify_jwt = false
 [functions.save-contract]
 verify_jwt = false
 
+[functions.save-anonymous-bill]
+verify_jwt = false
+
 [edge-runtime]
 enabled = true
 ip_version = "ipv6"

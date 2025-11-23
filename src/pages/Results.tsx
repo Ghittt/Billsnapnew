@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { BestOfferCard } from '@/components/results/BestOfferCard';
 import { AlternativeOfferCard } from '@/components/results/AlternativeOfferCard';
+import { EmailOptInBox } from '@/components/results/EmailOptInBox';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProfileQuestionnaire } from '@/components/profile/ProfileQuestionnaire';
@@ -678,6 +679,14 @@ const ResultsPage = () => {
               </div>
             )
           )}
+
+          {/* Email Opt-in Box - Optional for saving data */}
+          <EmailOptInBox
+            uploadId={uploadId || undefined}
+            ocrData={ocrData}
+            bestOffer={offersData?.best_offer}
+            currentCost={currentCost}
+          />
 
           {/* Notes */}
           <div className="text-center text-sm text-muted-foreground space-y-1 pt-6 border-t">
