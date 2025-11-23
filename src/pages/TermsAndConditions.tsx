@@ -212,58 +212,78 @@ export default function TermsAndConditions() {
             </CardContent>
           </Card>
 
-          {/* Mission e Valori */}
+          {/* Chi Siamo */}
           <Card id="chi-siamo">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Info className="w-5 h-5 text-primary" />
-                5. Chi Siamo - Mission e Valori
+                5. Chi Siamo
               </CardTitle>
             </CardHeader>
             <CardContent className="prose prose-sm dark:prose-invert max-w-none">
-              <h3 className="text-lg font-semibold mb-3">La nostra storia</h3>
+              <h3 className="text-lg font-semibold mb-3">Siamo stanchi quanto te.</h3>
               <p>
-                BillSnap nasce dalla frustrazione condivisa di migliaia di italiani di fronte alle bollette energetiche: 
-                <strong> troppe voci incomprensibili, tariffe nascoste, confronti impossibili</strong>.
-              </p>
-              <p>
-                Abbiamo creato la prima AI <strong>realmente focalizzata sul risparmio energetico personale</strong>: 
-                non un semplice comparatore, ma un consulente digitale che legge, capisce e confronta la tua bolletta 
-                con centinaia di offerte reali, <strong>in meno di 30 secondi</strong>.
+                Stanchi di bollette incomprensibili, confronti impossibili e promesse che non portano da nessuna parte.
+                Stanchi di provider che cambiano i prezzi quando vogliono.
+                Stanchi di siti che dicono "risparmi fino a…" senza mostrarti nulla di reale.
               </p>
 
-              <h3 className="text-lg font-semibold mt-6 mb-3">La nostra mission</h3>
-              <p>
-                Semplificare la comprensione delle bollette energetiche e aiutare le persone a identificare 
-                offerte più convenienti in modo <strong>immediato, trasparente e senza stress</strong>.
+              <p className="mt-4">
+                BillSnap nasce da una semplice idea:<br />
+                <strong>"Se è la tua energia, perché è così difficile capire quanto paghi davvero?"</strong>
               </p>
 
-              <h3 className="text-lg font-semibold mt-6 mb-3">I nostri valori</h3>
+              <h3 className="text-lg font-semibold mt-6 mb-3">Cos'è BillSnap (senza giri di parole)</h3>
+              <p>
+                BillSnap è un agente AI che analizza la tua bolletta, la legge come un esperto, individua gli sprechi 
+                e trova automaticamente l'offerta migliore sul mercato.
+              </p>
+              <p>
+                Niente pubblicità.<br />
+                Niente sponsor nascosti.<br />
+                Niente piani a pagamento.<br />
+                <strong>Guadagniamo solo quando tu risparmi davvero.</strong>
+              </p>
+
+              <h3 className="text-lg font-semibold mt-6 mb-3">Perché siamo diversi</h3>
+              <p>
+                Non siamo un comparatore.<br />
+                Non siamo un'agenzia.<br />
+                Non vendiamo abbonamenti.
+              </p>
+              <p>
+                <strong>Siamo una tecnologia che fa una cosa sola: ridurre la tua bolletta al minimo possibile.</strong>
+              </p>
+
+              <h3 className="text-lg font-semibold mt-6 mb-3">Utilizziamo:</h3>
               <ul>
-                <li><strong>Trasparenza totale</strong>: nessuna commissione nascosta, nessun vincolo</li>
-                <li><strong>Tecnologia al servizio delle persone</strong>: AI che lavora per te, non per le compagnie</li>
-                <li><strong>Semplicità radicale</strong>: zero sforzo, massimo risultato</li>
-                <li><strong>Privacy first</strong>: i tuoi dati sono tuoi, punto</li>
-                <li><strong>Risparmio reale</strong>: consigliamo solo cambi che valgono davvero la pena</li>
+                <li>OCR avanzato per leggere le bollette</li>
+                <li>Firecrawl + AI per analizzare le offerte reali</li>
+                <li>Normalizzazione intelligente dei dati</li>
+                <li>Stima del risparmio mensile, non solo annuale</li>
+                <li>Avvisi automatici quando appare un'offerta migliore</li>
               </ul>
 
-              <h3 className="text-lg font-semibold mt-6 mb-3">La tecnologia SnapAI™</h3>
+              <h3 className="text-lg font-semibold mt-6 mb-3">La nostra promessa</h3>
               <p>
-                SnapAI™ è il motore intelligente di BillSnap: analizza pattern di consumo, comprende abitudini familiari, 
-                confronta 50+ fornitori in tempo reale e suggerisce solo offerte che <strong>generano risparmio concreto</strong>.
+                Non promettiamo miracoli.<br />
+                Promettiamo onestà:
               </p>
               <p>
-                Non siamo un comparatore generico: siamo il tuo <strong>consulente energetico personale</strong>, 
-                disponibile 24/7, che parla la tua lingua e pensa al tuo portafoglio.
+                Se il risparmio è alto, lo diciamo chiaramente.<br />
+                Se è basso, lo diciamo allo stesso modo.
+              </p>
+
+              <h3 className="text-lg font-semibold mt-6 mb-3">La nostra missione</h3>
+              <p>
+                Rendere la bolletta un non-problema.<br />
+                Far risparmiare migliaia di famiglie italiane senza confusione.<br />
+                Portare l'energia nel 2025, non nel passato.
               </p>
 
               <div className="mt-6 p-4 bg-primary/5 rounded-lg border border-primary/10">
                 <p className="font-semibold text-primary text-lg mb-2">
                   Stessa energia, meno stress. BillSnap pensa al resto.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Questa è la nostra promessa: rendere il risparmio energetico alla portata di tutti, 
-                  senza burocrazia, senza tecnicismi, senza sorprese.
                 </p>
               </div>
             </CardContent>
