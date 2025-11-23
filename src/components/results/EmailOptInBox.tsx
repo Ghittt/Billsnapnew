@@ -43,10 +43,16 @@ export const EmailOptInBox: React.FC<EmailOptInBoxProps> = ({
         ? currentCost - bestOffer.offer_annual_cost_eur 
         : 0;
 
+      // Determine energy type from OCR data
+      const hasElectricity = ocrData?.annual_kwh && ocrData.annual_kwh > 0;
+      const hasGas = ocrData?.consumo_annuo_smc && ocrData.consumo_annuo_smc > 0;
+      const energy_type = hasElectricity && hasGas ? 'entrambi' : hasElectricity ? 'luce' : hasGas ? 'gas' : 'luce';
+
       // Prepare data for save-anonymous-bill function
       const billData = {
         email,
         notifications_opt_in: notificationsOptIn,
+        energy_type,
         raw_data: ocrData || {},
         ai_output: {
           best_offer: bestOffer,
