@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileText, Camera, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,8 @@ interface UploadZoneProps {
 }
 
 const UploadZone: React.FC<UploadZoneProps> = ({ onFileUpload, isUploading = false }) => {
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
     onFileUpload(acceptedFiles);
   }, [onFileUpload]);
@@ -25,6 +27,18 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onFileUpload, isUploading = fal
     multiple: true,
     maxFiles: 10
   });
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      onFileUpload(Array.from(files));
+    }
+  };
+
+  const triggerCamera = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    cameraInputRef.current?.click();
+  };
 
   return (
     <Card className={cn(
@@ -63,13 +77,35 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onFileUpload, isUploading = fal
           </div>
         </div>
 
-        <Button 
-          variant="default" 
-          size="lg" 
-          disabled={isUploading}
-        >
-          Seleziona file
-        </Button>
+        <div className="flex gap-3 justify-center flex-wrap">
+          <Button 
+            variant="default" 
+            size="lg" 
+            disabled={isUploading}
+          >
+            Seleziona file
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            size="lg" 
+            onClick={triggerCamera}
+            disabled={isUploading}
+            className="gap-2"
+          >
+            <Camera className="w-4 h-4" />
+            Scatta foto
+          </Button>
+        </div>
+
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleCameraCapture}
+          className="hidden"
+        />
       </div>
     </Card>
   );
