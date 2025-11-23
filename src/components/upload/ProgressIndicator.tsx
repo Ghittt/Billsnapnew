@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Clock, FileText, Calculator, CheckCircle } from 'lucide-react';
 
 interface ProgressIndicatorProps {
-  currentStep: 'upload' | 'ocr' | 'calculate' | 'complete';
+  currentStep: 'upload' | 'staged' | 'ocr' | 'calculate' | 'complete';
   estimatedTime?: number;
 }
 
@@ -20,7 +20,9 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   ];
 
   const getStepIndex = () => {
-    return steps.findIndex(step => step.key === currentStep);
+    // Map 'staged' to 'upload' for progress display
+    const mappedStep = currentStep === 'staged' ? 'upload' : currentStep;
+    return steps.findIndex(step => step.key === mappedStep);
   };
 
   const progressValue = ((getStepIndex() + 1) / steps.length) * 100;
@@ -29,6 +31,8 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
     switch (currentStep) {
       case 'upload':
         return 'Caricamento file in corso...';
+      case 'staged':
+        return 'File pronti per l\'analisi';
       case 'ocr':
         return 'Stiamo leggendo i dati della tua bolletta...';
       case 'calculate':
