@@ -4,13 +4,10 @@ import Header from '@/components/layout/Header';
 import UploadZone from '@/components/upload/UploadZone';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
 import { Sparkles, TrendingDown, Lock, Zap, Award, ArrowRight, Users } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   const handleFileUpload = (files: File[]) => {
     navigate('/upload', { state: { files } });
