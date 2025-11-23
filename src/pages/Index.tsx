@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import UploadZone from '@/components/upload/UploadZone';
 import { Card, CardContent } from '@/components/ui/card';
@@ -80,9 +80,6 @@ const Index = () => {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="text-2xl font-bold">Offerta Collettiva BillSnap</h3>
-                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-xs font-medium text-yellow-700 dark:text-yellow-400">
-                        In arrivo
-                      </span>
                     </div>
                     <p className="text-muted-foreground mb-4">
                       Unisciti al gruppo: a 2.000 adesioni negoziamo l'offerta più bassa
@@ -254,6 +251,28 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border bg-background/50 backdrop-blur-sm">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
+            <div>
+              <p>© {new Date().getFullYear()} BillSnap - Progetto in fase di test</p>
+            </div>
+            <div className="flex flex-wrap gap-4 justify-center">
+              <Link to="/terms-and-conditions" className="hover:text-foreground transition-colors">
+                Termini e Condizioni
+              </Link>
+              <Link to="/privacy" className="hover:text-foreground transition-colors">
+                Privacy Policy
+              </Link>
+              <Link to="/feedback" className="hover:text-foreground transition-colors">
+                Feedback
+              </Link>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
