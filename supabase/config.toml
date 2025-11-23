@@ -119,6 +119,9 @@ verify_jwt = false
 [functions.analyze-consumption]
 verify_jwt = false
 
+[functions.scrape-single-offer]
+verify_jwt = false
+
 [edge-runtime]
 enabled = true
 ip_version = "ipv6"
