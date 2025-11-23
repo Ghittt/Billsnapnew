@@ -8,7 +8,7 @@ import { ManualBillInputModal } from '@/components/upload/ManualBillInputModal';
 import { ManualBillInputFallback } from '@/components/upload/ManualBillInputFallback';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Clock, Upload, AlertTriangle, Shield } from 'lucide-react';
+import { CheckCircle, Clock, Upload, AlertTriangle, Shield, Zap } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { logError, updateUploadStatus } from '@/lib/errorLogger';
 import heroImage from '@/assets/hero-bg.jpg';
@@ -17,8 +17,9 @@ import '@/types/analytics';
 
 const UploadPage = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [currentStep, setCurrentStep] = useState<'upload' | 'ocr' | 'calculate' | 'complete'>('upload');
+  const [currentStep, setCurrentStep] = useState<'upload' | 'staged' | 'ocr' | 'calculate' | 'complete'>('upload');
   const [retryCount, setRetryCount] = useState(0);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showManualFallback, setShowManualFallback] = useState(false);
@@ -28,12 +29,37 @@ const UploadPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Handle files passed from Index page
+  // Handle files passed from Index page - don't auto-process
   useEffect(() => {
     if (location.state?.files) {
-      handleFileUpload(location.state.files);
+      handleFileStaging(location.state.files);
     }
   }, [location.state]);
+
+  // Stage files without processing
+  const handleFileStaging = (files: File[]) => {
+    setStagedFiles(prev => [...prev, ...files]);
+    setCurrentStep('staged');
+    
+    toast({
+      title: "File caricati",
+      description: `${files.length} file pronti per l'analisi. Clicca "Analizza bolletta" quando sei pronto.`,
+    });
+  };
+
+  // Start OCR analysis on staged files
+  const handleAnalyzeFiles = async () => {
+    if (stagedFiles.length === 0) {
+      toast({
+        title: "Nessun file",
+        description: "Carica almeno un file prima di analizzare.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    await handleFileUpload(stagedFiles);
+  };
 
   const handleFileUpload = async (files: File[]) => {
     setIsUploading(true);
@@ -46,12 +72,14 @@ const UploadPage = () => {
     if (typeof gtag !== 'undefined') {
       gtag('event', 'upload_started', {
         'event_category': 'engagement',
-        'event_label': files[0]?.type || 'unknown'
+        'event_label': files[0]?.type || 'unknown',
+        'files_count': files.length
       });
     }
     
     try {
-      const file = files[0]; // Process first file for MVP
+      // Process all files (for MVP, we'll combine them)
+      const file = files[0]; // Process first file for MVP - future: merge PDFs
       
       // Validate file
       if (file.size > 20 * 1024 * 1024) {
@@ -492,11 +520,63 @@ const UploadPage = () => {
                   Analizza la tua bolletta
                 </h1>
                 <p className="text-lg text-muted-foreground">
-                  Carica una foto o un PDF
+                  Carica una o più foto/PDF, poi clicca "Analizza"
                 </p>
               </div>
 
-              <UploadZone onFileUpload={handleFileUpload} isUploading={false} />
+              {stagedFiles.length === 0 ? (
+                <UploadZone onFileUpload={handleFileStaging} isUploading={false} />
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-primary" />
+                      {stagedFiles.length} file caricati
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      {stagedFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <Upload className="w-4 h-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm font-medium">{file.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setStagedFiles(prev => prev.filter((_, i) => i !== idx))}
+                          >
+                            Rimuovi
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button 
+                        onClick={handleAnalyzeFiles} 
+                        className="flex-1"
+                        size="lg"
+                      >
+                        <Zap className="w-4 h-4 mr-2" />
+                        Analizza bolletta
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        onClick={() => document.querySelector<HTMLInputElement>('input[type="file"]')?.click()}
+                      >
+                        Aggiungi altro
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               
               <div className="text-center text-sm text-muted-foreground">
                 <Shield className="w-4 h-4 inline mr-1" />

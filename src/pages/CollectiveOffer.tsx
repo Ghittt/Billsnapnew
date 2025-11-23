@@ -1,12 +1,76 @@
+import { useState } from "react";
 import Header from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Zap, CheckCircle2, Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Users, Zap, CheckCircle2, Sparkles, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 export default function CollectiveOffer() {
   const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [commodity, setCommodity] = useState<'luce' | 'gas'>('luce');
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasJoined, setHasJoined] = useState(false);
+  const [stats, setStats] = useState({ current: 847, target: 2000 });
+
+  const handleJoinCollective = async () => {
+    if (!email || !email.includes('@')) {
+      toast({
+        title: 'Email non valida',
+        description: 'Inserisci un indirizzo email valido',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!acceptTerms) {
+      toast({
+        title: 'Accetta i termini',
+        description: 'Devi accettare i termini per partecipare',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase.functions.invoke('collective-join', {
+        body: { email, commodity, source: 'collective_page' }
+      });
+
+      if (error) throw error;
+
+      setHasJoined(true);
+      toast({
+        title: 'Benvenuto nel gruppo!',
+        description: 'Ti avviseremo quando raggiungeremo il target e attiveremo l\'offerta esclusiva.'
+      });
+
+      // Refresh stats
+      const { data: statsData } = await supabase.functions.invoke('collective-stats');
+      if (statsData) {
+        setStats({ current: statsData.current_count || 847, target: statsData.target || 2000 });
+      }
+    } catch (error) {
+      console.error('Error joining collective:', error);
+      toast({
+        title: 'Errore',
+        description: 'Impossibile completare l\'iscrizione. Riprova.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const progressPercentage = Math.min((stats.current / stats.target) * 100, 100);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-secondary/20">
@@ -17,7 +81,7 @@ export default function CollectiveOffer() {
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
             <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-            <span className="text-sm font-medium">In arrivo presto</span>
+            <span className="text-sm font-medium">Offerta Attiva</span>
           </div>
           
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
@@ -25,12 +89,25 @@ export default function CollectiveOffer() {
           </h1>
           
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            Stiamo costruendo la prima offerta di gruppo sull'energia. Più siamo, meno paghiamo.
+            La prima offerta di gruppo sull'energia è qui. Più siamo, meno paghiamo tutti.
           </p>
 
-          <Badge variant="outline" className="text-base px-6 py-2">
-            🚀 Fase 2 - Coming Soon
+          <Badge variant="default" className="text-base px-6 py-2">
+            ⚡ {stats.current} / {stats.target} partecipanti
           </Badge>
+
+          {/* Progress Bar */}
+          <div className="mt-6 max-w-md mx-auto">
+            <div className="w-full bg-secondary rounded-full h-3 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-500"
+                style={{ width: `${progressPercentage}%` }}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              {progressPercentage.toFixed(0)}% completato
+            </p>
+          </div>
         </div>
 
         {/* Feature Card */}
@@ -102,19 +179,92 @@ export default function CollectiveOffer() {
           </CardContent>
         </Card>
 
-        {/* CTA */}
-        <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
-          <CardContent className="p-8 text-center">
-            <Sparkles className="w-12 h-12 text-primary mx-auto mb-4" />
-            <h3 className="text-xl font-bold mb-2">Resta sintonizzato</h3>
-            <p className="text-muted-foreground mb-6">
-              L'Offerta Collettiva sarà disponibile nella Fase 2. Nel frattempo, continua a usare BillSnap per trovare le migliori offerte energia.
-            </p>
-            <Button size="lg" onClick={() => navigate('/')}>
-              Torna alla Home
-            </Button>
-          </CardContent>
-        </Card>
+        {/* Join Form */}
+        {!hasJoined ? (
+          <Card className="border-primary/20 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="w-5 h-5" />
+                Unisciti al gruppo acquisto
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Email</label>
+                <Input
+                  type="email"
+                  placeholder="tua@email.it"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tipo energia</label>
+                <div className="flex gap-3">
+                  <Button
+                    variant={commodity === 'luce' ? 'default' : 'outline'}
+                    onClick={() => setCommodity('luce')}
+                    disabled={isSubmitting}
+                    className="flex-1"
+                  >
+                    ⚡ Luce
+                  </Button>
+                  <Button
+                    variant={commodity === 'gas' ? 'default' : 'outline'}
+                    onClick={() => setCommodity('gas')}
+                    disabled={isSubmitting}
+                    className="flex-1"
+                  >
+                    🔥 Gas
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="terms"
+                  checked={acceptTerms}
+                  onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+                  disabled={isSubmitting}
+                />
+                <label
+                  htmlFor="terms"
+                  className="text-sm text-muted-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Accetto di ricevere aggiornamenti sull'offerta collettiva e di partecipare al gruppo acquisto
+                </label>
+              </div>
+
+              <Button 
+                onClick={handleJoinCollective} 
+                disabled={isSubmitting || !email || !acceptTerms}
+                className="w-full"
+                size="lg"
+              >
+                {isSubmitting ? 'Iscrizione...' : 'Partecipa al gruppo'}
+              </Button>
+
+              <p className="text-xs text-muted-foreground text-center">
+                Zero costi. Nessun vincolo. Ti avvisiamo solo quando l'offerta sarà pronta.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
+            <CardContent className="p-8 text-center">
+              <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-4" />
+              <h3 className="text-xl font-bold mb-2">Sei nel gruppo!</h3>
+              <p className="text-muted-foreground mb-6">
+                Ti terremo aggiornato via email sul progresso del gruppo acquisto e ti avviseremo quando l'offerta esclusiva sarà pronta.
+              </p>
+              <Button size="lg" onClick={() => navigate('/')}>
+                Torna alla Home
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   );
