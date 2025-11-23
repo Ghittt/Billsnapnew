@@ -25,6 +25,7 @@ import Debug from "./pages/Debug";
 import NotFound from "./pages/NotFound";
 import CollectiveOffer from "./pages/CollectiveOffer";
 import Contracts from "./pages/Contracts";
+import ScrapingTest from "./pages/ScrapingTest";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="/data-deletion" element={<DataDeletion />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/debug" element={<Debug />} />
+            <Route path="/scraping-test" element={<ScrapingTest />} />
             <Route path="/offerta-collettiva" element={<CollectiveOffer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
