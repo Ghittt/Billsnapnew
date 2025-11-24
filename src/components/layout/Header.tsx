@@ -2,32 +2,32 @@ import { Link } from "react-router-dom";
 
 const Header = () => {
   return (
-    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-      <div className="container mx-auto px-3 sm:px-4 md:px-6 h-16 flex items-center justify-between gap-2">
-        <Link to="/" className="flex items-center hover:opacity-80 transition-all flex-shrink-0">
-          <span className="text-[22px] md:text-[24px] font-sf-pro font-semibold text-primary tracking-wide">
+    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border shadow-sm">
+      <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
+        <Link to="/" className="hover:opacity-80 transition-opacity">
+          <span className="text-[24px] font-semibold tracking-tight text-foreground" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, SF Pro Text, SF Pro Display, sans-serif' }}>
             BillSnap
           </span>
         </Link>
         
-        <nav className="flex items-center gap-2 sm:gap-3 md:gap-6 flex-shrink min-w-0">
+        <nav className="flex items-center gap-6">
           <Link 
             to="/chi-siamo" 
-            className="text-[13px] sm:text-[15px] md:text-[16px] text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap px-1"
+            className="text-[15px] text-muted-foreground hover:text-foreground transition-colors hidden sm:block"
           >
             Chi siamo
           </Link>
           
           <Link 
             to="/offerta-collettiva" 
-            className="text-[13px] sm:text-[15px] md:text-[16px] text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+            className="text-[15px] text-muted-foreground hover:text-foreground transition-colors"
           >
             Gruppo
           </Link>
           
           <Link 
             to="/feedback" 
-            className="text-[13px] sm:text-[15px] md:text-[16px] text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+            className="text-[15px] text-muted-foreground hover:text-foreground transition-colors"
           >
             Feedback
           </Link>
