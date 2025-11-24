@@ -13,10 +13,9 @@ import { toast } from "@/hooks/use-toast";
 import { logError, updateUploadStatus } from "@/lib/errorLogger";
 import "@/types/analytics";
 
-// ⚠️ URL CORRETTO DELL’EDGE FUNCTION OCR
-// prendi l’endpoint dalla pagina "Details" di ocr-extract su Supabase
-const OCR_FUNCTION_URL = "https://jxluygtonamgadgzg yh.supabase.co/functions/v1/ocr-extract".replace(" ", "");
-// (ho tolto lo spazio solo per evitare problemi di formattazione qui; incollando in editor sarà una stringa continua)
+// URL dell'edge function OCR su Supabase
+// (copiato dalla pagina "Details" di ocr-extract)
+const OCR_FUNCTION_URL = "https://jxluygtonamgadgzgyh.supabase.co/functions/v1/ocr-extract";
 
 const UploadPage = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -70,6 +69,7 @@ const UploadPage = () => {
     const startTime = Date.now();
     setUploadStartTime(startTime);
 
+    // Analytics
     if (typeof gtag !== "undefined") {
       gtag("event", "upload_started", {
         event_category: "engagement",
@@ -81,7 +81,7 @@ const UploadPage = () => {
     try {
       const file = files[0];
 
-      // validazione peso
+      // Validazione peso file
       if (file.size > 20 * 1024 * 1024) {
         await logError({
           type: "validation",
@@ -92,8 +92,10 @@ const UploadPage = () => {
         throw new Error("File troppo grande. Massimo 20MB consentiti.");
       }
 
-      // 1) creo record in uploads PRIMA di chiamare l’OCR
-      const { data: { user } = { user: null } } = await supabase.auth.getUser();
+      // 1) Creo record in uploads PRIMA di chiamare l’OCR
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       const { data: uploadData, error: uploadError } = await supabase
         .from("uploads")
@@ -120,13 +122,14 @@ const UploadPage = () => {
       const uploadId = uploadData.id as string;
       setPendingUploadId(uploadId);
 
+      // Evento upload riuscito
       if (typeof gtag !== "undefined") {
         gtag("event", "upload_succeeded", {
           event_category: "engagement",
         });
       }
 
-      // 2) aggiorno stato a "processing"
+      // 2) Aggiorno stato a "processing"
       setCurrentStep("ocr");
       await supabase
         .from("uploads")
@@ -136,7 +139,7 @@ const UploadPage = () => {
         })
         .eq("id", uploadId);
 
-      // 3) warning se supera i 30 secondi
+      // 3) Warning se supera i 30 secondi
       const timeoutWarning = setTimeout(() => {
         const elapsed = (Date.now() - startTime) / 1000;
         if (elapsed > 30) {
@@ -144,7 +147,7 @@ const UploadPage = () => {
         }
       }, 30000);
 
-      // 4) chiamata all’edge function OCR
+      // 4) Chiamata all’edge function OCR
       const ocrFormData = new FormData();
       ocrFormData.append("file", file);
       ocrFormData.append("uploadId", uploadId);
