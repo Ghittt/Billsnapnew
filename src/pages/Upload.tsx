@@ -13,9 +13,16 @@ import { toast } from "@/hooks/use-toast";
 import { logError, updateUploadStatus } from "@/lib/errorLogger";
 import "@/types/analytics";
 
-// URL dell'edge function OCR su Supabase
-// (copiato dalla pagina "Details" di ocr-extract)
-const OCR_FUNCTION_URL = "https://jxluygtonamgadgzgyh.supabase.co/functions/v1/ocr-extract";
+// ======================================================
+// CONFIG OCR → QUI CI SONO SOLO COSTANTI, NESSUN ENV
+// ======================================================
+
+// URL EXACT dell’edge function ocr-extract (da schermata Supabase)
+const OCR_FUNCTION_URL = "https://jxluygtonamgadgzg yh.supabase.co/functions/v1/ocr-extract".replace(" ", "");
+
+// ANON KEY DI SUPABASE (QUELLA CHE MI HAI INVIATO)
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4bHV5Z3RvbmFtZ2FkcWd6Z3loIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxMzA5OTAsImV4cCI6MjA2ODcwNjk5MH0.ZpnarbyN_zvScN0xuv-wx8QSWLtDxUbowcTf0bb2HSE";
 
 const UploadPage = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -31,7 +38,7 @@ const UploadPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Se arrivano file dalla Index li mettiamo solo in "staging"
+  // Se arrivano file dalla Index li mettiamo solo in staging
   useEffect(() => {
     if (location.state?.files) {
       handleFileStaging(location.state.files);
@@ -69,7 +76,6 @@ const UploadPage = () => {
     const startTime = Date.now();
     setUploadStartTime(startTime);
 
-    // Analytics
     if (typeof gtag !== "undefined") {
       gtag("event", "upload_started", {
         event_category: "engagement",
@@ -81,7 +87,7 @@ const UploadPage = () => {
     try {
       const file = files[0];
 
-      // Validazione peso file
+      // 1) validazione peso
       if (file.size > 20 * 1024 * 1024) {
         await logError({
           type: "validation",
@@ -92,10 +98,13 @@ const UploadPage = () => {
         throw new Error("File troppo grande. Massimo 20MB consentiti.");
       }
 
-      // 1) Creo record in uploads PRIMA di chiamare l’OCR
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      // 2) creo record in uploads PRIMA dell’OCR
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        console.warn("No auth user (anon upload)", authError.message);
+      }
+
+      const user = authData?.user ?? null;
 
       const { data: uploadData, error: uploadError } = await supabase
         .from("uploads")
@@ -122,14 +131,13 @@ const UploadPage = () => {
       const uploadId = uploadData.id as string;
       setPendingUploadId(uploadId);
 
-      // Evento upload riuscito
       if (typeof gtag !== "undefined") {
         gtag("event", "upload_succeeded", {
           event_category: "engagement",
         });
       }
 
-      // 2) Aggiorno stato a "processing"
+      // 3) aggiorno stato a processing
       setCurrentStep("ocr");
       await supabase
         .from("uploads")
@@ -139,7 +147,7 @@ const UploadPage = () => {
         })
         .eq("id", uploadId);
 
-      // 3) Warning se supera i 30 secondi
+      // 4) warning dopo 30 secondi
       const timeoutWarning = setTimeout(() => {
         const elapsed = (Date.now() - startTime) / 1000;
         if (elapsed > 30) {
@@ -147,7 +155,7 @@ const UploadPage = () => {
         }
       }, 30000);
 
-      // 4) Chiamata all’edge function OCR
+      // 5) chiamata edge function OCR (multipart + JWT anon)
       const ocrFormData = new FormData();
       ocrFormData.append("file", file);
       ocrFormData.append("uploadId", uploadId);
@@ -155,8 +163,9 @@ const UploadPage = () => {
       const ocrResponse = await fetch(OCR_FUNCTION_URL, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           Accept: "application/json",
+          // NON mettiamo Content-Type: la gestisce automaticamente il browser per il multipart
         },
         body: ocrFormData,
       });
@@ -261,6 +270,8 @@ const UploadPage = () => {
       setIsUploading(false);
     }
   };
+
+  // --- resto: manual fallback & UI identici ---
 
   const handleManualFallbackSubmit = async (data: { provider: string; annualKwh: number; totalCostEur?: number }) => {
     if (!pendingUploadId) return;
@@ -398,7 +409,9 @@ const UploadPage = () => {
             <>
               <div className="text-center space-y-4">
                 <h1 className="text-4xl font-semibold">Analizza la tua bolletta</h1>
-                <p className="text-lg text-muted-foreground">Carica una o più foto/PDF, poi clicca "Analizza"</p>
+                <p className="text-lg text-muted-foreground">
+                  Carica una o più foto/PDF, poi clicca &quot;Analizza&quot;
+                </p>
               </div>
 
               {stagedFiles.length === 0 ? (
