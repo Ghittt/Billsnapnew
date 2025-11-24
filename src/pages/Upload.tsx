@@ -171,4 +171,219 @@ const UploadPage = () => {
       setOcrTimeoutWarning(false);
 
       if (!ocrResponse.ok) {
-        const errorText =
+        const errorText = await ocrResponse.text();
+        await logError({
+          type: "ocr",
+          message: `OCR failed: ${errorText}`,
+          uploadId,
+          errorCode: ocrResponse.status.toString(),
+          payload: { errorText },
+        });
+        
+        await supabase
+          .from("uploads")
+          .update({
+            ocr_status: "failed",
+            ocr_completed_at: new Date().toISOString(),
+            ocr_error: errorText,
+          })
+          .eq("id", uploadId);
+
+        throw new Error("Errore durante la lettura della bolletta. Riprova più tardi.");
+      }
+
+      const ocrResult = await ocrResponse.json();
+
+      if (!ocrResult.success) {
+        await logError({
+          type: "ocr",
+          message: "OCR returned success=false",
+          uploadId,
+          payload: ocrResult,
+        });
+        
+        await supabase
+          .from("uploads")
+          .update({
+            ocr_status: "failed",
+            ocr_completed_at: new Date().toISOString(),
+            ocr_error: ocrResult.error || "Unknown error",
+          })
+          .eq("id", uploadId);
+
+        throw new Error("Errore durante la lettura della bolletta. Riprova più tardi.");
+      }
+
+      // 5) Aggiorno status a "success"
+      await supabase
+        .from("uploads")
+        .update({
+          ocr_status: "success",
+          ocr_completed_at: new Date().toISOString(),
+        })
+        .eq("id", uploadId);
+
+      setCurrentStep("complete");
+      
+      // Analytics: OCR completato
+      if (typeof gtag !== "undefined") {
+        gtag("event", "ocr_completed", {
+          event_category: "engagement",
+          duration_seconds: Math.round((Date.now() - startTime) / 1000),
+        });
+      }
+
+      // 6) Redirect alla pagina risultati
+      navigate(`/results?uploadId=${uploadId}`);
+
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      
+      const uploadId = pendingUploadId;
+      if (uploadId) {
+        await supabase
+          .from("uploads")
+          .update({
+            ocr_status: "failed",
+            ocr_completed_at: new Date().toISOString(),
+            ocr_error: error.message,
+          })
+          .eq("id", uploadId);
+      }
+
+      await logError({
+        type: "ocr",
+        message: error.message || "Unknown error",
+        uploadId: uploadId || undefined,
+        payload: { step: currentStep },
+      });
+
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante la lettura della bolletta. Riprova più tardi.",
+        variant: "destructive",
+      });
+
+      setIsUploading(false);
+      setCurrentStep("upload");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold mb-4 text-foreground">
+            Carica la tua bolletta
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Analisi gratuita - Nessun obbligo
+          </p>
+        </div>
+
+        <UploadZone
+          onFileUpload={handleFileStaging}
+          isUploading={isUploading}
+        />
+
+        {stagedFiles.length > 0 && (
+          <div className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>File pronti per l'analisi</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {stagedFiles.map((file, index) => (
+                    <div key={index} className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span>{file.name}</span>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  onClick={handleAnalyzeFiles}
+                  disabled={isUploading}
+                  className="w-full mt-4"
+                  size="lg"
+                >
+                  {isUploading ? "Analisi in corso..." : "Analizza bolletta"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {isUploading && (
+          <div className="mt-6">
+            <ProgressIndicator currentStep={currentStep} />
+            {ocrTimeoutWarning && (
+              <Card className="mt-4 border-yellow-500">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-2 text-yellow-600">
+                    <Clock className="h-5 w-5" />
+                    <p className="text-sm">
+                      L'analisi sta richiedendo più tempo del previsto. Stiamo ancora lavorando...
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        <div className="mt-12 grid md:grid-cols-3 gap-6">
+          <Card>
+            <CardContent className="pt-6">
+              <Upload className="h-8 w-8 mb-3 text-primary" />
+              <h3 className="font-semibold mb-2">Upload facile</h3>
+              <p className="text-sm text-muted-foreground">
+                Carica la tua bolletta PDF o foto
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <Zap className="h-8 w-8 mb-3 text-primary" />
+              <h3 className="font-semibold mb-2">Analisi AI</h3>
+              <p className="text-sm text-muted-foreground">
+                SnapAI™ legge e analizza automaticamente
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <Shield className="h-8 w-8 mb-3 text-primary" />
+              <h3 className="font-semibold mb-2">Dati sicuri</h3>
+              <p className="text-sm text-muted-foreground">
+                Protetti e gestiti secondo GDPR
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <ManualBillInputModal
+        open={showManualInput}
+        onClose={() => setShowManualInput(false)}
+        onSubmit={(data) => {
+          console.log("Manual input:", data);
+          setShowManualInput(false);
+        }}
+      />
+
+      {showManualFallback && (
+        <ManualBillInputFallback
+          onSubmit={(data) => {
+            console.log("Manual fallback:", data);
+            setShowManualFallback(false);
+          }}
+          onCancel={() => setShowManualFallback(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+export default UploadPage;
