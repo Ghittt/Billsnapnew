@@ -143,56 +143,9 @@ serve(async (req) => {
       else mimeType = 'image/jpeg';
     }
     
-    // PDF Fallback (routing)
+    // PDF files are now processed directly by Gemini vision without fake fallbacks
     if (mimeType === 'application/pdf') {
-      console.log('[OCR-V2-Gemini] PDF detected - using fallback');
-
-      const { data: uploadRecord } = await supabase
-        .from('uploads')
-        .select('user_id')
-        .eq('id', uploadId)
-        .maybeSingle();
-
-      const fallbackData = {
-        total_cost_eur: 120,
-        annual_kwh: 2700,
-        unit_price_eur_kwh: 0.25,
-        gas_smc: null,
-        pod: 'IT001E12345678',
-        pdr: null,
-        f1_kwh: 945,
-        f2_kwh: 945,
-        f3_kwh: 810,
-        potenza_kw: 3.0,
-        tariff_hint: 'trioraria',
-        billing_period_start: null,
-        billing_period_end: null,
-        provider: 'Fornitore Corrente',
-        quality_score: 0.1,
-        notes: 'PDF rilevato: estrazione automatica non disponibile. Dati stimati: modifica liberamente nel form.'
-      };
-
-      await supabase.from('ocr_results').insert({
-        upload_id: uploadId,
-        user_id: uploadRecord?.user_id,
-        ...fallbackData,
-        raw_json: fallbackData
-      });
-
-      await supabase.from('ocr_debug').insert({
-        upload_id: uploadId,
-        pagina_usata: 1,
-        raw_json: fallbackData,
-        confidence_avg: 0.1,
-        routing_choice: 'pdf_fallback',
-        provider_detected: 'unknown',
-        used_defaults: true,
-        errors: 'PDF non supportato per OCR automatico'
-      });
-
-      return new Response(JSON.stringify(fallbackData), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      console.log('[OCR-V2-Gemini] PDF detected - processing with Gemini vision');
     }
 
     // V2 Enhanced Vision Prompt with Few-Shot
@@ -461,70 +414,15 @@ Esempio 2 - Edison Gas:
 
   } catch (error) {
     console.error('[OCR-V2-Gemini] Error in ocr-extract function:', error);
-    
-    // Fallback: return minimal result to allow manual input
-    const formDataFallback = await req.formData().catch(() => new FormData());
-    const uploadId = formDataFallback.get('uploadId') as string;
-    
-    try {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
 
-      const { data: uploadRecord } = await supabase
-        .from('uploads')
-        .select('user_id')
-        .eq('id', uploadId)
-        .maybeSingle();
+    const message = error instanceof Error ? error.message : 'Unknown error';
 
-      const minimalResult = {
-        upload_id: uploadId,
-        user_id: uploadRecord?.user_id,
-        total_cost_eur: null,
-        annual_kwh: null,
-        unit_price_eur_kwh: null,
-        gas_smc: null,
-        pod: null,
-        pdr: null,
-        f1_kwh: null,
-        f2_kwh: null,
-        f3_kwh: null,
-        potenza_kw: 3.0,
-        tariff_hint: 'monoraria',
-        billing_period_start: null,
-        billing_period_end: null,
-        provider: 'Fornitore Corrente',
-        quality_score: 0,
-        raw_json: { error: error instanceof Error ? error.message : 'Unknown error' },
-        notes: 'Estrazione automatica fallita. Inserisci i dati manualmente.'
-      };
-
-      await supabase.from('ocr_results').insert(minimalResult);
-      
-      await supabase.from('ocr_debug').insert({
-        upload_id: uploadId,
-        pagina_usata: 1,
-        raw_json: minimalResult.raw_json,
-        confidence_avg: 0,
-        routing_choice: 'error',
-        provider_detected: 'unknown',
-        used_defaults: true,
-        errors: error instanceof Error ? error.message : 'Unknown error'
-      });
-
-      return new Response(JSON.stringify(minimalResult), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    } catch (fallbackError) {
-      console.error('[OCR-V2] Fallback also failed:', fallbackError);
-      return new Response(
-        JSON.stringify({ 
-          error: error instanceof Error ? error.message : 'Unknown error',
-          quality_score: 0 
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    return new Response(
+      JSON.stringify({ 
+        error: message,
+        quality_score: 0 
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });

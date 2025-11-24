@@ -229,40 +229,28 @@ const UploadPage = () => {
         body: { uploadId: uploadData.id }
       });
 
-      // Guard clause: Even if compare fails, show mock results instead of blocking
-      if (compareError) {
-        console.error('Compare offers error:', compareError);
-        
-        // Log the error but don't throw
+      if (compareError || !compareData?.ok) {
+        console.error('Compare offers error:', compareError || compareData);
+
         await logError({
           type: 'network',
-          message: 'Compare offers failed, showing mock results',
+          message: 'Confronto offerte non riuscito',
           uploadId: uploadData.id,
-          payload: { error: compareError }
+          payload: { error: compareError || compareData }
         });
-        
-        // Show warning but continue with mock data
+
         toast({
-          title: "Analisi parziale",
-          description: "Ti mostriamo un esempio. I dati reali potrebbero variare.",
-          variant: "default"
+          title: "Nessuna offerta disponibile",
+          description: "Al momento non riusciamo a trovare offerte reali per i tuoi dati. Riprova più tardi.",
+          variant: "destructive"
         });
-        
-        // The edge function should have already stored mock results
-        // Just proceed to results page
-      } else {
-        console.log('Offers compared successfully:', compareData);
-        
-        // Show info if mock results were used
-        if (compareData?.is_mock) {
-          toast({
-            title: "Esempio di analisi",
-            description: "Al momento non abbiamo offerte disponibili. Questo è un esempio indicativo.",
-            variant: "default"
-          });
-        }
+
+        setIsUploading(false);
+        return;
       }
-      
+
+      console.log('Offers compared successfully:', compareData);
+
       // Step 4: Complete (AI explanations will be generated in Results page)
       setCurrentStep('complete');
       setUploadedFiles(files);
