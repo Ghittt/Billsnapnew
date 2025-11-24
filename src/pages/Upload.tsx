@@ -92,8 +92,32 @@ const UploadPage = () => {
         throw new Error('File troppo grande. Massimo 20MB consentiti.');
       }
 
-      // Generate unique uploadId
-      const uploadId = crypto.randomUUID();
+      // Create upload record in database FIRST (required for foreign key)
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { data: uploadData, error: uploadError } = await supabase
+        .from('uploads')
+        .insert({
+          file_url: `bills/${Date.now()}-${file.name}`,
+          file_type: file.type,
+          file_size: file.size,
+          user_id: user?.id || null,
+          ocr_status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (uploadError || !uploadData) {
+        await logError({
+          type: 'upload',
+          message: 'Database insert failed',
+          errorCode: uploadError?.code || 'DB_ERROR',
+          payload: { error: uploadError?.message }
+        });
+        throw new Error('Errore durante la creazione del record. Riprova.');
+      }
+
+      const uploadId = uploadData.id;
       setPendingUploadId(uploadId);
 
       // Track upload success
@@ -105,6 +129,15 @@ const UploadPage = () => {
 
       // Call OCR Edge Function
       setCurrentStep('ocr');
+      
+      // Update upload status to processing
+      await supabase
+        .from('uploads')
+        .update({ 
+          ocr_status: 'processing',
+          ocr_started_at: new Date().toISOString()
+        })
+        .eq('id', uploadId);
       
       // Show timeout warning after 30s
       const timeoutWarning = setTimeout(() => {
@@ -134,6 +167,16 @@ const UploadPage = () => {
         const errorText = await ocrResponse.text();
         console.error('OCR failed, status:', ocrResponse.status, errorText);
         
+        // Update upload status to failed
+        await supabase
+          .from('uploads')
+          .update({ 
+            ocr_status: 'failed',
+            ocr_error: `HTTP ${ocrResponse.status}`,
+            ocr_completed_at: new Date().toISOString()
+          })
+          .eq('id', uploadId);
+        
         await logError({
           type: 'ocr',
           message: `OCR failed with status ${ocrResponse.status}`,
@@ -147,10 +190,29 @@ const UploadPage = () => {
 
       const ocrData = await ocrResponse.json();
       
+      // Update upload status to success
+      await supabase
+        .from('uploads')
+        .update({ 
+          ocr_status: 'success',
+          ocr_completed_at: new Date().toISOString()
+        })
+        .eq('id', uploadId);
+      
       console.log('OCR response:', ocrData);
       
       // Check if OCR was successful
       if (!ocrData.success) {
+        // Update upload status to failed
+        await supabase
+          .from('uploads')
+          .update({ 
+            ocr_status: 'failed',
+            ocr_error: 'OCR returned success=false',
+            ocr_completed_at: new Date().toISOString()
+          })
+          .eq('id', uploadId);
+        
         await logError({
           type: 'ocr',
           message: 'OCR returned success=false',
