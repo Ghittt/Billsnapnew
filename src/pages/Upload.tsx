@@ -327,20 +327,6 @@ const UploadPage = () => {
             </Button>
           )
         });
-      } else if (errorMessage.includes('confronto') || errorMessage.includes('offerte')) {
-        // If comparison failed, still try to show results page with mock data
-        toast({
-          title: "Analisi esemplificativa",
-          description: "Ti mostriamo un esempio di come apparirà la tua analisi.",
-          variant: "default",
-        });
-        
-        // Navigate to results anyway - the compare-offers function should have stored mock data
-        if (pendingUploadId) {
-          setTimeout(() => {
-            navigate(`/results?uploadId=${pendingUploadId}`);
-          }, 1500);
-        }
       } else {
         toast({
           title: "Errore nell'analisi",
