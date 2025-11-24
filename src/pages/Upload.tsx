@@ -13,28 +13,21 @@ import { toast } from "@/hooks/use-toast";
 import { logError, updateUploadStatus } from "@/lib/errorLogger";
 import "@/types/analytics";
 
-// URL dell'Edge Function OCR su Supabase (production)
-const OCR_FUNCTION_URL =
-  "https://jxluygtonamgadgzgyh.supabase.co/functions/v1/ocr-extract";
-
-// ANON KEY di Supabase (ok usarla nel frontend)
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4bHV5Z3RvbmFtZ2FkcWd6Z3loIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxMzA5OTAsImV4cCI6MjA2ODcwNjk5MH0.ZpnarbyN_zvScN0xuv-wx8QSWLtDxUbowcTf0bb2HSE";
+// URL dell'edge function OCR su Supabase
+// (copiato dalla pagina "Details" di ocr-extract)
+const OCR_FUNCTION_URL = "https://jxluygtonamgadgzgyh.supabase.co/functions/v1/ocr-extract";
 
 const UploadPage = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [currentStep, setCurrentStep] = useState<
-    "upload" | "staged" | "ocr" | "calculate" | "complete"
-  >("upload");
+  const [currentStep, setCurrentStep] = useState<"upload" | "staged" | "ocr" | "calculate" | "complete">("upload");
   const [retryCount, setRetryCount] = useState(0);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showManualFallback, setShowManualFallback] = useState(false);
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
   const [uploadStartTime, setUploadStartTime] = useState<number>(0);
   const [ocrTimeoutWarning, setOcrTimeoutWarning] = useState(false);
-
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -76,7 +69,7 @@ const UploadPage = () => {
     const startTime = Date.now();
     setUploadStartTime(startTime);
 
-    // Analytics: upload iniziato
+    // Analytics
     if (typeof gtag !== "undefined") {
       gtag("event", "upload_started", {
         event_category: "engagement",
@@ -88,7 +81,7 @@ const UploadPage = () => {
     try {
       const file = files[0];
 
-      // 0) Validazione dimensione file
+      // Validazione peso file
       if (file.size > 20 * 1024 * 1024) {
         await logError({
           type: "validation",
@@ -100,8 +93,9 @@ const UploadPage = () => {
       }
 
       // 1) Creo record in uploads PRIMA di chiamare l’OCR
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData?.user ?? null;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       const { data: uploadData, error: uploadError } = await supabase
         .from("uploads")
@@ -128,14 +122,14 @@ const UploadPage = () => {
       const uploadId = uploadData.id as string;
       setPendingUploadId(uploadId);
 
-      // Analytics: upload riuscito
+      // Evento upload riuscito
       if (typeof gtag !== "undefined") {
         gtag("event", "upload_succeeded", {
           event_category: "engagement",
         });
       }
 
-      // 2) Aggiorno status a "processing"
+      // 2) Aggiorno stato a "processing"
       setCurrentStep("ocr");
       await supabase
         .from("uploads")
@@ -153,7 +147,7 @@ const UploadPage = () => {
         }
       }, 30000);
 
-      // 4) Chiamata all’Edge Function OCR (multipart)
+      // 4) Chiamata all’edge function OCR
       const ocrFormData = new FormData();
       ocrFormData.append("file", file);
       ocrFormData.append("uploadId", uploadId);
@@ -161,7 +155,7 @@ const UploadPage = () => {
       const ocrResponse = await fetch(OCR_FUNCTION_URL, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           Accept: "application/json",
         },
         body: ocrFormData,
@@ -172,49 +166,30 @@ const UploadPage = () => {
 
       if (!ocrResponse.ok) {
         const errorText = await ocrResponse.text();
-        await logError({
-          type: "ocr",
-          message: `OCR failed: ${errorText}`,
-          uploadId,
-          errorCode: ocrResponse.status.toString(),
-          payload: { errorText },
-        });
-        
+        console.error("OCR failed, status:", ocrResponse.status, errorText);
+
         await supabase
           .from("uploads")
           .update({
             ocr_status: "failed",
+            ocr_error: `HTTP ${ocrResponse.status}`,
             ocr_completed_at: new Date().toISOString(),
-            ocr_error: errorText,
           })
           .eq("id", uploadId);
 
-        throw new Error("Errore durante la lettura della bolletta. Riprova più tardi.");
-      }
-
-      const ocrResult = await ocrResponse.json();
-
-      if (!ocrResult.success) {
         await logError({
           type: "ocr",
-          message: "OCR returned success=false",
+          message: `OCR failed with status ${ocrResponse.status}`,
           uploadId,
-          payload: ocrResult,
+          errorCode: `HTTP_${ocrResponse.status}`,
+          payload: { fileName: file.name, error: errorText },
         });
-        
-        await supabase
-          .from("uploads")
-          .update({
-            ocr_status: "failed",
-            ocr_completed_at: new Date().toISOString(),
-            ocr_error: ocrResult.error || "Unknown error",
-          })
-          .eq("id", uploadId);
 
         throw new Error("Errore durante la lettura della bolletta. Riprova più tardi.");
       }
 
-      // 5) Aggiorno status a "success"
+      const ocrData = await ocrResponse.json();
+
       await supabase
         .from("uploads")
         .update({
@@ -223,165 +198,320 @@ const UploadPage = () => {
         })
         .eq("id", uploadId);
 
-      setCurrentStep("complete");
-      
-      // Analytics: OCR completato
-      if (typeof gtag !== "undefined") {
-        gtag("event", "ocr_completed", {
-          event_category: "engagement",
-          duration_seconds: Math.round((Date.now() - startTime) / 1000),
-        });
-      }
+      console.log("OCR response:", ocrData);
 
-      // 6) Redirect alla pagina risultati
-      navigate(`/results?uploadId=${uploadId}`);
-
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      
-      const uploadId = pendingUploadId;
-      if (uploadId) {
+      if (!ocrData.success) {
         await supabase
           .from("uploads")
           .update({
             ocr_status: "failed",
+            ocr_error: "OCR returned success=false",
             ocr_completed_at: new Date().toISOString(),
-            ocr_error: error.message,
           })
           .eq("id", uploadId);
+
+        await logError({
+          type: "ocr",
+          message: "OCR returned success=false",
+          uploadId,
+          payload: { response: ocrData },
+        });
+
+        throw new Error("Errore durante la lettura della bolletta. Riprova più tardi.");
       }
+
+      if (typeof gtag !== "undefined") {
+        gtag("event", "ocr_completed", {
+          event_category: "engagement",
+        });
+      }
+
+      setCurrentStep("complete");
+      setUploadedFiles(files);
+
+      if (typeof gtag !== "undefined") {
+        gtag("event", "result_shown", {
+          event_category: "engagement",
+        });
+      }
+
+      setTimeout(() => {
+        navigate(`/results?uploadId=${uploadId}`);
+      }, 1000);
+    } catch (error) {
+      console.error("Upload error:", error);
+
+      const errorMessage =
+        error instanceof Error ? error.message : "Errore durante la lettura della bolletta. Riprova più tardi.";
 
       await logError({
         type: "ocr",
-        message: error.message || "Unknown error",
-        uploadId: uploadId || undefined,
+        message: errorMessage,
+        uploadId: pendingUploadId || undefined,
+        stackTrace: error instanceof Error ? error.stack : undefined,
         payload: { step: currentStep },
       });
 
       toast({
-        title: "Errore",
-        description: error.message || "Errore durante la lettura della bolletta. Riprova più tardi.",
+        title: "Errore durante la lettura della bolletta",
+        description: "Riprova più tardi.",
         variant: "destructive",
       });
-
+    } finally {
       setIsUploading(false);
-      setCurrentStep("upload");
+    }
+  };
+
+  const handleManualFallbackSubmit = async (data: { provider: string; annualKwh: number; totalCostEur?: number }) => {
+    if (!pendingUploadId) return;
+
+    try {
+      setShowManualFallback(false);
+      setIsUploading(true);
+      setCurrentStep("calculate");
+
+      const { error: ocrInsertError } = await supabase.from("ocr_results").insert({
+        upload_id: pendingUploadId,
+        annual_kwh: data.annualKwh,
+        total_cost_eur: data.totalCostEur,
+        provider: data.provider,
+        quality_score: 0.6,
+        tariff_hint: "manual",
+      });
+
+      if (ocrInsertError) {
+        await logError({
+          type: "validation",
+          message: "Failed to insert manual OCR data",
+          uploadId: pendingUploadId,
+          payload: { error: ocrInsertError },
+        });
+        throw ocrInsertError;
+      }
+
+      await updateUploadStatus(pendingUploadId, "success");
+
+      const { data: compareData, error: compareError } = await supabase.functions.invoke("compare-offers", {
+        body: { uploadId: pendingUploadId },
+      });
+
+      if (compareError) {
+        await logError({
+          type: "network",
+          message: "Compare offers failed",
+          uploadId: pendingUploadId,
+          payload: { error: compareError },
+        });
+        throw compareError;
+      }
+
+      console.log("Offers compared successfully (manual fallback):", compareData);
+
+      setCurrentStep("complete");
+
+      toast({
+        title: "Analisi completata!",
+        description: "Confronto offerte completato con i tuoi dati.",
+      });
+
+      setTimeout(() => {
+        navigate(`/results?uploadId=${pendingUploadId}`);
+      }, 1000);
+    } catch (error) {
+      console.error("Error processing manual fallback:", error);
+      toast({
+        title: "Errore",
+        description: "Errore durante l'elaborazione. Riprova.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setPendingUploadId(null);
+    }
+  };
+
+  const handleManualInput = async (fields: any) => {
+    if (!pendingUploadId) return;
+
+    try {
+      setShowManualInput(false);
+      setIsUploading(true);
+      setCurrentStep("calculate");
+
+      await supabase.from("bills").insert({
+        fields_json: fields,
+        raw_text: "Manual input",
+      });
+
+      const { error: ocrInsertError } = await supabase.from("ocr_results").insert({
+        upload_id: pendingUploadId,
+        annual_kwh: fields.kwh_period,
+        f1_kwh: fields.f1_kwh,
+        f2_kwh: fields.f2_kwh,
+        f3_kwh: fields.f3_kwh,
+        potenza_kw: fields.potenza_kw,
+        total_cost_eur: fields.fixed_fee_month * 12,
+        quality_score: 0.5,
+        tariff_hint: "manual",
+      });
+
+      if (ocrInsertError) throw ocrInsertError;
+
+      const { data: compareData, error: compareError } = await supabase.functions.invoke("compare-offers", {
+        body: { uploadId: pendingUploadId },
+      });
+
+      if (compareError) throw compareError;
+
+      console.log("Offers compared successfully (manual input):", compareData);
+
+      setCurrentStep("complete");
+
+      toast({
+        title: "Analisi completata!",
+        description: "Confronto offerte completato con i dati inseriti manualmente.",
+      });
+
+      setTimeout(() => {
+        navigate(`/results?uploadId=${pendingUploadId}`);
+      }, 1000);
+    } catch (error) {
+      console.error("Error processing manual input:", error);
+      toast({
+        title: "Errore",
+        description: "Errore durante l'elaborazione dei dati. Riprova.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setPendingUploadId(null);
     }
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-4 text-foreground">
-            Carica la tua bolletta
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            Analisi gratuita - Nessun obbligo
-          </p>
-        </div>
 
-        <UploadZone
-          onFileUpload={handleFileStaging}
-          isUploading={isUploading}
-        />
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-2xl mx-auto space-y-8">
+          {!isUploading && uploadedFiles.length === 0 && (
+            <>
+              <div className="text-center space-y-4">
+                <h1 className="text-4xl font-semibold">Analizza la tua bolletta</h1>
+                <p className="text-lg text-muted-foreground">Carica una o più foto/PDF, poi clicca "Analizza"</p>
+              </div>
 
-        {stagedFiles.length > 0 && (
-          <div className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>File pronti per l'analisi</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {stagedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      <span>{file.name}</span>
+              {stagedFiles.length === 0 ? (
+                <UploadZone onFileUpload={handleFileStaging} isUploading={false} />
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-primary" />
+                      {stagedFiles.length} file caricati
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      {stagedFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <Upload className="w-4 h-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm font-medium">{file.name}</p>
+                              <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setStagedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                          >
+                            Rimuovi
+                          </Button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <Button
-                  onClick={handleAnalyzeFiles}
-                  disabled={isUploading}
-                  className="w-full mt-4"
-                  size="lg"
-                >
-                  {isUploading ? "Analisi in corso..." : "Analizza bolletta"}
-                </Button>
+
+                    <div className="flex gap-3">
+                      <Button onClick={handleAnalyzeFiles} className="flex-1" size="lg">
+                        <Zap className="w-4 h-4 mr-2" />
+                        Analizza bolletta
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => document.querySelector<HTMLInputElement>('input[type="file"]')?.click()}
+                      >
+                        Aggiungi altro
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="text-center text-sm text-muted-foreground">
+                <Shield className="w-4 h-4 inline mr-1" />
+                Analisi gratuita - Nessun obbligo
+              </div>
+            </>
+          )}
+
+          {isUploading && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold mb-2">Analisi in corso</h2>
+                <p className="text-muted-foreground">
+                  {ocrTimeoutWarning
+                    ? "Stiamo ancora elaborando... Qualche secondo in più del solito."
+                    : "Non chiudere questa pagina"}
+                </p>
+              </div>
+
+              <ProgressIndicator currentStep={currentStep} />
+
+              {ocrTimeoutWarning && (
+                <Card className="glass border-primary/20">
+                  <CardContent className="p-4">
+                    <p className="text-sm text-center text-muted-foreground">
+                      <Clock className="w-4 h-4 inline mr-2" />
+                      Connessione lenta rilevata. Continua l&apos;elaborazione...
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {showManualFallback && pendingUploadId && (
+            <ManualBillInputFallback
+              onSubmit={handleManualFallbackSubmit}
+              onCancel={() => {
+                setShowManualFallback(false);
+                setPendingUploadId(null);
+              }}
+            />
+          )}
+
+          {uploadedFiles.length > 0 && !isUploading && (
+            <Card>
+              <CardContent className="p-8 text-center space-y-4">
+                <CheckCircle className="w-12 h-12 text-success mx-auto" />
+                <h3 className="text-xl font-semibold">Completato!</h3>
+                <p className="text-muted-foreground">Caricamento risultati...</p>
               </CardContent>
             </Card>
-          </div>
-        )}
-
-        {isUploading && (
-          <div className="mt-6">
-            <ProgressIndicator currentStep={currentStep} />
-            {ocrTimeoutWarning && (
-              <Card className="mt-4 border-yellow-500">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-2 text-yellow-600">
-                    <Clock className="h-5 w-5" />
-                    <p className="text-sm">
-                      L'analisi sta richiedendo più tempo del previsto. Stiamo ancora lavorando...
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        )}
-
-        <div className="mt-12 grid md:grid-cols-3 gap-6">
-          <Card>
-            <CardContent className="pt-6">
-              <Upload className="h-8 w-8 mb-3 text-primary" />
-              <h3 className="font-semibold mb-2">Upload facile</h3>
-              <p className="text-sm text-muted-foreground">
-                Carica la tua bolletta PDF o foto
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <Zap className="h-8 w-8 mb-3 text-primary" />
-              <h3 className="font-semibold mb-2">Analisi AI</h3>
-              <p className="text-sm text-muted-foreground">
-                SnapAI™ legge e analizza automaticamente
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <Shield className="h-8 w-8 mb-3 text-primary" />
-              <h3 className="font-semibold mb-2">Dati sicuri</h3>
-              <p className="text-sm text-muted-foreground">
-                Protetti e gestiti secondo GDPR
-              </p>
-            </CardContent>
-          </Card>
+          )}
         </div>
       </div>
 
       <ManualBillInputModal
         open={showManualInput}
-        onClose={() => setShowManualInput(false)}
-        onSubmit={(data) => {
-          console.log("Manual input:", data);
+        onClose={() => {
           setShowManualInput(false);
+          setPendingUploadId(null);
         }}
+        onSubmit={handleManualInput}
       />
-
-      {showManualFallback && (
-        <ManualBillInputFallback
-          onSubmit={(data) => {
-            console.log("Manual fallback:", data);
-            setShowManualFallback(false);
-          }}
-          onCancel={() => setShowManualFallback(false)}
-        />
-      )}
     </div>
   );
 };
