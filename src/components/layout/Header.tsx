@@ -13,7 +13,7 @@ const Header = () => {
         <nav className="flex items-center gap-6">
           <Link 
             to="/chi-siamo" 
-            className="text-[15px] text-muted-foreground hover:text-foreground transition-colors hidden sm:block"
+            className="text-[15px] text-muted-foreground hover:text-foreground transition-colors"
           >
             Chi siamo
           </Link>
