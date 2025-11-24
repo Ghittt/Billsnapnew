@@ -167,6 +167,7 @@ const UploadPage = () => {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'Accept': 'application/json',
         },
         body: ocrFormData
       });
