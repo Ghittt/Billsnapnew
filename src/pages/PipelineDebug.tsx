@@ -5,152 +5,277 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { RefreshCw, CheckCircle, XCircle, AlertCircle, Play, Search } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, AlertCircle, Play, Search, Database, FileText, Globe, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface PipelineStatus {
-  uploadId: string;
-  step1_ocr: { status: 'ok' | 'fail' | 'empty'; data?: any };
-  step2_scraping: { status: 'ok' | 'fail' | 'empty'; count?: number };
-  step3_comparison: { status: 'ok' | 'fail' | 'empty'; data?: any };
-  step4_rendering: { status: 'ok' | 'fail' | 'empty'; reason?: string };
+interface BillRecord {
+  id: string;
+  upload_id: string;
+  created_at: string;
+  file_type: string;
+  provider: string | null;
+  annual_kwh: number | null;
+  unit_price_eur_kwh: number | null;
+  pipelineStatus: 'OCR_OK' | 'OCR_MANCANTE' | 'OFFERTE_TROVATE' | 'NESSUNA_OFFERTA' | 'SCRAPING_KO';
+}
+
+interface DebugData {
+  ocr: {
+    status: 'ok' | 'fail' | 'empty';
+    data: any;
+    raw_response: any;
+  };
+  supabase: {
+    status: 'ok' | 'fail';
+    table: string;
+    record: any;
+  };
+  firecrawl: {
+    status: 'ok' | 'fail' | 'empty';
+    url?: string;
+    response?: any;
+  };
+  parsing: {
+    status: 'ok' | 'fail' | 'empty';
+    raw_offers: any[];
+    filtered_offers: any[];
+    max_saving: number;
+    min_threshold: number;
+    reason?: string;
+  };
+  logs: Array<{
+    timestamp: string;
+    step: string;
+    message: string;
+  }>;
 }
 
 export default function PipelineDebug() {
-  const [uploadId, setUploadId] = useState('');
-  const [pipeline, setPipeline] = useState<PipelineStatus | null>(null);
+  const [bills, setBills] = useState<BillRecord[]>([]);
+  const [selectedBill, setSelectedBill] = useState<BillRecord | null>(null);
+  const [debugData, setDebugData] = useState<DebugData | null>(null);
   const [loading, setLoading] = useState(false);
   const [testUrl, setTestUrl] = useState('https://www.sorgenia.it/offerte-luce-e-gas');
   const [testingFirecrawl, setTestingFirecrawl] = useState(false);
-  const [firecrawlResult, setFirecrawlResult] = useState<any>(null);
+  const [firecrawlTestResult, setFirecrawlTestResult] = useState<any>(null);
   const { toast } = useToast();
 
-  const analyzeUpload = async (id: string) => {
-    if (!id.trim()) {
+  useEffect(() => {
+    loadBillsList();
+  }, []);
+
+  const loadBillsList = async () => {
+    setLoading(true);
+    try {
+      const { data: uploads, error: uploadsError } = await supabase
+        .from('uploads')
+        .select('id, file_type, created_at')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (uploadsError) throw uploadsError;
+
+      const billRecords: BillRecord[] = [];
+      
+      for (const upload of uploads || []) {
+        const { data: ocrData } = await supabase
+          .from('ocr_results')
+          .select('*')
+          .eq('upload_id', upload.id)
+          .maybeSingle();
+
+        const { data: comparisonData } = await supabase
+          .from('comparison_results')
+          .select('ranked_offers')
+          .eq('upload_id', upload.id)
+          .maybeSingle();
+
+        const { data: offersData } = await supabase
+          .from('offers')
+          .select('id')
+          .eq('is_active', true)
+          .limit(1);
+
+        let pipelineStatus: BillRecord['pipelineStatus'] = 'OCR_MANCANTE';
+        
+        if (ocrData && ocrData.provider && (ocrData.annual_kwh || ocrData.gas_smc) && (ocrData.unit_price_eur_kwh || ocrData.prezzo_gas_eur_smc)) {
+          pipelineStatus = 'OCR_OK';
+          
+          if (!offersData || offersData.length === 0) {
+            pipelineStatus = 'SCRAPING_KO';
+          } else if (comparisonData && Array.isArray(comparisonData.ranked_offers) && comparisonData.ranked_offers.length > 0) {
+            pipelineStatus = 'OFFERTE_TROVATE';
+          } else if (comparisonData) {
+            pipelineStatus = 'NESSUNA_OFFERTA';
+          }
+        }
+
+        billRecords.push({
+          id: upload.id,
+          upload_id: upload.id,
+          created_at: upload.created_at,
+          file_type: upload.file_type,
+          provider: ocrData?.provider || null,
+          annual_kwh: ocrData?.annual_kwh || null,
+          unit_price_eur_kwh: ocrData?.unit_price_eur_kwh || null,
+          pipelineStatus
+        });
+      }
+
+      setBills(billRecords);
+    } catch (error) {
+      console.error('Error loading bills:', error);
       toast({
-        title: "Upload ID richiesto",
-        description: "Inserisci un Upload ID valido",
+        title: "Errore caricamento",
+        description: "Impossibile caricare la lista bollette",
         variant: "destructive"
       });
-      return;
+    } finally {
+      setLoading(false);
     }
+  };
 
+  const analyzeUpload = async (bill: BillRecord) => {
+    setSelectedBill(bill);
     setLoading(true);
-    setPipeline(null);
+    setDebugData(null);
+
+    const logs: DebugData['logs'] = [];
+    const addLog = (step: string, message: string) => {
+      logs.push({
+        timestamp: new Date().toISOString(),
+        step,
+        message
+      });
+    };
 
     try {
-      const status: PipelineStatus = {
-        uploadId: id,
-        step1_ocr: { status: 'empty' },
-        step2_scraping: { status: 'empty' },
-        step3_comparison: { status: 'empty' },
-        step4_rendering: { status: 'empty' }
+      const debugInfo: DebugData = {
+        ocr: { status: 'empty', data: null, raw_response: null },
+        supabase: { status: 'fail', table: 'ocr_results', record: null },
+        firecrawl: { status: 'empty' },
+        parsing: { 
+          status: 'empty', 
+          raw_offers: [], 
+          filtered_offers: [], 
+          max_saving: 0, 
+          min_threshold: 50 
+        },
+        logs: []
       };
 
-      // STEP 1: Verifica OCR
+      // BLOCCO 1: OCR
+      addLog('OCR', 'Inizio analisi OCR');
       const { data: ocrData, error: ocrError } = await supabase
         .from('ocr_results')
         .select('*')
-        .eq('upload_id', id)
+        .eq('upload_id', bill.upload_id)
+        .maybeSingle();
+
+      const { data: ocrDebugData } = await supabase
+        .from('ocr_debug')
+        .select('*')
+        .eq('upload_id', bill.upload_id)
         .maybeSingle();
 
       if (ocrError) {
-        status.step1_ocr = { status: 'fail', data: { error: ocrError.message } };
+        debugInfo.ocr.status = 'fail';
+        addLog('OCR', `Errore: ${ocrError.message}`);
       } else if (!ocrData) {
-        status.step1_ocr = { status: 'empty' };
+        debugInfo.ocr.status = 'empty';
+        addLog('OCR', 'Nessun dato OCR trovato');
       } else {
-        // Verifica che i campi critici siano presenti
         const hasProvider = ocrData.provider && ocrData.provider !== null;
         const hasConsumption = (ocrData.annual_kwh && ocrData.annual_kwh > 0) || 
                               (ocrData.gas_smc && ocrData.gas_smc > 0);
         const hasPrice = (ocrData.unit_price_eur_kwh && ocrData.unit_price_eur_kwh > 0) ||
                         (ocrData.prezzo_gas_eur_smc && ocrData.prezzo_gas_eur_smc > 0);
 
-        if (hasProvider && hasConsumption && hasPrice) {
-          status.step1_ocr = { status: 'ok', data: ocrData };
-        } else {
-          status.step1_ocr = { 
-            status: 'fail', 
-            data: { 
-              reason: 'Campi critici mancanti o null',
-              hasProvider,
-              hasConsumption,
-              hasPrice,
-              ocrData 
-            }
-          };
-        }
+        debugInfo.ocr.status = (hasProvider && hasConsumption && hasPrice) ? 'ok' : 'fail';
+        debugInfo.ocr.data = ocrData;
+        debugInfo.ocr.raw_response = ocrDebugData?.raw_json || ocrData.raw_json;
+        addLog('OCR', debugInfo.ocr.status === 'ok' ? 'OCR completato con successo' : 'OCR incompleto - campi mancanti');
       }
 
-      // STEP 2: Verifica Scraping (offerte attive)
+      // BLOCCO 2: Supabase
+      addLog('Supabase', 'Verifica record Supabase');
+      if (ocrData) {
+        debugInfo.supabase.status = 'ok';
+        debugInfo.supabase.record = ocrData;
+        addLog('Supabase', 'Record trovato e salvato correttamente');
+      } else {
+        debugInfo.supabase.status = 'fail';
+        addLog('Supabase', 'NESSUN RECORD SUPABASE TROVATO PER QUESTA BOLLETTA');
+      }
+
+      // BLOCCO 3: Firecrawl
+      addLog('Firecrawl', 'Verifica offerte scrapate');
       const { data: offersData, error: offersError } = await supabase
         .from('offers')
         .select('*')
         .eq('is_active', true);
 
       if (offersError) {
-        status.step2_scraping = { status: 'fail', count: 0 };
+        debugInfo.firecrawl.status = 'fail';
+        addLog('Firecrawl', `Errore: ${offersError.message}`);
       } else if (!offersData || offersData.length === 0) {
-        status.step2_scraping = { status: 'empty', count: 0 };
+        debugInfo.firecrawl.status = 'empty';
+        addLog('Firecrawl', 'Nessuna offerta attiva trovata');
       } else {
-        status.step2_scraping = { status: 'ok', count: offersData.length };
+        debugInfo.firecrawl.status = 'ok';
+        debugInfo.firecrawl.response = { count: offersData.length, sample: offersData.slice(0, 3) };
+        addLog('Firecrawl', `${offersData.length} offerte attive trovate`);
       }
 
-      // STEP 3: Verifica Confronto
+      // BLOCCO 4: Parsing & Offerte
+      addLog('Parsing', 'Inizio analisi parsing e offerte');
       const { data: comparisonData, error: comparisonError } = await supabase
         .from('comparison_results')
         .select('*')
-        .eq('upload_id', id)
+        .eq('upload_id', bill.upload_id)
         .maybeSingle();
 
       if (comparisonError) {
-        status.step3_comparison = { status: 'fail', data: { error: comparisonError.message } };
+        debugInfo.parsing.status = 'fail';
+        debugInfo.parsing.reason = `Errore: ${comparisonError.message}`;
+        addLog('Parsing', `Errore: ${comparisonError.message}`);
       } else if (!comparisonData) {
-        status.step3_comparison = { status: 'empty' };
+        debugInfo.parsing.status = 'empty';
+        debugInfo.parsing.reason = 'Nessun risultato di confronto trovato';
+        addLog('Parsing', 'Nessun risultato di confronto trovato');
       } else {
-        const hasOffers = comparisonData.ranked_offers && 
-                         Array.isArray(comparisonData.ranked_offers) && 
-                         comparisonData.ranked_offers.length > 0;
+        const rankedOffers = Array.isArray(comparisonData.ranked_offers) ? comparisonData.ranked_offers : [];
         
-        if (hasOffers) {
-          status.step3_comparison = { status: 'ok', data: comparisonData };
+        debugInfo.parsing.raw_offers = offersData || [];
+        debugInfo.parsing.filtered_offers = rankedOffers;
+        
+        if (rankedOffers.length > 0) {
+          const savings = rankedOffers.map((o: any) => o.annual_saving_eur || 0);
+          debugInfo.parsing.max_saving = Math.max(...savings);
+          debugInfo.parsing.status = 'ok';
+          addLog('Parsing', `${rankedOffers.length} offerte rankate - Risparmio max: €${debugInfo.parsing.max_saving.toFixed(2)}`);
         } else {
-          status.step3_comparison = { 
-            status: 'fail', 
-            data: { reason: 'Nessuna offerta rankata', comparisonData } 
-          };
+          debugInfo.parsing.status = 'fail';
+          if (debugInfo.parsing.raw_offers.length > 0) {
+            debugInfo.parsing.reason = 'NESSUNA OFFERTA DOPO I FILTRI';
+            addLog('Parsing', 'NESSUNA OFFERTA DOPO I FILTRI');
+          } else {
+            debugInfo.parsing.reason = 'NESSUNA OFFERTA DAL PARSER';
+            addLog('Parsing', 'NESSUNA OFFERTA DAL PARSER');
+          }
         }
       }
 
-      // STEP 4: Verifica rendering (logica)
-      if (status.step1_ocr.status !== 'ok') {
-        status.step4_rendering = { 
-          status: 'fail', 
-          reason: 'OCR non ha prodotto dati validi' 
-        };
-      } else if (status.step2_scraping.status !== 'ok') {
-        status.step4_rendering = { 
-          status: 'fail', 
-          reason: 'Nessuna offerta attiva nel database' 
-        };
-      } else if (status.step3_comparison.status !== 'ok') {
-        status.step4_rendering = { 
-          status: 'fail', 
-          reason: 'Il confronto non ha prodotto offerte rankate' 
-        };
-      } else {
-        status.step4_rendering = { status: 'ok' };
-      }
-
-      setPipeline(status);
+      debugInfo.logs = logs;
+      setDebugData(debugInfo);
 
       toast({
         title: "Analisi completata",
-        description: `Pipeline analizzata per upload ${id.slice(0, 8)}...`
+        description: `Debug completato per bolletta ${bill.id.slice(0, 8)}...`
       });
 
     } catch (error) {
-      console.error('Pipeline analysis error:', error);
+      console.error('Debug analysis error:', error);
       toast({
         title: "Errore analisi",
         description: error instanceof Error ? error.message : 'Errore sconosciuto',
@@ -165,391 +290,245 @@ export default function PipelineDebug() {
     if (!testUrl.trim()) {
       toast({
         title: "URL richiesto",
-        description: "Inserisci un URL valido per testare Firecrawl",
+        description: "Inserisci un URL valido",
         variant: "destructive"
       });
       return;
     }
 
     setTestingFirecrawl(true);
-    setFirecrawlResult(null);
+    setFirecrawlTestResult(null);
 
     try {
-      toast({
-        title: "Test Firecrawl avviato",
-        description: "Sto testando Firecrawl con l'URL fornito..."
-      });
-
       const { data, error } = await supabase.functions.invoke('scrape-single-offer', {
         body: { url: testUrl }
       });
 
       if (error) {
-        setFirecrawlResult({ 
-          success: false, 
-          error: error.message,
-          details: error 
-        });
-        toast({
-          title: "Firecrawl fallito",
-          description: error.message,
-          variant: "destructive"
-        });
+        setFirecrawlTestResult({ success: false, error: error.message });
+        toast({ title: "Test fallito", description: error.message, variant: "destructive" });
       } else {
-        setFirecrawlResult({ 
-          success: true, 
-          data,
-          hasContent: data && (data.html || data.markdown || data.text)
-        });
-        toast({
-          title: "Firecrawl completato",
-          description: "Scraping eseguito con successo"
-        });
+        setFirecrawlTestResult({ success: true, data });
+        toast({ title: "Test completato", description: "Firecrawl funziona correttamente" });
       }
     } catch (error) {
-      console.error('Firecrawl test error:', error);
-      setFirecrawlResult({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Errore sconosciuto' 
-      });
-      toast({
-        title: "Errore test Firecrawl",
-        description: error instanceof Error ? error.message : 'Errore sconosciuto',
-        variant: "destructive"
-      });
+      setFirecrawlTestResult({ success: false, error: error instanceof Error ? error.message : 'Errore' });
+      toast({ title: "Errore", description: "Test Firecrawl fallito", variant: "destructive" });
     } finally {
       setTestingFirecrawl(false);
     }
   };
 
-  const getStatusIcon = (status: 'ok' | 'fail' | 'empty') => {
+  const getStatusBadgeVariant = (status: BillRecord['pipelineStatus']) => {
     switch (status) {
-      case 'ok':
-        return <CheckCircle className="h-6 w-6 text-green-500" />;
-      case 'fail':
-        return <XCircle className="h-6 w-6 text-red-500" />;
-      case 'empty':
-        return <AlertCircle className="h-6 w-6 text-yellow-500" />;
+      case 'OFFERTE_TROVATE': return 'default';
+      case 'OCR_OK': return 'secondary';
+      case 'OCR_MANCANTE': return 'destructive';
+      case 'SCRAPING_KO': return 'destructive';
+      case 'NESSUNA_OFFERTA': return 'secondary';
     }
   };
 
-  const getStatusBadge = (status: 'ok' | 'fail' | 'empty') => {
+  const getStatusIcon = (status: 'ok' | 'fail' | 'empty') => {
     switch (status) {
-      case 'ok':
-        return <Badge variant="default">OK</Badge>;
-      case 'fail':
-        return <Badge variant="destructive">FAIL</Badge>;
-      case 'empty':
-        return <Badge variant="secondary">EMPTY</Badge>;
+      case 'ok': return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'fail': return <XCircle className="h-5 w-5 text-red-500" />;
+      case 'empty': return <AlertCircle className="h-5 w-5 text-yellow-500" />;
     }
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-8 space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Search className="h-8 w-8" />
-            Debug Pipeline Completo
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Analizza ogni step della pipeline: OCR → Scraping → Confronto → Rendering
-          </p>
+      <main className="container mx-auto px-4 py-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Debug Pipeline</h1>
+            <p className="text-sm text-muted-foreground">Analisi completa OCR → Supabase → Firecrawl → Parsing</p>
+          </div>
+          <Button onClick={loadBillsList} disabled={loading} variant="outline" size="sm">
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Ricarica
+          </Button>
         </div>
 
-        {/* Upload ID Analyzer */}
+        {/* SEZIONE 1: Lista Bollette */}
         <Card>
           <CardHeader>
-            <CardTitle>1. Analizza Upload ID</CardTitle>
+            <CardTitle className="text-lg">Lista Bollette per Debug</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Inserisci un Upload ID per verificare l'intera pipeline e identificare dove si interrompe.
-            </p>
-            <div className="flex gap-2">
-              <Input
-                placeholder="es. 1eda58e1-a132-4dc4-9ba2-145640eefb2b"
-                value={uploadId}
-                onChange={(e) => setUploadId(e.target.value)}
-                className="flex-1"
-              />
-              <Button onClick={() => analyzeUpload(uploadId)} disabled={loading}>
-                <Search className={`h-4 w-4 mr-2 ${loading ? 'animate-pulse' : ''}`} />
-                {loading ? 'Analisi...' : 'Analizza'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pipeline Status */}
-        {pipeline && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Stato Pipeline per: {pipeline.uploadId.slice(0, 20)}...</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* STEP 1: OCR */}
-              <div className="flex items-start gap-4 p-4 border rounded-lg">
-                <div className="flex-shrink-0">
-                  {getStatusIcon(pipeline.step1_ocr.status)}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-lg">Step 1: OCR Extraction</h3>
-                    {getStatusBadge(pipeline.step1_ocr.status)}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Verifica se l'OCR ha salvato dati su Supabase (provider, consumo, prezzo)
-                  </p>
-                  {pipeline.step1_ocr.status === 'ok' && pipeline.step1_ocr.data && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-green-500/10 p-3 rounded">
-                      <div>
-                        <span className="text-muted-foreground">Provider:</span>
-                        <p className="font-semibold">{pipeline.step1_ocr.data.provider}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Consumo:</span>
-                        <p className="font-semibold">
-                          {pipeline.step1_ocr.data.annual_kwh ? `${pipeline.step1_ocr.data.annual_kwh} kWh` : 
-                           pipeline.step1_ocr.data.gas_smc ? `${pipeline.step1_ocr.data.gas_smc} Smc` : 'N/A'}
+          <CardContent>
+            {bills.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">Nessuna bolletta trovata</p>
+            ) : (
+              <div className="space-y-2">
+                {bills.map((bill) => (
+                  <div
+                    key={bill.id}
+                    className={`p-3 border rounded-lg cursor-pointer transition-colors hover:bg-accent ${
+                      selectedBill?.id === bill.id ? 'bg-accent' : ''
+                    }`}
+                    onClick={() => analyzeUpload(bill)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="font-mono text-xs text-muted-foreground">{bill.id.slice(0, 12)}...</p>
+                        <p className="text-sm">
+                          {bill.provider || 'N/A'} • {new Date(bill.created_at).toLocaleDateString('it-IT')}
                         </p>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground">Prezzo:</span>
-                        <p className="font-semibold">
-                          {pipeline.step1_ocr.data.unit_price_eur_kwh ? 
-                            `${pipeline.step1_ocr.data.unit_price_eur_kwh.toFixed(3)} €/kWh` :
-                           pipeline.step1_ocr.data.prezzo_gas_eur_smc ?
-                            `${pipeline.step1_ocr.data.prezzo_gas_eur_smc.toFixed(3)} €/Smc` : 'N/A'}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Quality:</span>
-                        <p className="font-semibold">
-                          {pipeline.step1_ocr.data.quality_score ? 
-                            `${(pipeline.step1_ocr.data.quality_score * 100).toFixed(0)}%` : 'N/A'}
-                        </p>
-                      </div>
+                      <Badge variant={getStatusBadgeVariant(bill.pipelineStatus)}>
+                        {bill.pipelineStatus}
+                      </Badge>
                     </div>
-                  )}
-                  {pipeline.step1_ocr.status === 'fail' && (
-                    <div className="bg-red-500/10 p-3 rounded text-sm">
-                      <p className="font-semibold text-red-600">Problema identificato:</p>
-                      <p>{pipeline.step1_ocr.data?.reason || 'OCR non ha prodotto dati validi'}</p>
-                    </div>
-                  )}
-                  {pipeline.step1_ocr.status === 'empty' && (
-                    <div className="bg-yellow-500/10 p-3 rounded text-sm">
-                      <p className="font-semibold text-yellow-600">Nessun dato OCR trovato</p>
-                      <p>Upload ID non ha record in ocr_results</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* STEP 2: Scraping */}
-              <div className="flex items-start gap-4 p-4 border rounded-lg">
-                <div className="flex-shrink-0">
-                  {getStatusIcon(pipeline.step2_scraping.status)}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-lg">Step 2: Firecrawl Scraping</h3>
-                    {getStatusBadge(pipeline.step2_scraping.status)}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Verifica se esistono offerte attive scrapate nel database
-                  </p>
-                  {pipeline.step2_scraping.status === 'ok' && (
-                    <div className="bg-green-500/10 p-3 rounded text-sm">
-                      <p className="font-semibold text-green-600">
-                        {pipeline.step2_scraping.count} offerte attive trovate
-                      </p>
-                    </div>
-                  )}
-                  {pipeline.step2_scraping.status === 'empty' && (
-                    <div className="bg-yellow-500/10 p-3 rounded text-sm">
-                      <p className="font-semibold text-yellow-600">Nessuna offerta attiva</p>
-                      <p>Firecrawl non ha prodotto offerte o sono tutte disattivate</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* STEP 3: Comparison */}
-              <div className="flex items-start gap-4 p-4 border rounded-lg">
-                <div className="flex-shrink-0">
-                  {getStatusIcon(pipeline.step3_comparison.status)}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-lg">Step 3: AI Comparison</h3>
-                    {getStatusBadge(pipeline.step3_comparison.status)}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Verifica se il confronto AI ha prodotto offerte rankate
-                  </p>
-                  {pipeline.step3_comparison.status === 'ok' && pipeline.step3_comparison.data && (
-                    <div className="bg-green-500/10 p-3 rounded text-sm">
-                      <p className="font-semibold text-green-600">
-                        {Array.isArray(pipeline.step3_comparison.data.ranked_offers) ? 
-                          pipeline.step3_comparison.data.ranked_offers.length : 0} offerte rankate
-                      </p>
-                      {pipeline.step3_comparison.data.best_offer_id && (
-                        <p className="text-xs mt-1">
-                          Best offer: {pipeline.step3_comparison.data.best_offer_id.slice(0, 8)}...
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  {pipeline.step3_comparison.status === 'fail' && (
-                    <div className="bg-red-500/10 p-3 rounded text-sm">
-                      <p className="font-semibold text-red-600">Confronto fallito</p>
-                      <p>{pipeline.step3_comparison.data?.reason || 'Nessuna offerta prodotta dal confronto'}</p>
-                    </div>
-                  )}
-                  {pipeline.step3_comparison.status === 'empty' && (
-                    <div className="bg-yellow-500/10 p-3 rounded text-sm">
-                      <p className="font-semibold text-yellow-600">Nessun risultato di confronto</p>
-                      <p>comparison_results non contiene record per questo upload</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* STEP 4: Rendering */}
-              <div className="flex items-start gap-4 p-4 border rounded-lg">
-                <div className="flex-shrink-0">
-                  {getStatusIcon(pipeline.step4_rendering.status)}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-lg">Step 4: UI Rendering</h3>
-                    {getStatusBadge(pipeline.step4_rendering.status)}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Verifica se i dati possono essere mostrati nell'interfaccia
-                  </p>
-                  {pipeline.step4_rendering.status === 'ok' && (
-                    <div className="bg-green-500/10 p-3 rounded text-sm">
-                      <p className="font-semibold text-green-600">Rendering OK</p>
-                      <p>Tutti i dati necessari sono disponibili per la visualizzazione</p>
-                    </div>
-                  )}
-                  {pipeline.step4_rendering.status === 'fail' && (
-                    <div className="bg-red-500/10 p-3 rounded text-sm">
-                      <p className="font-semibold text-red-600">Rendering bloccato</p>
-                      <p>{pipeline.step4_rendering.reason}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Firecrawl Test */}
-        <Card>
-          <CardHeader>
-            <CardTitle>2. Test Firecrawl Manuale</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Testa Firecrawl con un URL specifico per verificare se lo scraping funziona
-            </p>
-            <div className="flex gap-2">
-              <Input
-                placeholder="https://www.provider.it/offerte"
-                value={testUrl}
-                onChange={(e) => setTestUrl(e.target.value)}
-                className="flex-1"
-              />
-              <Button onClick={testFirecrawl} disabled={testingFirecrawl}>
-                <Play className={`h-4 w-4 mr-2 ${testingFirecrawl ? 'animate-pulse' : ''}`} />
-                {testingFirecrawl ? 'Testing...' : 'Test'}
-              </Button>
-            </div>
-
-            {firecrawlResult && (
-              <div className={`p-4 rounded-lg ${
-                firecrawlResult.success ? 'bg-green-500/10' : 'bg-red-500/10'
-              }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  {firecrawlResult.success ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-red-500" />
-                  )}
-                  <p className="font-semibold">
-                    {firecrawlResult.success ? 'Firecrawl funziona' : 'Firecrawl fallito'}
-                  </p>
-                </div>
-                {firecrawlResult.success ? (
-                  <div className="text-sm space-y-2">
-                    <p>✅ Scraping completato con successo</p>
-                    <p>Contenuto trovato: {firecrawlResult.hasContent ? 'Sì' : 'No'}</p>
-                    <details>
-                      <summary className="cursor-pointer text-primary hover:underline">
-                        Vedi risposta Firecrawl
-                      </summary>
-                      <pre className="mt-2 p-3 bg-background rounded text-xs overflow-x-auto max-h-60">
-                        {JSON.stringify(firecrawlResult.data, null, 2)}
-                      </pre>
-                    </details>
-                  </div>
-                ) : (
-                  <div className="text-sm">
-                    <p className="text-red-600">{firecrawlResult.error}</p>
-                    {firecrawlResult.details && (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-primary hover:underline">
-                          Vedi dettagli errore
-                        </summary>
-                        <pre className="mt-2 p-3 bg-background rounded text-xs overflow-x-auto">
-                          {JSON.stringify(firecrawlResult.details, null, 2)}
-                        </pre>
-                      </details>
-                    )}
-                  </div>
-                )}
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Troubleshooting Tips */}
-        <Card>
-          <CardHeader>
-            <CardTitle>💡 Guida Troubleshooting</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div>
-              <p className="font-semibold">Se Step 1 (OCR) è EMPTY o FAIL:</p>
-              <p className="text-muted-foreground">
-                → Problema OCR o mapping Lovable → Supabase. Controlla edge function ocr-extract e logs.
-              </p>
-            </div>
-            <div>
-              <p className="font-semibold">Se Step 2 (Scraping) è EMPTY:</p>
-              <p className="text-muted-foreground">
-                → Firecrawl non ha offerte attive. Usa "Test Firecrawl Manuale" per verificare configurazione.
-              </p>
-            </div>
-            <div>
-              <p className="font-semibold">Se Step 3 (Confronto) è FAIL:</p>
-              <p className="text-muted-foreground">
-                → Edge function compare-offers non produce ranked_offers. Controlla logica di filtro e parsing.
-              </p>
-            </div>
-            <div>
-              <p className="font-semibold">Se Step 4 (Rendering) è FAIL:</p>
-              <p className="text-muted-foreground">
-                → UI ha condizioni rotte o stati non aggiornati. Controlla Results.tsx e Upload.tsx.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* SEZIONE 2: Dettaglio Debug */}
+        {selectedBill && debugData && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">
+              Dettaglio Debug: {selectedBill.id.slice(0, 20)}...
+            </h2>
+
+            {/* BLOCCO OCR */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  {getStatusIcon(debugData.ocr.status)}
+                  <FileText className="h-5 w-5" />
+                  <CardTitle className="text-base">Blocco 1: OCR Extraction</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {debugData.ocr.status === 'ok' && debugData.ocr.data && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div><span className="text-muted-foreground">Provider:</span><p className="font-semibold">{debugData.ocr.data.provider || 'N/A'}</p></div>
+                    <div><span className="text-muted-foreground">POD/PDR:</span><p className="font-semibold">{debugData.ocr.data.pod || debugData.ocr.data.pdr || 'N/A'}</p></div>
+                    <div><span className="text-muted-foreground">Consumo:</span><p className="font-semibold">{debugData.ocr.data.annual_kwh || debugData.ocr.data.gas_smc || 'N/A'}</p></div>
+                    <div><span className="text-muted-foreground">Prezzo:</span><p className="font-semibold">{debugData.ocr.data.unit_price_eur_kwh?.toFixed(3) || debugData.ocr.data.prezzo_gas_eur_smc?.toFixed(3) || 'N/A'}</p></div>
+                  </div>
+                )}
+                {debugData.ocr.status === 'fail' && (
+                  <div className="bg-red-500/10 p-3 rounded text-sm text-red-600">
+                    <p className="font-semibold">⚠ ATTENZIONE: OCR incompleto</p>
+                    <p>Campi critici mancanti o null</p>
+                  </div>
+                )}
+                {debugData.ocr.raw_response && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-primary hover:underline">RAW OCR Response</summary>
+                    <pre className="mt-2 p-2 bg-muted rounded overflow-x-auto max-h-40">{JSON.stringify(debugData.ocr.raw_response, null, 2)}</pre>
+                  </details>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* BLOCCO SUPABASE */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  {getStatusIcon(debugData.supabase.status)}
+                  <Database className="h-5 w-5" />
+                  <CardTitle className="text-base">Blocco 2: Supabase Record</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm">Tabella: <span className="font-mono">{debugData.supabase.table}</span></p>
+                {debugData.supabase.status === 'ok' ? (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-primary hover:underline">Vedi JSON completo</summary>
+                    <pre className="mt-2 p-2 bg-muted rounded overflow-x-auto max-h-60">{JSON.stringify(debugData.supabase.record, null, 2)}</pre>
+                  </details>
+                ) : (
+                  <div className="bg-red-500/10 p-3 rounded text-sm text-red-600">
+                    <p className="font-semibold">NESSUN RECORD SUPABASE TROVATO</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* BLOCCO FIRECRAWL */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  {getStatusIcon(debugData.firecrawl.status)}
+                  <Globe className="h-5 w-5" />
+                  <CardTitle className="text-base">Blocco 3: Firecrawl Test</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm">
+                  Offerte attive: {debugData.firecrawl.response?.count || 0}
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="URL test Firecrawl"
+                    value={testUrl}
+                    onChange={(e) => setTestUrl(e.target.value)}
+                    className="flex-1 text-sm"
+                  />
+                  <Button onClick={testFirecrawl} disabled={testingFirecrawl} size="sm">
+                    <Play className={`h-4 w-4 mr-2 ${testingFirecrawl ? 'animate-pulse' : ''}`} />
+                    Test
+                  </Button>
+                </div>
+                {firecrawlTestResult && (
+                  <div className={`p-3 rounded text-sm ${firecrawlTestResult.success ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                    <p className="font-semibold">{firecrawlTestResult.success ? '✓ Firecrawl OK' : '✗ Firecrawl FAIL'}</p>
+                    {firecrawlTestResult.error && <p className="text-red-600">{firecrawlTestResult.error}</p>}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* BLOCCO PARSING */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  {getStatusIcon(debugData.parsing.status)}
+                  <Filter className="h-5 w-5" />
+                  <CardTitle className="text-base">Blocco 4: Parsing & Offerte</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-muted-foreground">Offerte grezze:</span><p className="font-semibold">{debugData.parsing.raw_offers.length}</p></div>
+                  <div><span className="text-muted-foreground">Offerte filtrate:</span><p className="font-semibold">{debugData.parsing.filtered_offers.length}</p></div>
+                  <div><span className="text-muted-foreground">Risparmio max:</span><p className="font-semibold">€{debugData.parsing.max_saving.toFixed(2)}</p></div>
+                  <div><span className="text-muted-foreground">Soglia minima:</span><p className="font-semibold">€{debugData.parsing.min_threshold}</p></div>
+                </div>
+                {debugData.parsing.reason && (
+                  <div className="bg-yellow-500/10 p-3 rounded text-sm">
+                    <p className="font-semibold">{debugData.parsing.reason}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* LOG ERRORI */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Log Pipeline</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1 text-xs font-mono">
+                  {debugData.logs.map((log, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <span className="text-muted-foreground">{new Date(log.timestamp).toLocaleTimeString('it-IT')}</span>
+                      <span className="font-semibold">[{log.step}]</span>
+                      <span>{log.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </main>
     </div>
   );
