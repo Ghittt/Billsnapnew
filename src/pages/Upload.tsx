@@ -78,8 +78,8 @@ const UploadPage = () => {
     }
     
     try {
-      // Process all files (for MVP, we'll combine them)
-      const file = files[0]; // Process first file for MVP - future: merge PDFs
+      // Process first file
+      const file = files[0];
       
       // Validate file
       if (file.size > 20 * 1024 * 1024) {
@@ -92,53 +92,9 @@ const UploadPage = () => {
         throw new Error('File troppo grande. Massimo 20MB consentiti.');
       }
 
-      // Step 1: Upload file
-      setCurrentStep('upload');
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const uploadResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/bills/${Date.now()}-${file.name}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: formData
-      });
-
-      if (!uploadResponse.ok) {
-        await logError({
-          type: 'upload',
-          message: 'Storage upload failed',
-          errorCode: `HTTP_${uploadResponse.status}`,
-          payload: { fileName: file.name }
-        });
-        throw new Error('Upload failed');
-      }
-
-      // Get authenticated user (optional)
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const { data: uploadData, error: uploadError } = await supabase
-        .from('uploads')
-        .insert({
-          file_url: `bills/${Date.now()}-${file.name}`,
-          file_type: file.type,
-          file_size: file.size,
-          user_id: user?.id || null,
-          ocr_status: 'pending'
-        })
-        .select()
-        .single();
-
-      if (uploadError) {
-        await logError({
-          type: 'upload',
-          message: 'Database insert failed',
-          errorCode: uploadError.code || 'DB_ERROR',
-          payload: { error: uploadError.message }
-        });
-        throw uploadError;
-      }
+      // Generate unique uploadId
+      const uploadId = crypto.randomUUID();
+      setPendingUploadId(uploadId);
 
       // Track upload success
       if (typeof gtag !== 'undefined') {
@@ -147,9 +103,8 @@ const UploadPage = () => {
         });
       }
 
-      // Step 2: OCR Processing with timeout warning
+      // Call OCR Edge Function
       setCurrentStep('ocr');
-      await updateUploadStatus(uploadData.id, 'processing');
       
       // Show timeout warning after 30s
       const timeoutWarning = setTimeout(() => {
@@ -161,9 +116,9 @@ const UploadPage = () => {
       
       const ocrFormData = new FormData();
       ocrFormData.append('file', file);
-      ocrFormData.append('uploadId', uploadData.id);
+      ocrFormData.append('uploadId', uploadId);
 
-      const ocrResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ocr-extract`, {
+      const ocrResponse = await fetch('https://qmslpwhtintqfijpxhsf.supabase.co/functions/v1/ocr-extract', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
@@ -182,40 +137,28 @@ const UploadPage = () => {
         await logError({
           type: 'ocr',
           message: `OCR failed with status ${ocrResponse.status}`,
-          uploadId: uploadData.id,
+          uploadId: uploadId,
           errorCode: `HTTP_${ocrResponse.status}`,
           payload: { fileName: file.name, error: errorText }
         });
         
-        await updateUploadStatus(uploadData.id, 'failed', `HTTP ${ocrResponse.status}`);
-        
-        // Retry logic for common OCR failures
-        if (retryCount < 1 && ocrResponse.status >= 500) {
-          console.log(`Retrying OCR (attempt ${retryCount + 1})...`);
-          setRetryCount(retryCount + 1);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          return handleFileUpload(files);
-        }
-        
-        // OCR failed after retries - offer manual fallback
-        console.log('OCR failed after retries, showing manual fallback');
-        setPendingUploadId(uploadData.id);
-        setShowManualFallback(true);
-        setIsUploading(false);
-        
-        toast({
-          title: "Bolletta non leggibile",
-          description: "Non riusciamo a leggere questa bolletta. Inserisci i dati manualmente per continuare.",
-          variant: "destructive"
-        });
-        
-        return;
+        throw new Error('Errore durante la lettura della bolletta. Riprova più tardi.');
       }
 
       const ocrData = await ocrResponse.json();
-      await updateUploadStatus(uploadData.id, 'success');
       
       console.log('OCR response:', ocrData);
+      
+      // Check if OCR was successful
+      if (!ocrData.success) {
+        await logError({
+          type: 'ocr',
+          message: 'OCR returned success=false',
+          uploadId: uploadId,
+          payload: { response: ocrData }
+        });
+        throw new Error('Errore durante la lettura della bolletta. Riprova più tardi.');
+      }
       
       // Track OCR completion
       if (typeof gtag !== 'undefined') {
@@ -224,117 +167,40 @@ const UploadPage = () => {
         });
       }
 
-      // Step 3: Compare offers and get AI explanation
-      setCurrentStep('calculate');
-      const { data: compareData, error: compareError } = await supabase.functions.invoke('compare-offers', {
-        body: { uploadId: uploadData.id }
-      });
-
-      if (compareError || !compareData?.ok) {
-        console.error('Compare offers error:', compareError || compareData);
-
-        await logError({
-          type: 'network',
-          message: 'Confronto offerte non riuscito',
-          uploadId: uploadData.id,
-          payload: { error: compareError || compareData }
-        });
-
-        toast({
-          title: "Nessuna offerta disponibile",
-          description: "Al momento non riusciamo a trovare offerte reali per i tuoi dati. Riprova più tardi.",
-          variant: "destructive"
-        });
-
-        setIsUploading(false);
-        return;
-      }
-
-      console.log('Offers compared successfully:', compareData);
-
-      // Step 4: Complete (AI explanations will be generated in Results page)
+      // Complete
       setCurrentStep('complete');
       setUploadedFiles(files);
-      
-      // Generate AI recommendations, schedule reminders, and save contract in parallel
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (currentUser && uploadData.id) {
-        Promise.all([
-          supabase.functions.invoke('generate-recommendations', {
-            body: { upload_id: uploadData.id, user_id: currentUser.id }
-          }),
-          supabase.functions.invoke('schedule-reminders', {
-            body: { user_id: currentUser.id }
-          }),
-          supabase.functions.invoke('save-contract', {
-            body: { upload_id: uploadData.id, user_id: currentUser.id }
-          })
-        ]).catch(err => {
-          console.error('Error in background tasks:', err);
-          // Don't block the flow if these fail
-        });
-      }
       
       // Track result shown
       if (typeof gtag !== 'undefined') {
         gtag('event', 'result_shown', {
-          'event_category': 'engagement',
-          'value': compareData?.best?.total_year || 0
+          'event_category': 'engagement'
         });
       }
       
       setTimeout(() => {
-        navigate(`/results?uploadId=${uploadData.id}`);
+        navigate(`/results?uploadId=${uploadId}`);
       }, 1000);
       
     } catch (error) {
       console.error('Upload error:', error);
       
       const errorMessage = error instanceof Error ? error.message : 
-        "Si è verificato un errore durante l'analisi della bolletta.";
+        "Errore durante la lettura della bolletta. Riprova più tardi.";
       
       await logError({
-        type: 'network',
+        type: 'ocr',
         message: errorMessage,
         uploadId: pendingUploadId || undefined,
         stackTrace: error instanceof Error ? error.stack : undefined,
         payload: { step: currentStep }
       });
       
-      // Show appropriate error message
-      if (errorMessage.includes('leggere') || errorMessage.includes('timeout')) {
-        toast({
-          title: "Bolletta non leggibile",
-          description: errorMessage,
-          variant: "destructive",
-          action: retryCount < 2 ? (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                setRetryCount(prev => prev + 1);
-                handleFileUpload(files);
-              }}
-            >
-              Riprova
-            </Button>
-          ) : (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowManualFallback(true)}
-            >
-              Inserisci manualmente
-            </Button>
-          )
-        });
-      } else {
-        toast({
-          title: "Errore nell'analisi",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Errore durante la lettura della bolletta",
+        description: "Riprova più tardi.",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
     }
