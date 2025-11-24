@@ -5,7 +5,7 @@ const Header = () => {
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border shadow-sm">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
         <Link to="/" className="hover:opacity-80 transition-opacity">
-          <span className="text-[24px] font-semibold tracking-tight text-foreground" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, SF Pro Text, SF Pro Display, sans-serif' }}>
+          <span className="text-[24px] font-semibold tracking-tight" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, SF Pro Text, SF Pro Display, sans-serif', color: '#A855F7' }}>
             BillSnap
           </span>
         </Link>
