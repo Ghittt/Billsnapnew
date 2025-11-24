@@ -17,11 +17,13 @@ import Terms from "./pages/Terms";
 import About from "./pages/About";
 import DataDeletion from "./pages/DataDeletion";
 import Feedback from "./pages/Feedback";
-import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import AdminDashboard from "./pages/AdminDashboard";
 import OffersManagement from "./pages/OffersManagement";
 import Debug from "./pages/Debug";
+import DebugOCR from "./pages/DebugOCR";
+import DebugScraping from "./pages/DebugScraping";
+import DebugAI from "./pages/DebugAI";
 import NotFound from "./pages/NotFound";
 import CollectiveOffer from "./pages/CollectiveOffer";
 import Contracts from "./pages/Contracts";
@@ -44,7 +46,6 @@ const App = () => (
             <Route path="/upload" element={<Upload />} />
             <Route path="/results" element={<Results />} />
             <Route path="/offer/:id" element={<OfferDetail />} />
-            <Route path="/profile" element={<Profile />} />
             <Route path="/contracts" element={<Contracts />} />
             <Route path="/qa" element={<QA />} />
             <Route path="/admin" element={<Admin />} />
@@ -56,6 +57,9 @@ const App = () => (
             <Route path="/data-deletion" element={<DataDeletion />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/debug" element={<Debug />} />
+            <Route path="/debug-ocr" element={<DebugOCR />} />
+            <Route path="/debug-scraping" element={<DebugScraping />} />
+            <Route path="/debug-ai" element={<DebugAI />} />
             <Route path="/scraping-test" element={<ScrapingTest />} />
             <Route path="/offerta-collettiva" element={<CollectiveOffer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
