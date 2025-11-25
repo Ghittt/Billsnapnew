@@ -1,34 +1,25 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import Header from "@/components/layout/Header";
-import UploadZone from "@/components/upload/UploadZone";
-import ProgressIndicator from "@/components/upload/ProgressIndicator";
-import { ManualBillInputModal } from "@/components/upload/ManualBillInputModal";
-import { ManualBillInputFallback } from "@/components/upload/ManualBillInputFallback";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Clock, Upload, Shield, Zap } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { logError, updateUploadStatus } from "@/lib/errorLogger";
-import "@/types/analytics";
-
-// ======================================================
-// CONFIG OCR → QUI CI SONO SOLO COSTANTI, NESSUN ENV
-// ======================================================
-
-// URL EXACT dell’edge function ocr-extract (da schermata Supabase)
-const OCR_FUNCTION_URL = "https://jxluygtonamgadgzg yh.supabase.co/functions/v1/ocr-extract".replace(" ", "");
-
-// ANON KEY DI SUPABASE (QUELLA CHE MI HAI INVIATO)
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4bHV5Z3RvbmFtZ2FkcWd6Z3loIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxMzA5OTAsImV4cCI6MjA2ODcwNjk5MH0.ZpnarbyN_zvScN0xuv-wx8QSWLtDxUbowcTf0bb2HSE";
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import Header from '@/components/layout/Header';
+import UploadZone from '@/components/upload/UploadZone';
+import ProgressIndicator from '@/components/upload/ProgressIndicator';
+import { ManualBillInputModal } from '@/components/upload/ManualBillInputModal';
+import { ManualBillInputFallback } from '@/components/upload/ManualBillInputFallback';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CheckCircle, Clock, Upload, AlertTriangle, Shield, Zap } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { logError, updateUploadStatus } from '@/lib/errorLogger';
+import heroImage from '@/assets/hero-bg.jpg';
+import billIcon from '@/assets/bill-icon.png';
+import '@/types/analytics';
 
 const UploadPage = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [currentStep, setCurrentStep] = useState<"upload" | "staged" | "ocr" | "calculate" | "complete">("upload");
+  const [currentStep, setCurrentStep] = useState<'upload' | 'staged' | 'ocr' | 'calculate' | 'complete'>('upload');
   const [retryCount, setRetryCount] = useState(0);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showManualFallback, setShowManualFallback] = useState(false);
@@ -38,29 +29,31 @@ const UploadPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Se arrivano file dalla Index li mettiamo solo in staging
+  // Handle files passed from Index page - don't auto-process
   useEffect(() => {
     if (location.state?.files) {
       handleFileStaging(location.state.files);
     }
   }, [location.state]);
 
+  // Stage files without processing
   const handleFileStaging = (files: File[]) => {
-    setStagedFiles((prev) => [...prev, ...files]);
-    setCurrentStep("staged");
-
+    setStagedFiles(prev => [...prev, ...files]);
+    setCurrentStep('staged');
+    
     toast({
       title: "File caricati",
       description: `${files.length} file pronti per l'analisi. Clicca "Analizza bolletta" quando sei pronto.`,
     });
   };
 
+  // Start OCR analysis on staged files
   const handleAnalyzeFiles = async () => {
     if (stagedFiles.length === 0) {
       toast({
         title: "Nessun file",
         description: "Carica almeno un file prima di analizzare.",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
@@ -70,104 +63,112 @@ const UploadPage = () => {
 
   const handleFileUpload = async (files: File[]) => {
     setIsUploading(true);
-    setCurrentStep("upload");
+    setCurrentStep('upload');
     setRetryCount(0);
     setOcrTimeoutWarning(false);
-    const startTime = Date.now();
-    setUploadStartTime(startTime);
-
-    if (typeof gtag !== "undefined") {
-      gtag("event", "upload_started", {
-        event_category: "engagement",
-        event_label: files[0]?.type || "unknown",
-        files_count: files.length,
+    setUploadStartTime(Date.now());
+    
+    // Track analytics event
+    if (typeof gtag !== 'undefined') {
+      gtag('event', 'upload_started', {
+        'event_category': 'engagement',
+        'event_label': files[0]?.type || 'unknown',
+        'files_count': files.length
       });
     }
-
+    
     try {
-      const file = files[0];
-
-      // 1) validazione peso
+      // Process all files (for MVP, we'll combine them)
+      const file = files[0]; // Process first file for MVP - future: merge PDFs
+      
+      // Validate file
       if (file.size > 20 * 1024 * 1024) {
         await logError({
-          type: "validation",
-          message: "File troppo grande",
-          errorCode: "FILE_TOO_LARGE",
-          payload: { fileSize: file.size, fileName: file.name },
+          type: 'validation',
+          message: 'File troppo grande',
+          errorCode: 'FILE_TOO_LARGE',
+          payload: { fileSize: file.size, fileName: file.name }
         });
-        throw new Error("File troppo grande. Massimo 20MB consentiti.");
+        throw new Error('File troppo grande. Massimo 20MB consentiti.');
       }
 
-      // 2) creo record in uploads PRIMA dell’OCR
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError) {
-        console.warn("No auth user (anon upload)", authError.message);
+      // Step 1: Upload file
+      setCurrentStep('upload');
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const uploadResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/bills/${Date.now()}-${file.name}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        await logError({
+          type: 'upload',
+          message: 'Storage upload failed',
+          errorCode: `HTTP_${uploadResponse.status}`,
+          payload: { fileName: file.name }
+        });
+        throw new Error('Upload failed');
       }
 
-      const user = authData?.user ?? null;
+      // Get authenticated user (optional)
+      const { data: { user } } = await supabase.auth.getUser();
 
       const { data: uploadData, error: uploadError } = await supabase
-        .from("uploads")
+        .from('uploads')
         .insert({
           file_url: `bills/${Date.now()}-${file.name}`,
           file_type: file.type,
           file_size: file.size,
           user_id: user?.id || null,
-          ocr_status: "pending",
+          ocr_status: 'pending'
         })
         .select()
         .single();
 
-      if (uploadError || !uploadData) {
+      if (uploadError) {
         await logError({
-          type: "upload",
-          message: "Database insert failed",
-          errorCode: uploadError?.code || "DB_ERROR",
-          payload: { error: uploadError?.message },
+          type: 'upload',
+          message: 'Database insert failed',
+          errorCode: uploadError.code || 'DB_ERROR',
+          payload: { error: uploadError.message }
         });
-        throw new Error("Errore durante la creazione del record. Riprova.");
+        throw uploadError;
       }
 
-      const uploadId = uploadData.id as string;
-      setPendingUploadId(uploadId);
-
-      if (typeof gtag !== "undefined") {
-        gtag("event", "upload_succeeded", {
-          event_category: "engagement",
+      // Track upload success
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'upload_succeeded', {
+          'event_category': 'engagement'
         });
       }
 
-      // 3) aggiorno stato a processing
-      setCurrentStep("ocr");
-      await supabase
-        .from("uploads")
-        .update({
-          ocr_status: "processing",
-          ocr_started_at: new Date().toISOString(),
-        })
-        .eq("id", uploadId);
-
-      // 4) warning dopo 30 secondi
+      // Step 2: OCR Processing with timeout warning
+      setCurrentStep('ocr');
+      await updateUploadStatus(uploadData.id, 'processing');
+      
+      // Show timeout warning after 30s
       const timeoutWarning = setTimeout(() => {
-        const elapsed = (Date.now() - startTime) / 1000;
+        const elapsed = (Date.now() - uploadStartTime) / 1000;
         if (elapsed > 30) {
           setOcrTimeoutWarning(true);
         }
       }, 30000);
-
-      // 5) chiamata edge function OCR (multipart + JWT anon)
+      
       const ocrFormData = new FormData();
-      ocrFormData.append("file", file);
-      ocrFormData.append("uploadId", uploadId);
+      ocrFormData.append('file', file);
+      ocrFormData.append('uploadId', uploadData.id);
 
-      const ocrResponse = await fetch(OCR_FUNCTION_URL, {
-        method: "POST",
+      const ocrResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ocr-extract`, {
+        method: 'POST',
         headers: {
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          Accept: "application/json",
-          // NON mettiamo Content-Type: la gestisce automaticamente il browser per il multipart
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: ocrFormData,
+        body: ocrFormData
       });
 
       clearTimeout(timeoutWarning);
@@ -175,151 +176,222 @@ const UploadPage = () => {
 
       if (!ocrResponse.ok) {
         const errorText = await ocrResponse.text();
-        console.error("OCR failed, status:", ocrResponse.status, errorText);
-
-        await supabase
-          .from("uploads")
-          .update({
-            ocr_status: "failed",
-            ocr_error: `HTTP ${ocrResponse.status}`,
-            ocr_completed_at: new Date().toISOString(),
-          })
-          .eq("id", uploadId);
-
+        console.error('OCR failed, status:', ocrResponse.status, errorText);
+        
         await logError({
-          type: "ocr",
+          type: 'ocr',
           message: `OCR failed with status ${ocrResponse.status}`,
-          uploadId,
+          uploadId: uploadData.id,
           errorCode: `HTTP_${ocrResponse.status}`,
-          payload: { fileName: file.name, error: errorText },
+          payload: { fileName: file.name, error: errorText }
         });
-
-        throw new Error("Errore durante la lettura della bolletta. Riprova più tardi.");
+        
+        await updateUploadStatus(uploadData.id, 'failed', `HTTP ${ocrResponse.status}`);
+        
+        // Retry logic for common OCR failures
+        if (retryCount < 1 && ocrResponse.status >= 500) {
+          console.log(`Retrying OCR (attempt ${retryCount + 1})...`);
+          setRetryCount(retryCount + 1);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return handleFileUpload(files);
+        }
+        
+        // OCR failed after retries - offer manual fallback
+        console.log('OCR failed after retries, showing manual fallback');
+        setPendingUploadId(uploadData.id);
+        setShowManualFallback(true);
+        setIsUploading(false);
+        
+        toast({
+          title: "Bolletta non leggibile",
+          description: "Non riusciamo a leggere questa bolletta. Inserisci i dati manualmente per continuare.",
+          variant: "destructive"
+        });
+        
+        return;
       }
 
       const ocrData = await ocrResponse.json();
+      await updateUploadStatus(uploadData.id, 'success');
+      
+      console.log('OCR response:', ocrData);
+      
+      // Track OCR completion
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'ocr_completed', {
+          'event_category': 'engagement'
+        });
+      }
 
-      await supabase
-        .from("uploads")
-        .update({
-          ocr_status: "success",
-          ocr_completed_at: new Date().toISOString(),
-        })
-        .eq("id", uploadId);
+      // Step 3: Compare offers and get AI explanation
+      setCurrentStep('calculate');
+      const { data: compareData, error: compareError } = await supabase.functions.invoke('compare-offers', {
+        body: { uploadId: uploadData.id }
+      });
 
-      console.log("OCR response:", ocrData);
-
-      if (!ocrData.success) {
-        await supabase
-          .from("uploads")
-          .update({
-            ocr_status: "failed",
-            ocr_error: "OCR returned success=false",
-            ocr_completed_at: new Date().toISOString(),
-          })
-          .eq("id", uploadId);
+      if (compareError || !compareData?.ok) {
+        console.error('Compare offers error:', compareError || compareData);
 
         await logError({
-          type: "ocr",
-          message: "OCR returned success=false",
-          uploadId,
-          payload: { response: ocrData },
+          type: 'network',
+          message: 'Confronto offerte non riuscito',
+          uploadId: uploadData.id,
+          payload: { error: compareError || compareData }
         });
 
-        throw new Error("Errore durante la lettura della bolletta. Riprova più tardi.");
-      }
-
-      if (typeof gtag !== "undefined") {
-        gtag("event", "ocr_completed", {
-          event_category: "engagement",
+        toast({
+          title: "Nessuna offerta disponibile",
+          description: "Al momento non riusciamo a trovare offerte reali per i tuoi dati. Riprova più tardi.",
+          variant: "destructive"
         });
+
+        setIsUploading(false);
+        return;
       }
 
-      setCurrentStep("complete");
+      console.log('Offers compared successfully:', compareData);
+
+      // Step 4: Complete (AI explanations will be generated in Results page)
+      setCurrentStep('complete');
       setUploadedFiles(files);
-
-      if (typeof gtag !== "undefined") {
-        gtag("event", "result_shown", {
-          event_category: "engagement",
+      
+      // Generate AI recommendations, schedule reminders, and save contract in parallel
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser && uploadData.id) {
+        Promise.all([
+          supabase.functions.invoke('generate-recommendations', {
+            body: { upload_id: uploadData.id, user_id: currentUser.id }
+          }),
+          supabase.functions.invoke('schedule-reminders', {
+            body: { user_id: currentUser.id }
+          }),
+          supabase.functions.invoke('save-contract', {
+            body: { upload_id: uploadData.id, user_id: currentUser.id }
+          })
+        ]).catch(err => {
+          console.error('Error in background tasks:', err);
+          // Don't block the flow if these fail
         });
       }
-
+      
+      // Track result shown
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'result_shown', {
+          'event_category': 'engagement',
+          'value': compareData?.best?.total_year || 0
+        });
+      }
+      
       setTimeout(() => {
-        navigate(`/results?uploadId=${uploadId}`);
+        navigate(`/results?uploadId=${uploadData.id}`);
       }, 1000);
+      
     } catch (error) {
-      console.error("Upload error:", error);
-
-      const errorMessage =
-        error instanceof Error ? error.message : "Errore durante la lettura della bolletta. Riprova più tardi.";
-
+      console.error('Upload error:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 
+        "Si è verificato un errore durante l'analisi della bolletta.";
+      
       await logError({
-        type: "ocr",
+        type: 'network',
         message: errorMessage,
         uploadId: pendingUploadId || undefined,
         stackTrace: error instanceof Error ? error.stack : undefined,
-        payload: { step: currentStep },
+        payload: { step: currentStep }
       });
-
-      toast({
-        title: "Errore durante la lettura della bolletta",
-        description: "Riprova più tardi.",
-        variant: "destructive",
-      });
+      
+      // Show appropriate error message
+      if (errorMessage.includes('leggere') || errorMessage.includes('timeout')) {
+        toast({
+          title: "Bolletta non leggibile",
+          description: errorMessage,
+          variant: "destructive",
+          action: retryCount < 2 ? (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                setRetryCount(prev => prev + 1);
+                handleFileUpload(files);
+              }}
+            >
+              Riprova
+            </Button>
+          ) : (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowManualFallback(true)}
+            >
+              Inserisci manualmente
+            </Button>
+          )
+        });
+      } else {
+        toast({
+          title: "Errore nell'analisi",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsUploading(false);
     }
   };
 
-  // --- resto: manual fallback & UI identici ---
-
-  const handleManualFallbackSubmit = async (data: { provider: string; annualKwh: number; totalCostEur?: number }) => {
+  const handleManualFallbackSubmit = async (data: {
+    provider: string;
+    annualKwh: number;
+    totalCostEur?: number;
+  }) => {
     if (!pendingUploadId) return;
 
     try {
       setShowManualFallback(false);
       setIsUploading(true);
-      setCurrentStep("calculate");
+      setCurrentStep('calculate');
 
-      const { error: ocrInsertError } = await supabase.from("ocr_results").insert({
-        upload_id: pendingUploadId,
-        annual_kwh: data.annualKwh,
-        total_cost_eur: data.totalCostEur,
-        provider: data.provider,
-        quality_score: 0.6,
-        tariff_hint: "manual",
-      });
+      // Create OCR result with manual data
+      const { error: ocrInsertError } = await supabase
+        .from("ocr_results")
+        .insert({
+          upload_id: pendingUploadId,
+          annual_kwh: data.annualKwh,
+          total_cost_eur: data.totalCostEur,
+          provider: data.provider,
+          quality_score: 0.6, // Manual input quality score
+          tariff_hint: "manual"
+        });
 
       if (ocrInsertError) {
         await logError({
-          type: "validation",
-          message: "Failed to insert manual OCR data",
+          type: 'validation',
+          message: 'Failed to insert manual OCR data',
           uploadId: pendingUploadId,
-          payload: { error: ocrInsertError },
+          payload: { error: ocrInsertError }
         });
         throw ocrInsertError;
       }
 
-      await updateUploadStatus(pendingUploadId, "success");
+      await updateUploadStatus(pendingUploadId, 'success');
 
-      const { data: compareData, error: compareError } = await supabase.functions.invoke("compare-offers", {
-        body: { uploadId: pendingUploadId },
+      // Continue with comparison
+      const { data: compareData, error: compareError } = await supabase.functions.invoke('compare-offers', {
+        body: { uploadId: pendingUploadId }
       });
 
       if (compareError) {
         await logError({
-          type: "network",
-          message: "Compare offers failed",
+          type: 'network',
+          message: 'Compare offers failed',
           uploadId: pendingUploadId,
-          payload: { error: compareError },
+          payload: { error: compareError }
         });
         throw compareError;
       }
 
-      console.log("Offers compared successfully (manual fallback):", compareData);
-
-      setCurrentStep("complete");
-
+      setCurrentStep('complete');
+      
       toast({
         title: "Analisi completata!",
         description: "Confronto offerte completato con i tuoi dati.",
@@ -328,6 +400,7 @@ const UploadPage = () => {
       setTimeout(() => {
         navigate(`/results?uploadId=${pendingUploadId}`);
       }, 1000);
+
     } catch (error) {
       console.error("Error processing manual fallback:", error);
       toast({
@@ -347,37 +420,44 @@ const UploadPage = () => {
     try {
       setShowManualInput(false);
       setIsUploading(true);
-      setCurrentStep("calculate");
+      setCurrentStep('calculate');
 
+      // Store manual fields in bills table
       await supabase.from("bills").insert({
         fields_json: fields,
-        raw_text: "Manual input",
+        raw_text: "Manual input"
       });
 
-      const { error: ocrInsertError } = await supabase.from("ocr_results").insert({
-        upload_id: pendingUploadId,
-        annual_kwh: fields.kwh_period,
-        f1_kwh: fields.f1_kwh,
-        f2_kwh: fields.f2_kwh,
-        f3_kwh: fields.f3_kwh,
-        potenza_kw: fields.potenza_kw,
-        total_cost_eur: fields.fixed_fee_month * 12,
-        quality_score: 0.5,
-        tariff_hint: "manual",
-      });
+      // Create OCR result with manual data
+      const { error: ocrInsertError } = await supabase
+        .from("ocr_results")
+        .insert({
+          upload_id: pendingUploadId,
+          annual_kwh: fields.kwh_period,
+          f1_kwh: fields.f1_kwh,
+          f2_kwh: fields.f2_kwh,
+          f3_kwh: fields.f3_kwh,
+          potenza_kw: fields.potenza_kw,
+          total_cost_eur: fields.fixed_fee_month * 12,
+          quality_score: 0.5, // Manual input quality score
+          tariff_hint: "manual"
+        });
 
       if (ocrInsertError) throw ocrInsertError;
 
-      const { data: compareData, error: compareError } = await supabase.functions.invoke("compare-offers", {
-        body: { uploadId: pendingUploadId },
+      // Continue with comparison
+      console.log("Calling offer comparison with manual data...");
+      const { data: compareData, error: compareError } = await supabase.functions.invoke('compare-offers', {
+        body: { uploadId: pendingUploadId }
       });
 
       if (compareError) throw compareError;
 
-      console.log("Offers compared successfully (manual input):", compareData);
+      console.log('Offers compared successfully:', compareData);
 
-      setCurrentStep("complete");
-
+      // AI explanations will be generated in Results page
+      setCurrentStep('complete');
+      
       toast({
         title: "Analisi completata!",
         description: "Confronto offerte completato con i dati inseriti manualmente.",
@@ -386,6 +466,7 @@ const UploadPage = () => {
       setTimeout(() => {
         navigate(`/results?uploadId=${pendingUploadId}`);
       }, 1000);
+
     } catch (error) {
       console.error("Error processing manual input:", error);
       toast({
@@ -402,15 +483,18 @@ const UploadPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-
+      
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto space-y-8">
+          
           {!isUploading && uploadedFiles.length === 0 && (
             <>
               <div className="text-center space-y-4">
-                <h1 className="text-4xl font-semibold">Analizza la tua bolletta</h1>
+                <h1 className="text-4xl font-semibold">
+                  Analizza la tua bolletta
+                </h1>
                 <p className="text-lg text-muted-foreground">
-                  Carica una o più foto/PDF, poi clicca &quot;Analizza&quot;
+                  Carica una o più foto/PDF, poi clicca "Analizza"
                 </p>
               </div>
 
@@ -432,13 +516,15 @@ const UploadPage = () => {
                             <Upload className="w-4 h-4 text-muted-foreground" />
                             <div>
                               <p className="text-sm font-medium">{file.name}</p>
-                              <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                              <p className="text-xs text-muted-foreground">
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </p>
                             </div>
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setStagedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                            onClick={() => setStagedFiles(prev => prev.filter((_, i) => i !== idx))}
                           >
                             Rimuovi
                           </Button>
@@ -447,11 +533,15 @@ const UploadPage = () => {
                     </div>
 
                     <div className="flex gap-3">
-                      <Button onClick={handleAnalyzeFiles} className="flex-1" size="lg">
+                      <Button 
+                        onClick={handleAnalyzeFiles} 
+                        className="flex-1"
+                        size="lg"
+                      >
                         <Zap className="w-4 h-4 mr-2" />
                         Analizza bolletta
                       </Button>
-                      <Button
+                      <Button 
                         variant="outline"
                         onClick={() => document.querySelector<HTMLInputElement>('input[type="file"]')?.click()}
                       >
@@ -461,7 +551,7 @@ const UploadPage = () => {
                   </CardContent>
                 </Card>
               )}
-
+              
               <div className="text-center text-sm text-muted-foreground">
                 <Shield className="w-4 h-4 inline mr-1" />
                 Analisi gratuita - Nessun obbligo
@@ -472,22 +562,25 @@ const UploadPage = () => {
           {isUploading && (
             <div className="space-y-6">
               <div className="text-center">
-                <h2 className="text-2xl font-semibold mb-2">Analisi in corso</h2>
+                <h2 className="text-2xl font-semibold mb-2">
+                  Analisi in corso
+                </h2>
                 <p className="text-muted-foreground">
-                  {ocrTimeoutWarning
+                  {ocrTimeoutWarning 
                     ? "Stiamo ancora elaborando... Qualche secondo in più del solito."
-                    : "Non chiudere questa pagina"}
+                    : "Non chiudere questa pagina"
+                  }
                 </p>
               </div>
-
+              
               <ProgressIndicator currentStep={currentStep} />
-
+              
               {ocrTimeoutWarning && (
                 <Card className="glass border-primary/20">
                   <CardContent className="p-4">
                     <p className="text-sm text-center text-muted-foreground">
                       <Clock className="w-4 h-4 inline mr-2" />
-                      Connessione lenta rilevata. Continua l&apos;elaborazione...
+                      Connessione lenta rilevata. Continua l'elaborazione...
                     </p>
                   </CardContent>
                 </Card>
@@ -510,7 +603,9 @@ const UploadPage = () => {
               <CardContent className="p-8 text-center space-y-4">
                 <CheckCircle className="w-12 h-12 text-success mx-auto" />
                 <h3 className="text-xl font-semibold">Completato!</h3>
-                <p className="text-muted-foreground">Caricamento risultati...</p>
+                <p className="text-muted-foreground">
+                  Caricamento risultati...
+                </p>
               </CardContent>
             </Card>
           )}
