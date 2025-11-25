@@ -125,6 +125,21 @@ verify_jwt = false
 [functions.scrape-single-offer]
 verify_jwt = false
 
+[functions.scrape-batch-1]
+verify_jwt = false
+
+[functions.scrape-batch-2]
+verify_jwt = false
+
+[functions.scrape-batch-3]
+verify_jwt = false
+
+[functions.scrape-batch-4]
+verify_jwt = false
+
+[functions.scrape-master]
+verify_jwt = false
+
 [edge-runtime]
 enabled = true
 ip_version = "ipv6"
