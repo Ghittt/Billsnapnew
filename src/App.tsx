@@ -24,7 +24,6 @@ import Debug from "./pages/Debug";
 import DebugOCR from "./pages/DebugOCR";
 import DebugScraping from "./pages/DebugScraping";
 import DebugAI from "./pages/DebugAI";
-import PipelineDebug from "./pages/PipelineDebug";
 import NotFound from "./pages/NotFound";
 import CollectiveOffer from "./pages/CollectiveOffer";
 import Contracts from "./pages/Contracts";
@@ -61,7 +60,6 @@ const App = () => (
             <Route path="/debug-ocr" element={<DebugOCR />} />
             <Route path="/debug-scraping" element={<DebugScraping />} />
             <Route path="/debug-ai" element={<DebugAI />} />
-            <Route path="/debug-pipeline" element={<PipelineDebug />} />
             <Route path="/scraping-test" element={<ScrapingTest />} />
             <Route path="/offerta-collettiva" element={<CollectiveOffer />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
