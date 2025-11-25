@@ -119,9 +119,6 @@ verify_jwt = false
 [functions.analyze-consumption]
 verify_jwt = false
 
-[functions.test-scrape]
-verify_jwt = false
-
 [functions.scrape-single-offer]
 verify_jwt = false
 
