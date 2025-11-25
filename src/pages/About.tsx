@@ -7,6 +7,10 @@ export default function About() {
       <Header />
       
       <main className="container mx-auto px-4 py-12 max-w-4xl">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-4">Chi Siamo</h1>
+        </div>
+
         <div className="space-y-8">
           <div className="prose prose-lg dark:prose-invert max-w-none">
             <h2 className="text-2xl font-bold mb-6">Siamo stanchi quanto te.</h2>
