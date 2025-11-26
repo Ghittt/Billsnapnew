@@ -1,6 +1,6 @@
 // FIRECRAWL DEBUG FUNCTION — backend only
 
-const FIRECRAWL_API_KEY = "INSERISCI_LA_TUA_API_KEY";
+const FIRECRAWL_API_KEY = "fc-14aee11fc0da4fae942e302597bde24e";
 
 export async function POST(req: Request) {
   try {
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+        Authorization: "Bearer fc-14aee11fc0da4fae942e302597bde24e",
       },
       body: JSON.stringify({
         url,
