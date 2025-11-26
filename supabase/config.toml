@@ -86,6 +86,9 @@ verify_jwt = false
 [functions.test-log]
 verify_jwt = false
 
+[functions.scrape-offers]
+verify_jwt = false
+
 [functions.health-check]
 verify_jwt = false
 
