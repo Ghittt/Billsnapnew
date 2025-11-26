@@ -40,31 +40,37 @@ export default function DebugScraping() {
     try {
       toast({
         title: "Scraping avviato",
-        description: "Sto scrapando le offerte... Potrebbe richiedere 1-2 minuti",
+        description: "Sto scrappando le offerte... Potrebbe richiedere 1-2 minuti",
       });
 
-      const { data, error } = await supabase.functions.invoke("scrape-offers", {
+      const res = await fetch("/functions/scrape-offers", {
         method: "POST",
-        body: {
-          url: "https://www.enel.it",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          url: "https://www.enel.it", // URL di test
+        }),
       });
 
-      if (error) throw error;
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Errore nello scraping");
+      }
 
       toast({
         title: "Scraping completato",
-        description: `${data.scraped_count} offerte scrapate, ${data.inserted_count} inserite nel database`,
+        description: `${data.scraped_count ?? "-"} offerte scrappate, ${data.inserted_count ?? "-"} nuove offerte salvate.`,
       });
 
-      // Ricarica i dati
+      // Ricarica i dati dal DB
       await fetchScrapedOffers();
     } catch (error) {
       console.error("Scraping error:", error);
       toast({
         title: "Errore scraping",
-        description: error instanceof Error ? error.message : "Errore durante lo scraping",
-        variant: "destructive",
+        description: "Qualcosa è andato storto durante lo scraping.",
       });
     } finally {
       setScraping(false);
