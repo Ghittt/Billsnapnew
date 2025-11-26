@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     const { url } = await req.json();
 
     if (!url) {
-      console.error("Missing URL parameter");
+      console.error("scrape-offers ERROR: Missing URL parameter");
       return new Response(
         JSON.stringify({ ok: false, error: "Missing 'url' in body" }),
         {
@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     }
 
     if (!FIRECRAWL_API_KEY) {
-      console.error("FIRECRAWL_API_KEY not configured");
+      console.error("scrape-offers ERROR: FIRECRAWL_API_KEY not configured");
       return new Response(
         JSON.stringify({ ok: false, error: "Firecrawl API key not configured" }),
         {
@@ -40,8 +40,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log("DEBUG Firecrawl – URL:", url);
-    console.log("DEBUG Firecrawl – API Key configured:", !!FIRECRAWL_API_KEY);
+    console.log("scrape-offers START: Calling Firecrawl for URL:", url);
+    console.log("scrape-offers INFO: API Key configured:", !!FIRECRAWL_API_KEY);
 
     const firecrawlRes = await fetch("https://api.firecrawl.dev/v1/scrape", {
       method: "POST",
@@ -56,14 +56,18 @@ Deno.serve(async (req) => {
     });
 
     const data = await firecrawlRes.json();
+    const responseText = data?.markdown || data?.html || "";
+    const preview = responseText.substring(0, 300);
 
-    console.log("DEBUG Firecrawl – status:", firecrawlRes.status);
-    console.log("DEBUG Firecrawl – response:", JSON.stringify(data).substring(0, 200));
+    console.log("scrape-offers RESPONSE: HTTP status:", firecrawlRes.status);
+    console.log("scrape-offers RESPONSE: Scraped length:", responseText.length);
+    console.log("scrape-offers RESPONSE: Preview (first 300 chars):", preview);
 
     return new Response(
       JSON.stringify({
         ok: true,
-        html: data?.markdown || data?.html || "",
+        scraped_length: responseText.length,
+        preview: preview,
         status: firecrawlRes.status,
       }),
       {
@@ -72,7 +76,7 @@ Deno.serve(async (req) => {
       }
     );
   } catch (err: any) {
-    console.error("DEBUG Firecrawl – error:", err);
+    console.error("scrape-offers ERROR: Exception caught:", err?.message || err);
     return new Response(
       JSON.stringify({
         ok: false,
