@@ -44,6 +44,7 @@ export default function DebugScraping() {
       });
 
       const { data, error } = await supabase.functions.invoke("scrape-offers", {
+        method: "POST",
         body: {
           url: "https://www.enel.it",
         },
