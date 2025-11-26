@@ -1,70 +1,84 @@
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
+import Header from "@/components/layout/Header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { RefreshCw, Globe, Play } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-const DebugScraping = () => {
-  const { toast } = useToast();
+type Offer = {
+  id: string;
+  source: string | null;
+  url: string | null;
+  provider: string | null;
+  created_at: string;
+};
+
+export default function DebugScraping() {
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [loading, setLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
-  const [offers, setOffers] = useState<any[]>([]);
+  const { toast } = useToast();
 
+  // Legge le offerte dal DB Supabase
   const fetchScrapedOffers = async () => {
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from("offers")
         .select("*")
-        .eq("is_active", true)
+        .in("source", ["firecrawl", "scraper"])
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(20);
 
       if (error) throw error;
       setOffers(data || []);
     } catch (error) {
-      console.error("Error fetching offers:", error);
+      console.error("Error fetching scraped offers:", error);
+      toast({
+        title: "Errore caricamento dati",
+        description: "Impossibile caricare le offerte dal DB.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchScrapedOffers();
+  }, []);
+
+  // Avvia la edge function di scraping
   const runScraper = async () => {
     setScraping(true);
-
     try {
       toast({
         title: "Scraping avviato",
-        description: "Sto scrappando le offerte... Potrebbe richiedere 1-2 minuti",
+        description: "Sto scrappando le offerte... Potrebbe richiedere 1–2 minuti",
       });
 
-      console.log("DEBUG FRONTEND – chiamo scrape-offers");
+      const { data, error } = await supabase.functions.invoke("scrape-offers", {
+        body: {
+          // URL di test per far rispondere Firecrawl
+          url: "https://www.enel.it",
+        },
+      });
 
-      const res = await fetch(
-        "https://qmslpwhtintqfijpxhsf.supabase.co/functions/v1/scrape-offers",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            url: "https://www.enel.it",
-          }),
-        }
-      );
+      if (error) throw error;
 
-      const data = await res.json();
-      console.log("DEBUG FRONTEND – risposta:", res.status, data);
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Errore nello scraping");
-      }
+      console.log("Scraping result:", data);
 
       toast({
         title: "Scraping completato",
-        description: `Status Firecrawl: ${data.status}`,
+        description: `Offerte scrappate: ${data?.scraped_count ?? "?"}`,
       });
 
+      // Ricarica i dati dal DB
       await fetchScrapedOffers();
     } catch (error) {
-      console.error("DEBUG FRONTEND – scraping error:", error);
+      console.error("Scraping error:", error);
       toast({
         title: "Errore scraping",
         description: "Qualcosa è andato storto durante lo scraping.",
@@ -76,40 +90,64 @@ const DebugScraping = () => {
   };
 
   return (
-    <div className="container mx-auto p-8">
-      <Card className="p-6">
-        <h1 className="text-2xl font-bold mb-4">Debug Scraping</h1>
-        
-        <div className="space-y-4">
-          <Button onClick={runScraper} disabled={scraping}>
-            {scraping ? "Scraping in corso..." : "Avvia Scraping Test"}
-          </Button>
+    <div className="min-h-screen bg-background">
+      <Header />
 
-          <Button onClick={fetchScrapedOffers} variant="outline">
-            Aggiorna Offerte
-          </Button>
+      <main className="container mx-auto px-4 py-8 space-y-6">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Globe className="h-8 w-8" />
+              Debug Scraping
+            </h1>
+            <p className="text-muted-foreground">
+              Visualizza dati Firecrawl salvati su Supabase e lancia uno scraping di test.
+            </p>
+          </div>
 
-          {offers.length > 0 && (
-            <div className="mt-6">
-              <h2 className="text-xl font-semibold mb-2">
-                Offerte trovate: {offers.length}
-              </h2>
-              <div className="space-y-2">
-                {offers.map((offer) => (
-                  <div key={offer.id} className="border p-3 rounded">
-                    <p className="font-medium">{offer.provider} - {offer.plan_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Prezzo: {offer.price_kwh ? `${offer.price_kwh} €/kWh` : "N/D"}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={fetchScrapedOffers} disabled={loading || scraping}>
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Ricarica dati
+            </Button>
+
+            <Button onClick={runScraper} disabled={loading || scraping}>
+              <Play className="h-4 w-4 mr-2" />
+              {scraping ? "Scraping..." : "Avvia scraping"}
+            </Button>
+          </div>
         </div>
-      </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Ultime offerte scrappate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {offers.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Nessuna offerta trovata. Avvia lo scraping per popolare i dati.
+              </p>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {offers.map((offer) => (
+                <Card key={offer.id}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-base truncate">{offer.provider || "Provider sconosciuto"}</CardTitle>
+                      <Badge variant="outline">{offer.source || "sorgente"}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-xs text-muted-foreground break-all">{offer.url}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(offer.created_at).toLocaleString()}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </main>
     </div>
   );
-};
-
-export default DebugScraping;
+}
