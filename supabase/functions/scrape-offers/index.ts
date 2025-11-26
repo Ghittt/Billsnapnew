@@ -1,4 +1,4 @@
-// FIRECRAWL DEBUG FUNCTION — backend only
+// Edge Function: scrape-offers
 
 const FIRECRAWL_API_KEY = "fc-14aee11fc0da4fae942e302597bde24e";
 
@@ -6,13 +6,20 @@ export async function POST(req: Request) {
   try {
     const { url } = await req.json();
 
-    console.log("DEBUG Firecrawl – URL ricevuto:", url);
+    if (!url) {
+      return new Response(JSON.stringify({ ok: false, error: "Missing 'url' in body" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    console.log("DEBUG Firecrawl – URL:", url);
 
     const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer fc-14aee11fc0da4fae942e302597bde24e",
+        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
       },
       body: JSON.stringify({
         url,
@@ -20,27 +27,23 @@ export async function POST(req: Request) {
       }),
     });
 
-    console.log("DEBUG Firecrawl – status:", res.status);
-
     const data = await res.json();
 
-    console.log("DEBUG Firecrawl – primi 500 caratteri:", JSON.stringify(data).slice(0, 500));
+    console.log("DEBUG Firecrawl – status:", res.status);
 
     return new Response(
       JSON.stringify({
         ok: true,
-        firecrawlRaw: data,
+        status: res.status,
+        data,
       }),
-      { status: 200 },
+      { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err: any) {
     console.error("DEBUG Firecrawl – errore:", err);
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: String(err?.message || err),
-      }),
-      { status: 500 },
-    );
+    return new Response(JSON.stringify({ ok: false, error: String(err?.message || err) }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
