@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import Header from '@/components/layout/Header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { RefreshCw, Globe, Play } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import React, { useState, useEffect } from "react";
+import Header from "@/components/layout/Header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { RefreshCw, Globe, Play } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DebugScraping() {
   const [offers, setOffers] = useState<any[]>([]);
@@ -21,15 +21,15 @@ export default function DebugScraping() {
     setLoading(true);
     try {
       const { data } = await supabase
-        .from('offers')
-        .select('*')
-        .in('source', ['firecrawl', 'scraper'])
-        .order('created_at', { ascending: false })
+        .from("offers")
+        .select("*")
+        .in("source", ["firecrawl", "scraper"])
+        .order("created_at", { ascending: false })
         .limit(20);
 
       setOffers(data || []);
     } catch (error) {
-      console.error('Error fetching scraped offers:', error);
+      console.error("Error fetching scraped offers:", error);
     } finally {
       setLoading(false);
     }
@@ -40,26 +40,30 @@ export default function DebugScraping() {
     try {
       toast({
         title: "Scraping avviato",
-        description: "Sto scrapando le offerte... Potrebbe richiedere 1-2 minuti"
+        description: "Sto scrapando le offerte... Potrebbe richiedere 1-2 minuti",
       });
 
-      const { data, error } = await supabase.functions.invoke('scrape-offers');
+      const { data, error } = await supabase.functions.invoke("scrape-offers", {
+        body: {
+          url: "https://www.enel.it",
+        },
+      });
 
       if (error) throw error;
 
       toast({
         title: "Scraping completato",
-        description: `${data.scraped_count} offerte scrapate, ${data.inserted_count} inserite nel database`
+        description: `${data.scraped_count} offerte scrapate, ${data.inserted_count} inserite nel database`,
       });
 
       // Ricarica i dati
       await fetchScrapedOffers();
     } catch (error) {
-      console.error('Scraping error:', error);
+      console.error("Scraping error:", error);
       toast({
         title: "Errore scraping",
-        description: error instanceof Error ? error.message : 'Errore durante lo scraping',
-        variant: "destructive"
+        description: error instanceof Error ? error.message : "Errore durante lo scraping",
+        variant: "destructive",
       });
     } finally {
       setScraping(false);
@@ -80,12 +84,12 @@ export default function DebugScraping() {
           </div>
           <div className="flex gap-2">
             <Button onClick={fetchScrapedOffers} disabled={loading || scraping} variant="outline">
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
               Ricarica
             </Button>
             <Button onClick={runScraper} disabled={loading || scraping}>
-              <Play className={`h-4 w-4 mr-2 ${scraping ? 'animate-pulse' : ''}`} />
-              {scraping ? 'Scraping...' : 'Avvia Scraping'}
+              <Play className={`h-4 w-4 mr-2 ${scraping ? "animate-pulse" : ""}`} />
+              {scraping ? "Scraping..." : "Avvia Scraping"}
             </Button>
           </div>
         </div>
@@ -103,7 +107,7 @@ export default function DebugScraping() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">{offers.filter(o => o.is_active).length}</p>
+                <p className="text-3xl font-bold">{offers.filter((o) => o.is_active).length}</p>
                 <p className="text-sm text-muted-foreground">Offerte attive</p>
               </div>
             </CardContent>
@@ -111,7 +115,7 @@ export default function DebugScraping() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">{offers.filter(o => o.commodity === 'power').length}</p>
+                <p className="text-3xl font-bold">{offers.filter((o) => o.commodity === "power").length}</p>
                 <p className="text-sm text-muted-foreground">Luce</p>
               </div>
             </CardContent>
@@ -119,7 +123,7 @@ export default function DebugScraping() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <p className="text-3xl font-bold">{offers.filter(o => o.commodity === 'gas').length}</p>
+                <p className="text-3xl font-bold">{offers.filter((o) => o.commodity === "gas").length}</p>
                 <p className="text-sm text-muted-foreground">Gas</p>
               </div>
             </CardContent>
@@ -145,8 +149,8 @@ export default function DebugScraping() {
                       <p className="text-sm text-muted-foreground">{offer.plan_name}</p>
                     </div>
                     <div className="flex gap-2">
-                      <Badge variant={offer.is_active ? 'default' : 'secondary'}>
-                        {offer.is_active ? 'Attiva' : 'Inattiva'}
+                      <Badge variant={offer.is_active ? "default" : "secondary"}>
+                        {offer.is_active ? "Attiva" : "Inattiva"}
                       </Badge>
                       <Badge variant="outline">{offer.commodity}</Badge>
                       {offer.source && <Badge variant="outline">{offer.source}</Badge>}
@@ -157,7 +161,7 @@ export default function DebugScraping() {
                     <div>
                       <span className="text-muted-foreground">Prezzo:</span>
                       <p className="font-semibold">
-                        {offer.commodity === 'power' 
+                        {offer.commodity === "power"
                           ? `${offer.price_kwh?.toFixed(3)} €/kWh`
                           : `${offer.unit_price_eur_smc?.toFixed(3)} €/Smc`}
                       </p>
@@ -172,18 +176,16 @@ export default function DebugScraping() {
                     </div>
                     <div>
                       <span className="text-muted-foreground">Scrapato il:</span>
-                      <p className="font-semibold text-xs">
-                        {new Date(offer.created_at).toLocaleDateString('it-IT')}
-                      </p>
+                      <p className="font-semibold text-xs">{new Date(offer.created_at).toLocaleDateString("it-IT")}</p>
                     </div>
                   </div>
 
                   {offer.redirect_url && (
                     <div className="text-xs">
                       <span className="text-muted-foreground">URL:</span>
-                      <a 
-                        href={offer.redirect_url} 
-                        target="_blank" 
+                      <a
+                        href={offer.redirect_url}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="ml-2 text-primary hover:underline break-all"
                       >
@@ -194,15 +196,11 @@ export default function DebugScraping() {
 
                   {offer.url_ok !== null && (
                     <div className="flex items-center gap-2 text-sm">
-                      <Badge variant={offer.url_ok ? 'default' : 'destructive'}>
-                        URL {offer.url_ok ? 'OK' : 'Error'}
+                      <Badge variant={offer.url_ok ? "default" : "destructive"}>
+                        URL {offer.url_ok ? "OK" : "Error"}
                       </Badge>
-                      {offer.url_status && (
-                        <span className="text-muted-foreground">Status: {offer.url_status}</span>
-                      )}
-                      {offer.url_error && (
-                        <span className="text-destructive text-xs">{offer.url_error}</span>
-                      )}
+                      {offer.url_status && <span className="text-muted-foreground">Status: {offer.url_status}</span>}
+                      {offer.url_error && <span className="text-destructive text-xs">{offer.url_error}</span>}
                     </div>
                   )}
                 </div>
