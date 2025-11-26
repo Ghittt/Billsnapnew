@@ -63,8 +63,8 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         ok: true,
+        html: data?.markdown || data?.html || "",
         status: firecrawlRes.status,
-        data,
       }),
       {
         status: 200,
