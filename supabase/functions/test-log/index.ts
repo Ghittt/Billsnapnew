@@ -20,10 +20,8 @@ Deno.serve(async (req) => {
 
   return new Response(
     JSON.stringify({
-      success: true,
+      ok: true,
       message: "TEST-OK",
-      timestamp: new Date().toISOString(),
-      method: req.method,
     }),
     {
       status: 200,
