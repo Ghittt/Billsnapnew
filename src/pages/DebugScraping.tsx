@@ -36,23 +36,46 @@ export default function DebugScraping() {
   };
 
   const runScraper = async () => {
-    setScraping(true);
-    try {
-      toast({
-        title: "Scraping avviato",
-        description: "Sto scrappando le offerte... Potrebbe richiedere 1-2 minuti",
-      });
+  setScraping(true);
+  try {
+    toast({
+      title: "Scraping avviato",
+      description: "Sto scrappando le offerte... Potrebbe richiedere 1-2 minuti",
+    });
 
-      const res = await fetch("/functions/scrape-offers", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: "https://www.enel.it", // URL di test
-        }),
-      });
+    console.log("DEBUG FRONTEND – chiamo /functions/scrape-offers");
 
+    const res = await fetch("/functions/scrape-offers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: "https://www.enel.it", // URL di test
+      }),
+    });
+
+    const json = await res.json();
+    console.log("DEBUG FRONTEND – risposta:", res.status, json);
+
+    if (!res.ok || !json.ok) {
+      throw new Error(json.error || `Errore HTTP ${res.status}`);
+    }
+
+    toast({
+      title: "Scraping completato",
+      description: `Status Firecrawl: ${json.status}`,
+    });
+
+    await fetchScrapedOffers(); // ricarica la lista dal DB se la usi
+  } catch (error) {
+    console.error("DEBUG FRONTEND – errore scraping:", error);
+    toast({
+      title: "Errore scraping",
+      description: "Qualcosa è andato storto durante lo scraping.",
+    });
+  } finally {
+    setScraping(false);
+  }
+};
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
