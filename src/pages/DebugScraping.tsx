@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 type Offer = {
   id: string;
   source: string | null;
-  url: string | null;
+  product_url: string | null;
   provider: string | null;
   created_at: string;
 };
@@ -56,32 +56,42 @@ export default function DebugScraping() {
     try {
       toast({
         title: "Scraping avviato",
-        description: "Sto scrappando le offerte... Potrebbe richiedere 1–2 minuti",
+        description: "Chiamata a scrape-offers in corso...",
       });
 
       const { data, error } = await supabase.functions.invoke("scrape-offers", {
         body: {
-          // URL di test per far rispondere Firecrawl
           url: "https://www.enel.it",
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Errore edge function:", error);
+        throw new Error(error.message || "Errore nella chiamata");
+      }
 
       console.log("Scraping result:", data);
 
-      toast({
-        title: "Scraping completato",
-        description: `Offerte scrappate: ${data?.scraped_count ?? "?"}`,
-      });
+      if (data?.ok) {
+        toast({
+          title: "Scraping completato",
+          description: `Estratti ${data.scraped_length || 0} caratteri. Controlla i log in Cloud → Logs.`,
+        });
+      } else {
+        toast({
+          title: "Scraping fallito",
+          description: data?.error || "Errore sconosciuto",
+          variant: "destructive",
+        });
+      }
 
       // Ricarica i dati dal DB
       await fetchScrapedOffers();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Scraping error:", error);
       toast({
         title: "Errore scraping",
-        description: "Qualcosa è andato storto durante lo scraping.",
+        description: error?.message || "Qualcosa è andato storto durante lo scraping.",
         variant: "destructive",
       });
     } finally {
@@ -139,7 +149,7 @@ export default function DebugScraping() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <p className="text-xs text-muted-foreground break-all">{offer.url}</p>
+                    <p className="text-xs text-muted-foreground break-all">{offer.product_url}</p>
                     <p className="text-xs text-muted-foreground">{new Date(offer.created_at).toLocaleString()}</p>
                   </CardContent>
                 </Card>
