@@ -34,10 +34,10 @@ const DebugScraping = () => {
         description: "Sto scrappando le offerte... Potrebbe richiedere 1-2 minuti",
       });
 
-      console.log("DEBUG FRONTEND – chiamo /functions/v1/scrape-offers");
+      console.log("DEBUG FRONTEND – chiamo scrape-offers");
 
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scrape-offers`,
+        "https://qmslpwhtintqfijpxhsf.supabase.co/functions/v1/scrape-offers",
         {
           method: "POST",
           headers: {
