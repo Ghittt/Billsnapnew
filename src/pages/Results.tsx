@@ -7,6 +7,9 @@ import { ArrowLeft, Loader2, TrendingDown, AlertCircle, Zap } from 'lucide-react
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import '@/types/analytics';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface Offer {
   id: string;
@@ -33,12 +36,18 @@ const ResultsPage = () => {
   const [consumption, setConsumption] = useState<number>(0);
   const [billType, setBillType] = useState<'luce' | 'gas' | 'combo'>('luce');
 
+  // Manual Input State
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualConsumption, setManualConsumption] = useState('');
+  const [manualCost, setManualCost] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
   useEffect(() => {
     if (!uploadId) {
       toast({
-        title: "Errore",
-        description: "ID upload mancante",
-        variant: "destructive"
+        title: 'Errore',
+        description: 'ID upload mancante',
+        variant: 'destructive'
       });
       navigate('/upload');
       return;
@@ -79,18 +88,59 @@ const ResultsPage = () => {
         ? (ocrResult.consumo_annuo_smc || ocrResult.gas_smc)
         : (ocrResult.annual_kwh);
       
-      if (!consumo || consumo <= 0) {
-        throw new Error('Consumo non valido rilevato dal OCR. Riprova con una bolletta più chiara.');
+      // Get current cost from OCR
+      const costo = ocrResult.costo_annuo_totale || ocrResult.total_cost_eur;
+
+      // RELAXED CHECK: Only show manual input if BOTH are missing
+      // If we have at least one value, proceed with what we have
+      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
+        console.warn('Both consumption and cost missing, activating manual fallback');
+        setShowManualInput(true);
+        setIsLoading(false);
+        return; // Stop here, wait for user input
+      }
+      // RELAXED CHECK: Only show manual input if BOTH are missing
+      // If we have at least one value, proceed with what we have
+      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
+        console.warn('Both consumption and cost missing, activating manual fallback');
+        setShowManualInput(true);
+        setIsLoading(false);
+        return; // Stop here, wait for user input
+      }
+      // RELAXED CHECK: Only show manual input if BOTH are missing
+      // If we have at least one value, proceed with what we have
+      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
+        console.warn('Both consumption and cost missing, activating manual fallback');
+        setShowManualInput(true);
+        setIsLoading(false);
+        return; // Stop here, wait for user input
+      }
+      // RELAXED CHECK: Only show manual input if BOTH are missing
+      // If we have at least one value, proceed with what we have
+      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
+        console.warn('Both consumption and cost missing, activating manual fallback');
+        setShowManualInput(true);
+        setIsLoading(false);
+        return; // Stop here, wait for user input
+      }
+      // RELAXED CHECK: Only show manual input if BOTH are missing
+      // If we have at least one value, proceed with what we have
+      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
+        console.warn('Both consumption and cost missing, activating manual fallback');
+        setShowManualInput(true);
+        setIsLoading(false);
+        return; // Stop here, wait for user input
+      }
+      // RELAXED CHECK: Only show manual input if BOTH are missing
+      // If we have at least one value, proceed with what we have
+      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
+        console.warn('Both consumption and cost missing, activating manual fallback');
+        setShowManualInput(true);
+        setIsLoading(false);
+        return; // Stop here, wait for user input
       }
 
       setConsumption(consumo);
-
-      // Get current cost from OCR
-      const costo = ocrResult.costo_annuo_totale || ocrResult.total_cost_eur;
-      if (!costo || costo <= 0) {
-        throw new Error('Costo totale non rilevato. Riprova con una bolletta più chiara.');
-      }
-
       setCurrentCost(costo);
 
       // 2. Get comparison results - MUST exist
@@ -129,7 +179,71 @@ const ResultsPage = () => {
       // Block navigation - go back to upload
       setTimeout(() => navigate('/upload'), 2000);
     } finally {
-      setIsLoading(false);
+      // Only stop loading if we are NOT showing manual input
+      // If showing manual input, we keep loading state 'false' but content hidden? 
+      // Actually we set isLoading(false) inside the if block above, so here we just ensure it is false if we reached here
+      if (!showManualInput) {
+         setIsLoading(false);
+      }
+    }
+  };
+
+  const handleManualSubmit = async () => {
+    try {
+      setIsUpdating(true);
+      const kwh = parseFloat(manualConsumption);
+      const eur = parseFloat(manualCost);
+
+      if (isNaN(kwh) || kwh <= 0 || isNaN(eur) || eur <= 0) {
+        toast({
+          title: 'Dati non validi',
+          description: 'Inserisci valori numerici positivi',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Update OCR results
+      const updateData: any = {
+        total_cost_eur: eur,
+        quality_score: 1.0, // User verified
+        tariff_hint: 'manual_fallback'
+      };
+
+      if (billType === 'gas') {
+        updateData.gas_smc = kwh;
+        updateData.consumo_annuo_smc = kwh;
+      } else {
+        updateData.annual_kwh = kwh;
+      }
+
+      const { error: updateError } = await supabase
+        .from('ocr_results')
+        .update(updateData)
+        .eq('upload_id', uploadId);
+
+      if (updateError) throw updateError;
+
+      // Re-run comparison
+      const { error: compareError } = await supabase.functions.invoke('compare-offers', {
+        body: { uploadId }
+      });
+
+      if (compareError) throw compareError;
+
+      setShowManualInput(false);
+      setIsLoading(true);
+      fetchRealResults(); // Reload everything
+
+    } catch (error) {
+      console.error('Manual update failed:', error);
+      toast({
+        title: 'Errore',
+        description: 'Impossibile aggiornare i dati. Riprova.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -183,12 +297,12 @@ const ResultsPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className='min-h-screen bg-background'>
         <Header />
-        <div className="container mx-auto px-4 py-12 flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
-            <p className="text-muted-foreground">Caricamento risultati...</p>
+        <div className='container mx-auto px-4 py-12 flex items-center justify-center'>
+          <div className='text-center space-y-4'>
+            <Loader2 className='h-12 w-12 animate-spin mx-auto text-primary' />
+            <p className='text-muted-foreground'>Caricamento risultati...</p>
           </div>
         </div>
       </div>
@@ -196,51 +310,51 @@ const ResultsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className='min-h-screen bg-background'>
       <Header />
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+      <main className='container mx-auto px-4 py-8 max-w-4xl'>
         {/* Navigation */}
         <Button
-          variant="ghost"
+          variant='ghost'
           onClick={() => navigate('/upload')}
-          className="gap-2 mb-6"
+          className='gap-2 mb-6'
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className='h-4 w-4' />
           Analizza un'altra bolletta
         </Button>
 
         {/* Hero Numbers - Apple Style */}
-        <div className="text-center space-y-12 py-8">
+        <div className='text-center space-y-12 py-8'>
           <div>
-            <h1 className="text-5xl md:text-6xl font-bold mb-4">La tua analisi</h1>
-            <p className="text-xl text-muted-foreground">Dati reali estratti dalla tua bolletta {billType}</p>
+            <h1 className='text-5xl md:text-6xl font-bold mb-4'>La tua analisi</h1>
+            <p className='text-xl text-muted-foreground'>Dati reali estratti dalla tua bolletta {billType}</p>
           </div>
 
           {/* I 3 NUMERI CHIAVE */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-8'>
             {/* Quanto spendi ora */}
-            <Card className="border-2">
-              <CardContent className="p-8 text-center space-y-2">
-                <p className="text-sm text-muted-foreground uppercase tracking-wide">Spendi ora</p>
-                <p className="text-5xl font-bold">{fmt(currentMonthly)}</p>
-                <p className="text-sm text-muted-foreground">al mese</p>
-                <div className="pt-4 border-t mt-4">
-                  <p className="text-xs text-muted-foreground">Consumo: {consumption} {billType === 'gas' ? 'Smc' : 'kWh'}</p>
-                  <p className="text-xs text-muted-foreground">Provider: {ocrData?.provider || 'N/A'}</p>
+            <Card className='border-2'>
+              <CardContent className='p-8 text-center space-y-2'>
+                <p className='text-sm text-muted-foreground uppercase tracking-wide'>Spendi ora</p>
+                <p className='text-5xl font-bold'>{fmt(currentMonthly)}</p>
+                <p className='text-sm text-muted-foreground'>al mese</p>
+                <div className='pt-4 border-t mt-4'>
+                  <p className='text-xs text-muted-foreground'>Consumo: {consumption} {billType === 'gas' ? 'Smc' : 'kWh'}</p>
+                  <p className='text-xs text-muted-foreground'>Provider: {ocrData?.provider || 'N/A'}</p>
                 </div>
               </CardContent>
             </Card>
 
             {/* Quanto spenderesti */}
             {bestOffer && (
-              <Card className="border-2 border-green-500/50 bg-green-500/5">
-                <CardContent className="p-8 text-center space-y-2">
-                  <p className="text-sm text-muted-foreground uppercase tracking-wide">Spenderesti</p>
-                  <p className="text-5xl font-bold text-green-600">{fmt(newMonthly)}</p>
-                  <p className="text-sm text-muted-foreground">al mese</p>
-                  <div className="pt-4 border-t mt-4">
-                    <p className="text-xs font-semibold">{bestOffer.provider}</p>
-                    <p className="text-xs text-muted-foreground">{bestOffer.plan_name}</p>
+              <Card className='border-2 border-green-500/50 bg-green-500/5'>
+                <CardContent className='p-8 text-center space-y-2'>
+                  <p className='text-sm text-muted-foreground uppercase tracking-wide'>Spenderesti</p>
+                  <p className='text-5xl font-bold text-green-600'>{fmt(newMonthly)}</p>
+                  <p className='text-sm text-muted-foreground'>al mese</p>
+                  <div className='pt-4 border-t mt-4'>
+                    <p className='text-xs font-semibold'>{bestOffer.provider}</p>
+                    <p className='text-xs text-muted-foreground'>{bestOffer.plan_name}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -248,14 +362,14 @@ const ResultsPage = () => {
 
             {/* Quanto risparmi */}
             {bestOffer && annualSaving > 0 && (
-              <Card className="border-2 border-primary/50 bg-primary/5">
-                <CardContent className="p-8 text-center space-y-2">
-                  <p className="text-sm text-muted-foreground uppercase tracking-wide">Risparmi</p>
-                  <p className="text-5xl font-bold text-primary">{fmt(monthlySaving)}</p>
-                  <p className="text-sm text-muted-foreground">al mese</p>
-                  <div className="pt-4 border-t mt-4">
-                    <TrendingDown className="h-6 w-6 mx-auto text-primary mb-1" />
-                    <p className="text-xs text-muted-foreground">{fmt(annualSaving)} all'anno</p>
+              <Card className='border-2 border-primary/50 bg-primary/5'>
+                <CardContent className='p-8 text-center space-y-2'>
+                  <p className='text-sm text-muted-foreground uppercase tracking-wide'>Risparmi</p>
+                  <p className='text-5xl font-bold text-primary'>{fmt(monthlySaving)}</p>
+                  <p className='text-sm text-muted-foreground'>al mese</p>
+                  <div className='pt-4 border-t mt-4'>
+                    <TrendingDown className='h-6 w-6 mx-auto text-primary mb-1' />
+                    <p className='text-xs text-muted-foreground'>{fmt(annualSaving)} all'anno</p>
                   </div>
                 </CardContent>
               </Card>
@@ -264,12 +378,12 @@ const ResultsPage = () => {
 
           {/* No savings scenario */}
           {bestOffer && annualSaving <= 0 && (
-            <Card className="border-2 border-blue-500/30 bg-blue-500/5">
-              <CardContent className="p-8 text-center space-y-4">
-                <AlertCircle className="h-12 w-12 mx-auto text-blue-600" />
+            <Card className='border-2 border-blue-500/30 bg-blue-500/5'>
+              <CardContent className='p-8 text-center space-y-4'>
+                <AlertCircle className='h-12 w-12 mx-auto text-blue-600' />
                 <div>
-                  <h3 className="text-2xl font-bold mb-2">La tua tariffa è già competitiva</h3>
-                  <p className="text-muted-foreground">
+                  <h3 className='text-2xl font-bold mb-2'>La tua tariffa è già competitiva</h3>
+                  <p className='text-muted-foreground'>
                     Non abbiamo trovato offerte migliori rispetto a quella che hai ora.
                   </p>
                 </div>
@@ -279,25 +393,25 @@ const ResultsPage = () => {
 
           {/* CTA - Attiva offerta */}
           {bestOffer && annualSaving > 0 && (
-            <Card className="border-2 border-primary">
-              <CardContent className="p-8 text-center space-y-6">
+            <Card className='border-2 border-primary'>
+              <CardContent className='p-8 text-center space-y-6'>
                 <div>
-                  <h3 className="text-3xl font-bold mb-2">Pronto per risparmiare?</h3>
-                  <p className="text-muted-foreground">
+                  <h3 className='text-3xl font-bold mb-2'>Pronto per risparmiare?</h3>
+                  <p className='text-muted-foreground'>
                     Clicca per attivare l'offerta con {bestOffer.provider}
                   </p>
                 </div>
 
                 <Button 
-                  size="lg" 
-                  className="text-xl px-12 py-8 h-auto gradient-hero"
+                  size='lg' 
+                  className='text-xl px-12 py-8 h-auto gradient-hero'
                   onClick={() => handleActivateOffer(bestOffer)}
                 >
-                  <Zap className="h-6 w-6 mr-2" />
+                  <Zap className='h-6 w-6 mr-2' />
                   Attiva e risparmia {fmt(monthlySaving)}/mese
                 </Button>
 
-                <p className="text-sm text-muted-foreground">
+                <p className='text-sm text-muted-foreground'>
                   Verrai reindirizzato al sito ufficiale del provider per completare l'attivazione
                 </p>
               </CardContent>
@@ -305,6 +419,52 @@ const ResultsPage = () => {
           )}
         </div>
       </main>
+
+      <Dialog open={showManualInput} onOpenChange={setShowManualInput}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Dati mancanti</DialogTitle>
+            <DialogDescription>
+              Non siamo riusciti a trovare il consumo o il costo annuo nella tua bolletta (potrebbe essere una nuova fornitura). 
+              Inserisci i dati manualmente per continuare.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='grid gap-4 py-4'>
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <Label htmlFor='consumption' className='text-right'>
+                Consumo ({billType === 'gas' ? 'Smc' : 'kWh'})
+              </Label>
+              <Input
+                id='consumption'
+                type='number'
+                value={manualConsumption}
+                onChange={(e) => setManualConsumption(e.target.value)}
+                className='col-span-3'
+                placeholder='Es. 2700'
+              />
+            </div>
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <Label htmlFor='cost' className='text-right'>
+                Spesa Annua (€)
+              </Label>
+              <Input
+                id='cost'
+                type='number'
+                value={manualCost}
+                onChange={(e) => setManualCost(e.target.value)}
+                className='col-span-3'
+                placeholder='Es. 1200'
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleManualSubmit} disabled={isUpdating}>
+              {isUpdating ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : null}
+              Salva e Calcola
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
