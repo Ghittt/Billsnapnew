@@ -15,260 +15,164 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const openAiKey = Deno.env.get('OPENAI_API_KEY');
 
+    if (!openAiKey) {
+      throw new Error('OPENAI_API_KEY not configured');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const { uploadId } = await req.json();
 
     if (!uploadId) {
       throw new Error('uploadId is required');
     }
 
-    console.log(`Comparing offers for upload: ${uploadId}`);
+    console.log(`[COMPARE] Starting analysis for upload: ${uploadId}`);
 
-    // Get upload info to determine bill type
+    // 1. Fetch Upload & OCR Data
     const { data: uploadData } = await supabase
       .from('uploads')
       .select('tipo_bolletta')
       .eq('id', uploadId)
-      .maybeSingle();
+      .single();
 
     const billType = uploadData?.tipo_bolletta || 'luce';
-    console.log(`Bill type: ${billType}`);
 
-    // Get OCR results
-    const { data: ocrData, error: ocrError } = await supabase
+    const { data: ocrData } = await supabase
       .from('ocr_results')
       .select('*')
       .eq('upload_id', uploadId)
       .maybeSingle();
 
-    if (ocrError) {
-      console.warn('OCR results lookup error, proceeding with defaults');
-    }
-
-    // Guard clause: Use safe defaults if OCR data is missing or incomplete
-    const safeDefaults = billType === 'gas' 
-      ? {
-          consumo_annuo_smc: 1200,
-          prezzo_gas_eur_smc: 0.85,
-          potenza_kw: null,
-          tariff_hint: 'gas',
-          user_id: null,
-        }
-      : {
-          annual_kwh: 2700,
-          f1_kwh: 945,
-          f2_kwh: 945,
-          f3_kwh: 810,
-          potenza_kw: 3.0,
-          tariff_hint: 'trioraria',
-          user_id: null,
-        };
-
-    // Normalize and validate OCR data with fallbacks
-    const normalizeOcrValue = (value: any, min: number, max: number, defaultVal: number): number => {
-      if (value === null || value === undefined) return defaultVal;
-      const num = Number(value);
-      if (isNaN(num) || num < min || num > max) return defaultVal;
-      return num;
-    };
-
     if (!ocrData) {
-      throw new Error('Nessun risultato OCR disponibile per questo upload');
+      console.warn('[COMPARE] No OCR data found, using defaults');
     }
 
-    const safeOcr = {
-      ...safeDefaults,
-      ...ocrData,
-      annual_kwh: normalizeOcrValue(ocrData.annual_kwh, 200, 10000, 2700),
-      consumo_annuo_smc: normalizeOcrValue(ocrData.consumo_annuo_smc, 50, 2000, 1200),
-      potenza_kw: normalizeOcrValue(ocrData.potenza_kw, 1, 10, 3.0),
-      f1_kwh: normalizeOcrValue(ocrData.f1_kwh, 0, 10000, 945),
-      f2_kwh: normalizeOcrValue(ocrData.f2_kwh, 0, 10000, 945),
-      f3_kwh: normalizeOcrValue(ocrData.f3_kwh, 0, 10000, 810),
-      user_id: ocrData.user_id,
+    // 2. Fetch All Active Offers
+    // We fetch from offers_scraped directly to ensure we get the latest data
+    const { data: allOffers, error: offersError } = await supabase
+      .from('offers_scraped')
+      .select('*');
+      // .eq('is_active', true); // Assuming all scraped offers are candidates
+
+    if (offersError || !allOffers || allOffers.length === 0) {
+      throw new Error('No offers available in database');
+    }
+
+    console.log(`[COMPARE] Found ${allOffers.length} candidate offers`);
+
+    // 3. Prepare Data for OpenAI
+    const billContext = {
+      type: billType,
+      annual_consumption: billType === 'gas' ? ocrData?.consumo_annuo_smc : ocrData?.annual_kwh,
+      current_provider: ocrData?.provider || 'Sconosciuto',
+      current_annual_cost: billType === 'gas' ? ocrData?.costo_annuo_gas : ocrData?.total_cost_eur, // Note: total_cost_eur might be bill total, not annual. AI will handle logic.
+      raw_ocr: ocrData
     };
 
+    // Simplify offers for prompt to save tokens
+    const offersContext = allOffers
+      .filter(o => o.commodity === billType || o.commodity === 'dual')
+      .map(o => ({
+        id: o.id,
+        provider: o.provider,
+        name: o.plan_name,
+        price_energy: billType === 'gas' ? o.unit_price_eur_smc : o.price_kwh,
+        fixed_fee: o.fixed_fee_eur_mo,
+        type: o.pricing_type,
+        is_green: o.is_green
+      }));
 
-    // Build consumption profile based on bill type
-    const profile = billType === 'gas' ? buildGasProfile(safeOcr) : buildProfile(safeOcr);
-    console.log('Consumption profile:', profile);
+    console.log(`[COMPARE] Sending ${offersContext.length} relevant offers to OpenAI`);
 
-    // Get active offers filtered by commodity type
-    const commodityFilter = billType === 'combo' ? undefined : billType;
-    let offersQuery = supabase
-      .from('offers')
-      .select('*')
-      .eq('is_active', true);
-    
-    if (commodityFilter) {
-      offersQuery = offersQuery.eq('commodity', commodityFilter);
-    }
+    // 4. Call OpenAI
+    const systemPrompt = `You are an expert energy analyst for the Italian market.
+Your goal is to compare a user's energy bill (OCR data) against a list of available offers and recommend the TOP 3 best offers.
 
-    const { data: offers, error: offersError } = await offersQuery;
+RULES:
+1. **Fuzzy Matching**: Match the user's current provider (e.g., "A2A Energia") with the offers list intelligently.
+2. **Savings Calculation**: Calculate annual savings based on the user's annual consumption.
+   - Annual Cost = (Consumption * Energy Price) + (Fixed Fee * 12).
+   - If user's annual consumption is missing, assume: Luce=2700 kWh, Gas=1400 Smc.
+   - If user's current cost is missing/unreliable, estimate it based on standard market rates (Luce=0.25€/kWh, Gas=1.0€/Smc).
+3. **Selection**: Select the 3 best offers based on lowest annual cost.
+4. **Output**: Return strictly valid JSON.
 
-    if (offersError) {
-      throw new Error(`Failed to fetch offers: ${offersError.message}`);
-    }
+JSON FORMAT:
+{
+  "success": true,
+  "bestOffer": { "id": "uuid", "simulated_cost": 123.45, "savings": 50.00, "reason": "..." },
+  "runnerUp": { "id": "uuid", "simulated_cost": 130.00, "savings": 45.00, "reason": "..." },
+  "thirdOption": { "id": "uuid", "simulated_cost": 135.00, "savings": 40.00, "reason": "..." },
+  "analysis": {
+    "user_consumption": 2700,
+    "user_current_annual_cost_estimated": 900,
+    "market_trend": "Prices are falling..."
+  }
+}`;
 
-    // Se non ci sono offerte attive reali, interrompiamo il flusso senza generare mock
-    if (!offers || offers.length === 0) {
-      console.error('No active offers found for compare-offers');
-
-      return new Response(JSON.stringify({
-        ok: false,
-        error: 'Nessuna offerta disponibile per i tuoi parametri. Riprova più tardi.'
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Calculate annual cost for each offer and filter out invalid ones
-    const ranked = offers
-      .filter(offer => {
-        // Filter based on commodity type
-        if (billType === 'gas' && offer.commodity !== 'gas') return false;
-        if (billType === 'luce' && offer.commodity !== 'luce') return false;
-        
-        // Safety filters for luce offers
-        if (offer.commodity === 'luce') {
-          if (offer.tariff_type === 'monoraria' && (!offer.price_kwh || offer.price_kwh <= 0)) {
-            return false;
-          }
-          const totalKwh = (profile as any).total_kwh_year || 0;
-          if (totalKwh >= 2000 && offer.price_kwh && offer.price_kwh < 0.05) {
-            console.warn(`Rejecting unrealistic offer ${offer.id}: very low price`);
-            return false;
-          }
-        }
-        
-        // Safety filters for gas offers
-        if (offer.commodity === 'gas') {
-          if (!offer.unit_price_eur_smc || offer.unit_price_eur_smc <= 0) {
-            return false;
-          }
-        }
-        
-        return true;
-      })
-      .map(offer => {
-        const simResult = offer.commodity === 'gas' 
-          ? simulateGasAnnualCost(profile, offer)
-          : simulateAnnualCost(profile, offer);
-        return {
-          ...offer,
-          simulated_cost: simResult.total,
-          breakdown: simResult
-        };
-      })
-      .sort((a, b) => a.simulated_cost - b.simulated_cost)
-      .slice(0, 5);
-
-    console.log(`Ranked ${ranked.length} offers, best: ${ranked[0]?.simulated_cost}€/year`);
-
-    // Log calculation to calc_log
-    const flags: Record<string, boolean> = {};
-    if (!ocrData) flags['used_defaults'] = true;
-    
-    const totalKwh = (profile as any).total_kwh_year;
-    const totalSmc = (profile as any).total_smc_year;
-    
-    if (billType === 'luce' && totalKwh && (totalKwh < 200 || totalKwh > 10000)) {
-      flags['bad_kwh_range'] = true;
-    }
-    if (billType === 'gas' && totalSmc && (totalSmc < 50 || totalSmc > 2000)) {
-      flags['bad_smc_range'] = true;
-    }
-    
-    await supabase.from('calc_log').insert({
-      upload_id: uploadId,
-      tipo: billType,
-      consumo: billType === 'gas' ? totalSmc : totalKwh,
-      prezzo: null,
-      quota_fissa_mese: null,
-      costo_annuo: ranked[0]?.simulated_cost || null,
-      flags: flags
+    const userPrompt = JSON.stringify({
+      bill: billContext,
+      available_offers: offersContext
     });
 
-    // Calculate personalized offer
-    // Best absolute = lowest cost (already first in ranked)
-    const bestAbsolute = ranked[0];
-    
-    // Best personalized = consider tariff type matching and consumption patterns
-    let bestPersonalized = bestAbsolute;
-    const personalizationFactors: any = { method: 'absolute' };
-    
-    // Only do personalization for electricity bills (luce)
-    if (ranked.length > 1 && profile && 'share_f1' in profile) {
-      // Detect user's consumption pattern (only for electricity)
-      const userTariffType = profile.tariff_hint || 'monoraria';
-      const userF1Share = profile.share_f1 || 0.33;
-      const userPeakConsumption = userF1Share > 0.5 ? 'F1' : (userF1Share < 0.25 ? 'F2-F3' : 'balanced');
-      
-      // Score each offer for personalization
-      const scoredOffers = ranked.map((offer: any) => {
-        let personalScore = 0;
-        const costDiffPercent = bestAbsolute.simulated_cost > 0 
-          ? ((offer.simulated_cost - bestAbsolute.simulated_cost) / bestAbsolute.simulated_cost) * 100 
-          : 0;
-        
-        // Penalize if cost is >5% higher than absolute best
-        if (costDiffPercent > 5) {
-          personalScore -= 100;
-        } else {
-          // Reward tariff type match
-          if (offer.tariff_type === userTariffType) personalScore += 30;
-          
-          // Reward if bioraria/trioraria and user consumes mainly off-peak
-          if ((offer.tariff_type === 'bioraria' || offer.tariff_type === 'trioraria') && userPeakConsumption === 'F2-F3') {
-            personalScore += 20;
-          }
-          
-          // Reward if monoraria and user has balanced consumption
-          if (offer.tariff_type === 'monoraria' && userPeakConsumption === 'balanced') {
-            personalScore += 15;
-          }
-          
-          // Penalize slightly for cost difference
-          personalScore -= costDiffPercent;
-        }
-        
-        return { ...offer, personalScore };
-      });
-      
-      // Sort by personal score
-      scoredOffers.sort((a: any, b: any) => b.personalScore - a.personalScore);
-      
-      if (scoredOffers[0] && scoredOffers[0].id !== bestAbsolute.id) {
-        bestPersonalized = scoredOffers[0];
-        personalizationFactors.method = 'personalized';
-        personalizationFactors.userTariffType = userTariffType;
-        personalizationFactors.userPeakConsumption = userPeakConsumption;
-        personalizationFactors.personalScore = scoredOffers[0].personalScore;
-      }
+    const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" }
+      })
+    });
+
+    if (!openAiResponse.ok) {
+      const err = await openAiResponse.text();
+      console.error('[COMPARE] OpenAI Error:', err);
+      throw new Error(`OpenAI API error: ${err}`);
     }
 
-    // Store comparison results with both offers
-    const { error: insertError } = await supabase
-      .from('comparison_results')
-      .insert({
-        upload_id: uploadId,
-        user_id: safeOcr.user_id,
-        profile_json: { ...profile, bill_type: billType },
-        ranked_offers: ranked,
-        best_offer_id: bestAbsolute?.id || null,
-        best_personalized_offer_id: bestPersonalized?.id || null,
-        personalization_factors: personalizationFactors
-      });
+    const aiData = await openAiResponse.json();
+    const result = JSON.parse(aiData.choices[0].message.content);
 
-    if (insertError) {
-      console.error('Failed to store comparison results:', insertError);
-    }
+    console.log('[COMPARE] AI Analysis complete:', result.success);
 
-    // Store in billsnap_offers for each ranked offer
-    for (const offer of ranked.slice(0, 3)) { // Store top 3 offers
-      const { error: offerError } = await supabase.from('billsnap_offers').insert({
+    // 5. Hydrate Results & Save
+    // We need to merge the AI result with full offer details
+    const getFullOffer = (shortOffer: any) => {
+      if (!shortOffer) return null;
+      const full = allOffers.find(o => o.id === shortOffer.id);
+      return full ? { ...full, ...shortOffer } : null;
+    };
+
+    const bestOffer = getFullOffer(result.bestOffer);
+    const runnerUp = getFullOffer(result.runnerUp);
+    const thirdOption = getFullOffer(result.thirdOption);
+
+    const rankedOffers = [bestOffer, runnerUp, thirdOption].filter(Boolean);
+
+    // Save to comparison_results
+    await supabase.from('comparison_results').insert({
+      upload_id: uploadId,
+      user_id: ocrData?.user_id,
+      profile_json: result.analysis,
+      ranked_offers: rankedOffers,
+      best_offer_id: bestOffer?.id,
+      best_personalized_offer_id: bestOffer?.id, // Assuming best is also personalized for now
+      personalization_factors: { method: 'ai_gpt4o', analysis: result.analysis }
+    });
+
+    // Save to billsnap_offers (for frontend display compatibility)
+    for (const offer of rankedOffers) {
+      await supabase.from('billsnap_offers').insert({
         raw_data: {
           upload_id: uploadId,
           offer_id: offer.id,
@@ -276,148 +180,33 @@ serve(async (req) => {
           plan_name: offer.plan_name,
           commodity: offer.commodity,
           simulated_cost: offer.simulated_cost,
-          breakdown: offer.breakdown,
-          is_best: offer.id === bestAbsolute?.id
+          savings: offer.savings,
+          reason: offer.reason,
+          is_best: offer.id === bestOffer?.id
         },
-        source: 'compare-offers'
+        source: 'compare-offers-ai'
       });
-      
-      if (offerError) {
-        console.error('Error storing billsnap_offer:', offerError);
-      }
     }
 
-    return new Response(JSON.stringify({ 
-      ok: true, 
-      profile: { ...profile, bill_type: billType }, 
-      ranked,
-      best: bestAbsolute,
-      best_personalized: bestPersonalized,
-      personalization_factors: personalizationFactors,
-      runnerUp: ranked[1] || null
+    return new Response(JSON.stringify({
+      ok: true,
+      profile: result.analysis,
+      ranked: rankedOffers,
+      best: bestOffer,
+      runnerUp: runnerUp,
+      thirdOption: thirdOption
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Error in compare-offers function:', error);
-    return new Response(
-      JSON.stringify({ 
-        ok: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }), 
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    console.error('[COMPARE] Fatal Error:', error);
+    return new Response(JSON.stringify({
+      ok: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 });
-
-function num(x: any, d = 0): number {
-  const n = Number(x);
-  return isFinite(n) ? n : d;
-}
-
-function buildProfile(ocr: any) {
-  const totalAnnual = num(ocr.annual_kwh, 2700);
-  const f1 = num(ocr.f1_kwh);
-  const f2 = num(ocr.f2_kwh);
-  const f3 = num(ocr.f3_kwh);
-
-  // Derive shares
-  let shareF1 = 0.35, shareF2 = 0.35, shareF3 = 0.30;
-  if (f1 + f2 + f3 > 100) {
-    const sumF = f1 + f2 + f3;
-    shareF1 = f1 / sumF;
-    shareF2 = f2 / sumF;
-    shareF3 = f3 / sumF;
-  }
-
-  // Detect tariff type
-  let tariffHint = 'monoraria';
-  if (ocr.tariff_hint) {
-    tariffHint = ocr.tariff_hint;
-  } else if (f1 > 0 || f2 > 0 || f3 > 0) {
-    tariffHint = 'trioraria';
-  }
-
-  return {
-    total_kwh_year: totalAnnual,
-    share_f1: shareF1,
-    share_f2: shareF2,
-    share_f3: shareF3,
-    power_kw: num(ocr.potenza_kw, 3.0),
-    tariff_hint: tariffHint,
-    provider_attuale: ocr.provider || 'Fornitore Corrente',
-    prezzo_kwh_attuale: num(ocr.unit_price_eur_kwh),
-    quota_fissa_mese: num(ocr.total_cost_eur) ? num(ocr.total_cost_eur) / 12 : null
-  };
-}
-
-function buildGasProfile(ocr: any) {
-  const totalAnnualSmc = num(ocr.consumo_annuo_smc, 1200);
-  
-  return {
-    total_smc_year: totalAnnualSmc,
-    provider_attuale: ocr.provider || 'Fornitore Corrente',
-    prezzo_gas_attuale: num(ocr.prezzo_gas_eur_smc),
-    quota_fissa_mese: num(ocr.costo_annuo_gas) ? num(ocr.costo_annuo_gas) / 12 : null
-  };
-}
-
-function normalizeToYear(kwh: number, start: string | null, end: string | null): number {
-  if (start && end) {
-    const s = new Date(start);
-    const e = new Date(end);
-    const days = (e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24);
-    if (days > 0 && days < 365) {
-      return Math.round(kwh * (365 / days));
-    }
-  }
-  return Math.round(kwh * 6);
-}
-
-function simulateAnnualCost(profile: any, offer: any) {
-  const totalKwh = profile.total_kwh_year || 2700;
-  const fixedAnnual = (offer.fixed_fee_eur_mo || 0) * 12;
-  const powerAnnual = (offer.power_fee_year || 0) * (profile.power_kw || 3);
-
-  let energyCost = 0;
-
-  if (offer.tariff_type === 'monoraria') {
-    energyCost = totalKwh * (offer.price_kwh || 0);
-  } else if (offer.tariff_type === 'bioraria') {
-    const f1Kwh = totalKwh * profile.share_f1;
-    const f23Kwh = totalKwh * (profile.share_f2 + profile.share_f3);
-    energyCost = 
-      f1Kwh * (offer.price_f1 || offer.price_kwh || 0) +
-      f23Kwh * (offer.price_f23 || offer.price_kwh || 0);
-  } else if (offer.tariff_type === 'trioraria') {
-    energyCost = 
-      totalKwh * profile.share_f1 * (offer.price_f1 || offer.price_kwh || 0) +
-      totalKwh * profile.share_f2 * (offer.price_f2 || offer.price_kwh || 0) +
-      totalKwh * profile.share_f3 * (offer.price_f3 || offer.price_kwh || 0);
-  }
-
-  return {
-    total: fixedAnnual + powerAnnual + energyCost,
-    fixed: fixedAnnual,
-    power: powerAnnual,
-    energy: energyCost
-  };
-}
-
-function simulateGasAnnualCost(profile: any, offer: any) {
-  const totalSmc = profile.total_smc_year || 1200;
-  const fixedAnnual = (offer.fixed_fee_eur_mo || 0) * 12;
-  
-  const gasCost = totalSmc * (offer.unit_price_eur_smc || 0);
-
-  return {
-    total: fixedAnnual + gasCost,
-    fixed: fixedAnnual,
-    power: 0,
-    energy: gasCost
-  };
-}

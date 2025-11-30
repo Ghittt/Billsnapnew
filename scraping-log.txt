@@ -1,0 +1,18 @@
+==========================================
+BillSnap - Offers Population Script
+==========================================
+
+[1/3] Scraping: https://www.enel.it/it/luce-e-gas/luce
+  ✗ Failed
+  Response: {"error":"google_api_key not configured","stack":"Error: google_api_key not configured\n    at Server.<anonymous> (file:///var/tmp/sb-compile-edge-runtime/scrape-single-offer/index.ts:35:1
+  Waiting 3 seconds...
+[2/3] Scraping: https://www.eniplenitude.com/it/casa/offerte-luce
+  ✗ Failed
+  Response: {"error":"google_api_key not configured","stack":"Error: google_api_key not configured\n    at Server.<anonymous> (file:///var/tmp/sb-compile-edge-runtime/scrape-single-offer/index.ts:35:1
+  Waiting 3 seconds...
+[3/3] Scraping: https://www.a2aenergia.eu/casa/luce
+  ✗ Failed
+  Response: {"error":"google_api_key not configured","stack":"Error: google_api_key not configured\n    at Server.<anonymous> (file:///var/tmp/sb-compile-edge-runtime/scrape-single-offer/index.ts:35:1
+==========================================
+Scraping completed!
+==========================================

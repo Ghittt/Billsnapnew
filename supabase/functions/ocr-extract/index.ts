@@ -1,428 +1,348 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
+// @ts-nocheck
+/**
+ * OCR Extract Edge Function - Definitive Version
+ * 
+ * Extracts data from Italian energy bills using Google Gemini 2.0 Flash.
+ * Optimized for providers: Enel, Eni, A2A, Edison, Hera, etc.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { encode as b64encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
-// V2 EXTRACTOR - Pipeline ibrida con routing, template parsers, e multi-pass LLM
+// Environment Configuration
+const supabaseUrl = Deno.env.get("SUPABASE_URL");
+const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const geminiApiKey = Deno.env.get("GEMINI_API_KEY") || "AIzaSyCC8aktKbEn9-6g9tnd11MOEEBI4b4YIOU";
+
+if (!supabaseUrl || !serviceRoleKey) {
+  throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+}
+
+const supabase = createClient(supabaseUrl, serviceRoleKey);
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Helper to base64-encode ArrayBuffer
+/**
+ * Convert ArrayBuffer to Base64 in chunks to avoid stack overflow
+ */
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = "";
   const bytes = new Uint8Array(buffer);
-  return b64encode(bytes.buffer);
-}
-
-// Template parser - regex patterns for top providers
-const POD_REGEX = /\b(IT[0-9A-Z]{10,25})\b/i;
-const PDR_REGEX = /\b(\d{14})\b/;
-const PREZZO_KWH_REGEX = /(?:prezzo|energia|pe)[\s\S]{0,40}?([0-9]+[.,][0-9]{2,4})\s*€?\s*\/?\s*kWh/i;
-const PREZZO_SMC_REGEX = /(?:prezzo|gas|pg)[\s\S]{0,40}?([0-9]+[.,][0-9]{2,4})\s*€?\s*\/?\s*smc/i;
-const CONSUMO_KWH_REGEX = /(?:consumo|annuo|totale)[\s\S]{0,60}?([0-9]{3,5})\s*kWh/i;
-const CONSUMO_SMC_REGEX = /(?:consumo|annuo|totale)[\s\S]{0,60}?([0-9]{2,4})\s*smc/i;
-const QUOTA_FISSA_REGEX = /(?:quota|fissa|canone)[\s\S]{0,40}?([0-9]+[.,][0-9]{1,2})\s*€?\s*\/?\s*mese/i;
-
-function normalizeNum(str: string): number | null {
-  if (!str) return null;
-  const normalized = str.replace(',', '.');
-  const num = parseFloat(normalized);
-  return isNaN(num) ? null : num;
-}
-
-function detectProvider(text: string): string | null {
-  const textLower = text.toLowerCase();
-  const providers = [
-    { name: 'Enel', keywords: ['enel energia', 'enel spa'] },
-    { name: 'Edison', keywords: ['edison energia', 'edison spa'] },
-    { name: 'A2A', keywords: ['a2a energia', 'a2a spa'] },
-    { name: 'Plenitude', keywords: ['plenitude', 'eni plenitude'] },
-    { name: 'Iren', keywords: ['iren mercato', 'iren spa'] },
-    { name: 'Hera', keywords: ['hera comm', 'hera spa'] },
-  ];
-  for (const p of providers) {
-    for (const k of p.keywords) {
-      if (textLower.includes(k)) return p.name;
-    }
+  const chunkSize = 8192;
+  
+  for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.byteLength));
+    binary += String.fromCharCode.apply(null, Array.from(chunk));
   }
-  return null;
+  
+  return btoa(binary);
 }
 
-function parseWithTemplate(text: string) {
-  const provider = detectProvider(text);
-  const confidence: any = {};
-  
-  const podMatch = text.match(POD_REGEX);
-  const pod = podMatch ? podMatch[1] : null;
-  if (pod) confidence['pod'] = 0.98;
-  
-  const pdrMatch = text.match(PDR_REGEX);
-  const pdr = pdrMatch ? pdrMatch[1] : null;
-  if (pdr) confidence['pdr'] = 0.98;
-  
-  const tipo = pod ? 'luce' : pdr ? 'gas' : null;
-  
-  // Extract with validation
-  const extractNum = (regex: RegExp, min: number, max: number) => {
-    const match = text.match(regex);
-    if (!match || !match[1]) return null;
-    const num = normalizeNum(match[1]);
-    if (num === null || num < min || num > max) return null;
-    return num;
-  };
-  
-  const consumo_annuo_kwh = extractNum(CONSUMO_KWH_REGEX, 200, 10000);
-  if (consumo_annuo_kwh) confidence['consumo_annuo_kwh'] = 0.95;
-  
-  const consumo_annuo_smc = extractNum(CONSUMO_SMC_REGEX, 50, 2000);
-  if (consumo_annuo_smc) confidence['consumo_annuo_smc'] = 0.95;
-  
-  const prezzo_energia_eur_kwh = extractNum(PREZZO_KWH_REGEX, 0.10, 0.80);
-  if (prezzo_energia_eur_kwh) confidence['prezzo_energia_eur_kwh'] = 0.95;
-  
-  const prezzo_gas_eur_smc = extractNum(PREZZO_SMC_REGEX, 0.20, 2.50);
-  if (prezzo_gas_eur_smc) confidence['prezzo_gas_eur_smc'] = 0.95;
-  
-  const quota_fissa_mese_eur = extractNum(QUOTA_FISSA_REGEX, 0, 50);
-  if (quota_fissa_mese_eur) confidence['quota_fissa_mese_eur'] = 0.95;
-  
-  return {
-    fornitore: provider,
-    tipo,
-    pod,
-    pdr,
-    consumo_annuo_kwh,
-    consumo_annuo_smc,
-    prezzo_energia_eur_kwh,
-    prezzo_gas_eur_smc,
-    quota_fissa_mese_eur,
-    confidence,
-    provider_detected: provider || 'unknown'
-  };
+/**
+ * Optimized System Prompt for Italian Energy Bills
+ */
+const ITALIAN_BILL_PROMPT = `
+Sei un esperto analista di bollette energetiche italiane con 10 anni di esperienza.
+
+Analizza con estrema attenzione il documento fornito (bolletta luce o gas).
+Estrai TUTTI i dati disponibili con la massima precisione.
+
+FORNITORI COMUNI: Enel Energia, Eni Plenitude, A2A Energia, Edison, Hera, Servizio Elettrico Nazionale, Acea, Iren.
+
+CAMPI DA ESTRARRE (JSON):
+
+1. **provider** (string): Nome esatto del fornitore. Cerca il logo o l'intestazione principale.
+   Esempi: "Enel Energia", "A2A Energia", "Edison Energia"
+
+2. **annual_kwh** (number): Consumo annuo LUCE in kWh.
+   - Cerca: "Consumo annuo", "Consumo annuo stimato", "Stima annua", "Energia attiva annua"
+   - Se trovi solo consumo bimestrale/trimestrale, moltiplica per 6 o 4
+   - Formato: 1200.5 (NON "1.200 kWh")
+
+3. **total_cost_eur** (number): Totale da pagare QUESTA bolletta in euro.
+   - Cerca: "Totale da pagare", "Importo totale", "Totale bolletta", "Totale fattura"
+   - Formato: 85.50 (NON "€ 85,50")
+
+4. **pod** (string): Codice POD per luce (inizia con IT).
+   - Cerca: "POD", "Punto di prelievo"
+   - Formato: "IT001E12345678"
+
+5. **pdr** (string): Codice PDR per gas (solo numeri).
+   - Cerca: "PDR", "Punto di riconsegna"
+   - Formato: "12345678901234"
+
+6. **gas_smc** (number): Consumo annuo GAS in Smc (Standard metri cubi).
+   - Cerca: "Consumo annuo gas", "Smc annui", "Standard metri cubi"
+   - Formato: 850.0
+
+7. **costo_annuo_gas** (number): Spesa annua stimata per il gas in euro.
+   - Cerca: "Spesa annua gas", "Costo annuo stimato"
+   - Formato: 1200.00
+
+8. **tariff_hint** (string): Tipo di tariffa.
+   - "monoraria" se F0 o se F1=F2=F3
+   - "bioraria" se F1 e F23 distinti
+   - "trioraria" se F1, F2, F3 tutti distinti
+   - "gas" se bolletta gas
+
+9. **quality_score** (number): Tua valutazione della leggibilità del documento.
+   - 1.0 = perfettamente leggibile
+   - 0.5 = parzialmente leggibile
+   - 0.0 = illeggibile
+
+10. **unit_price_eur_kwh** (number): Prezzo medio energia in €/kWh.
+    - Cerca: "Prezzo energia", "€/kWh", "PUN"
+    - Formato: 0.25
+
+11. **f1_kwh**, **f2_kwh**, **f3_kwh** (number): Consumi per fascia oraria (se presenti).
+
+12. **potenza_kw** (number): Potenza impegnata in kW.
+    - Cerca: "Potenza impegnata", "Potenza disponibile"
+    - Formato: 3.0
+
+REGOLE CRITICHE:
+- Restituisci SOLO un oggetto JSON valido, niente altro.
+- Se un campo è assente o illeggibile, usa null.
+- NON inventare dati.
+- Converti sempre i numeri italiani (1.200,50) in formato JSON (1200.50).
+- Se vedi "€ 45,00" → 45.00
+- Se vedi "1.200 kWh" → 1200.0
+
+ESEMPIO OUTPUT:
+{
+  "provider": "Enel Energia",
+  "annual_kwh": 2400.0,
+  "total_cost_eur": 85.50,
+  "pod": "IT001E12345678",
+  "pdr": null,
+  "gas_smc": null,
+  "costo_annuo_gas": null,
+  "tariff_hint": "bioraria",
+  "quality_score": 0.9,
+  "unit_price_eur_kwh": 0.28,
+  "f1_kwh": 1200.0,
+  "f2_kwh": 800.0,
+  "f3_kwh": 400.0,
+  "potenza_kw": 3.0
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+Analizza ora il documento.
+`;
+
+serve(async (req: Request): Promise<Response> => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Validate API Key
+    if (!geminiApiKey) {
+      console.error("[OCR] GEMINI_API_KEY missing");
+      return new Response(
+        JSON.stringify({ 
+          ok: false, 
+          error: "Server configuration error: Missing API key" 
+        }),
+        { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
+      );
+    }
 
+    // Validate HTTP Method
+    if (req.method !== "POST") {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Method not allowed. Use POST." }),
+        { status: 405, headers: { ...corsHeaders, "content-type": "application/json" } }
+      );
+    }
+
+    // Validate Content-Type
+    const contentType = req.headers.get("content-type") ?? "";
+    if (!contentType.includes("multipart/form-data")) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Content-Type must be multipart/form-data" }),
+        { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } }
+      );
+    }
+
+    // Parse Form Data
     const formData = await req.formData();
-    const file = formData.get('file') as File;
-    const uploadId = formData.get('uploadId') as string;
+    const file = formData.get("file");
+    const uploadIdRaw = formData.get("uploadId");
 
-    if (!file || !uploadId) {
-      throw new Error('File and uploadId are required');
+    if (!(file instanceof File)) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Missing or invalid 'file' field" }),
+        { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } }
+      );
     }
 
-    console.log(`[OCR-V2-Gemini] Processing: ${file.name}, size: ${file.size}, type: ${file.type}`);
+    const uploadId = (uploadIdRaw?.toString() || crypto.randomUUID()).trim();
+    
+    console.log(`[OCR] ========================================`);
+    console.log(`[OCR] Processing: ${file.name}`);
+    console.log(`[OCR] Upload ID: ${uploadId}`);
+    console.log(`[OCR] File Size: ${file.size} bytes`);
+    console.log(`[OCR] MIME Type: ${file.type}`);
+    console.log(`[OCR] ========================================`);
 
-    if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    // Read file and convert to base64
+    // Convert file to Base64
     const arrayBuffer = await file.arrayBuffer();
     const base64Data = arrayBufferToBase64(arrayBuffer);
-    
-    // Determine mime type
-    let mimeType = file.type;
-    if (!mimeType) {
-      const ext = file.name.toLowerCase().split('.').pop();
-      if (ext === 'pdf') mimeType = 'application/pdf';
-      else if (ext === 'png') mimeType = 'image/png';
-      else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
-      else mimeType = 'image/jpeg';
-    }
-    
-    // PDF files are now processed directly by Gemini vision without fake fallbacks
-    if (mimeType === 'application/pdf') {
-      console.log('[OCR-V2-Gemini] PDF detected - processing with Gemini vision');
-    }
+    const mimeType = file.type || "application/pdf";
 
-    // V2 Enhanced Vision Prompt with Few-Shot
-    const systemPrompt = `Sei un assistente esperto nell'estrazione dati da bollette energetiche italiane.
-Analizza l'immagine e restituisci SOLO JSON valido con questi campi:
+    // Gemini API Configuration (using proven gemini-2.0-flash model)
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
 
-SCHEMA JSON:
-{
-  "tipo": "luce" | "gas",
-  "fornitore": "string",
-  "pod": "string | null",  // Solo per luce: ^IT[0-9A-Z]{10,25}$
-  "pdr": "string | null",  // Solo per gas: ^\\d{14}$
-  "consumo_annuo_kwh": number | null,  // Range: 200-10000
-  "consumo_annuo_smc": number | null,  // Range: 50-2000
-  "spesa_annua_totale_eur": number | null,
-  "prezzo_energia_eur_kwh": number | null,  // Range: 0.10-0.80
-  "prezzo_gas_eur_smc": number | null,  // Range: 0.20-2.50
-  "quota_fissa_mese_eur": number | null,  // Range: 0-50
-  "periodo_riferimento": "string | null",
-  "note": "string",
-  "confidence": { "campo": 0.0-1.0 }
-}
-
-REGOLE CRITICHE:
-1. SOLO JSON valido, nessun testo o markdown
-2. Usa PUNTO come separatore decimale (es: 0.22, non 0,22)
-3. POD: ^IT[0-9A-Z]{10,25}$ | PDR: ^\\d{14}$
-4. Range: kWh 200-10000, Smc 50-2000, €/kWh 0.10-0.80, €/Smc 0.20-2.50
-5. Se valore non trovato o fuori range → null
-6. Confidence 0.0-1.0 per ogni campo
-7. Non inventare: meglio null che sbagliato
-
-ESEMPI (few-shot):
-Esempio 1 - Enel Luce:
-{"tipo":"luce","fornitore":"Enel Energia","pod":"IT001E12345678","consumo_annuo_kwh":2700,"prezzo_energia_eur_kwh":0.22,"quota_fissa_mese_eur":6.90,"note":"","confidence":{"consumo_annuo_kwh":0.95,"prezzo_energia_eur_kwh":0.95}}
-
-Esempio 2 - Edison Gas:
-{"tipo":"gas","fornitore":"Edison Energia","pdr":"12345678901234","consumo_annuo_smc":1200,"prezzo_gas_eur_smc":0.85,"quota_fissa_mese_eur":8.50,"note":"","confidence":{"consumo_annuo_smc":0.95,"prezzo_gas_eur_smc":0.95}}`;
-
-    // Multi-pass extraction function using Google Gemini
-    const callVisionAPI = async (passNum: number, additionalPrompt?: string) => {
-      const userPrompt = additionalPrompt || 'Analizza questa bolletta e restituisci i dati in formato JSON.';
-      
-      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${lovableApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-pro',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: userPrompt },
-                { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } }
-              ]
-            }
-          ]
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[OCR-V2-Gemini] Pass ${passNum} API error:`, response.status, errorText);
-        
-        if (response.status === 429) {
-          throw new Error(`Rate limit exceeded: ${errorText}`);
-        }
-        if (response.status === 402) {
-          throw new Error(`Payment required: ${errorText}`);
-        }
-        
-        throw new Error(`Lovable AI error pass ${passNum}: ${response.status}`);
+    const requestBody = {
+      contents: [{
+        parts: [
+          { text: ITALIAN_BILL_PROMPT },
+          { inline_data: { mime_type: mimeType, data: base64Data } }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.1,  // Low temperature for factual extraction
+        maxOutputTokens: 2048
       }
-
-      return await response.json();
     };
 
-    // Pass 1: Initial extraction
-    console.log("[OCR-V2-Gemini] Starting Pass 1 with Google Gemini Pro...");
-    let aiResponse = await callVisionAPI(1);
-    let extractedText = aiResponse.choices?.[0]?.message?.content || '{}';
-    
-    console.log("[OCR-V2-Gemini] Pass 1 raw response:", extractedText.substring(0, 300));
+    console.log(`[OCR] Calling Gemini API...`);
+    const startTime = Date.now();
 
-    // Parse and clean JSON
-    extractedText = extractedText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    let llmData = JSON.parse(extractedText);
-    
-    console.log("[OCR-V2-Gemini] Pass 1 parsed:", JSON.stringify(llmData, null, 2));
-    
-    // Calculate confidence for multi-pass decision
-    const keyFields = ['consumo_annuo_kwh', 'consumo_annuo_smc', 'prezzo_energia_eur_kwh', 'prezzo_gas_eur_smc'];
-    const confidences = keyFields.map(f => llmData.confidence?.[f] || 0).filter(c => c > 0);
-    const avgConfidence = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
-    
-    console.log(`[OCR-V2-Gemini] Pass 1 avg confidence: ${avgConfidence.toFixed(2)}`);
-    
-    // Pass 2: If low confidence or missing critical fields, try corrective pass
-    const missingCritical = !llmData.prezzo_energia_eur_kwh && !llmData.prezzo_gas_eur_smc;
-    if (avgConfidence < 0.85 || missingCritical) {
-      console.log("[OCR-V2-Gemini] Low confidence or missing price, attempting pass 2...");
-      try {
-        const pass2Response = await callVisionAPI(
-          2,
-          'Cerca con attenzione: prezzo energia (€/kWh o €/Smc), quota fissa mensile, e consumo annuo. Restituisci JSON.'
-        );
-        const pass2Text = pass2Response.choices?.[0]?.message?.content || '{}';
-        const pass2Data = JSON.parse(pass2Text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
-        
-        // Merge pass 2 results (fill in missing fields only)
-        for (const key of Object.keys(pass2Data)) {
-          if (!llmData[key] && pass2Data[key]) {
-            llmData[key] = pass2Data[key];
-            console.log(`[OCR-V2-Gemini] Pass 2 filled: ${key} = ${pass2Data[key]}`);
-          }
-        }
-      } catch (e) {
-        console.error("[OCR-V2-Gemini] Pass 2 failed:", e);
-      }
-    }
-    
-    // Template parsing (for text-based extraction if available)
-    // Note: For pure image OCR, template is limited, but structure is in place
-    const templateData = { confidence: {}, provider_detected: 'unknown' };
-    
-    // Merge results (in full implementation, prioritize template on key fields)
-    let parsedData = { ...llmData };
-    
-    console.log("[OCR-V2-Gemini] Final merged data:", JSON.stringify(parsedData, null, 2));
-
-    // Validate POD/PDR patterns
-    const podRegex = /^IT[0-9A-Z]{10,25}$/;
-    const pdrRegex = /^\d{14}$/;
-    
-    let validatedPod = parsedData.pod || null;
-    let validatedPdr = parsedData.pdr || null;
-    
-    if (validatedPod && !podRegex.test(validatedPod)) {
-      console.warn('[OCR-V2-Gemini] Invalid POD format:', validatedPod);
-      validatedPod = null;
-    }
-    
-    if (validatedPdr && !pdrRegex.test(validatedPdr)) {
-      console.warn('[OCR-V2-Gemini] Invalid PDR format:', validatedPdr);
-      validatedPdr = null;
-    }
-
-    // Normalize numbers with range validation
-    const normalizeNumber = (val: any, min: number, max: number, defaultVal: number | null = null): number | null => {
-      if (val === null || val === undefined) return defaultVal;
-      const n = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : Number(val);
-      if (isNaN(n) || n < min || n > max) return defaultVal;
-      return n;
-    };
-
-    const extractedData = {
-      total_cost_eur: normalizeNumber(parsedData.spesa_annua_totale_eur, 50, 5000),
-      annual_kwh: normalizeNumber(parsedData.consumo_annuo_kwh, 200, 10000),
-      unit_price_eur_kwh: normalizeNumber(parsedData.prezzo_energia_eur_kwh, 0.05, 2.0),
-      gas_smc: normalizeNumber(parsedData.consumo_annuo_smc, 0, 10000),
-      pod: validatedPod,
-      pdr: validatedPdr,
-      f1_kwh: null,
-      f2_kwh: null,
-      f3_kwh: null,
-      potenza_kw: 3.0,
-      tariff_hint: 'monoraria',
-      billing_period_start: null,
-      billing_period_end: null,
-      provider: parsedData.fornitore || 'Fornitore Corrente',
-      quality_score: avgConfidence,
-      notes: parsedData.note || ''
-    };
-
-    console.log('[OCR-V2-Gemini] Extracted data:', extractedData);
-
-    // Calculate validation errors
-    const validationErrors: string[] = [];
-    let confidenceScore = avgConfidence;
-
-    if (!extractedData.total_cost_eur || extractedData.total_cost_eur <= 0) {
-      confidenceScore = Math.min(confidenceScore, 0.50);
-      validationErrors.push('Importo non trovato o non valido');
-    }
-    
-    if (extractedData.unit_price_eur_kwh && (extractedData.unit_price_eur_kwh < 0.05 || extractedData.unit_price_eur_kwh > 2.0)) {
-      validationErrors.push('Prezzo unitario fuori range');
-      confidenceScore = Math.min(confidenceScore, 0.70);
-    }
-    
-    if (extractedData.annual_kwh && (extractedData.annual_kwh < 200 || extractedData.annual_kwh > 10000)) {
-      validationErrors.push('Consumo annuo fuori range');
-      confidenceScore = Math.min(confidenceScore, 0.70);
-    }
-
-    if (!validatedPod && !validatedPdr) {
-      validationErrors.push('POD/PDR non valido o assente');
-      confidenceScore = Math.min(confidenceScore, 0.80);
-    }
-
-    extractedData.quality_score = confidenceScore;
-    
-    // Save debug info with v2 fields
-    const provider_detected = parsedData.fornitore || templateData.provider_detected || 'unknown';
-    await supabase.from('ocr_debug').insert({
-      upload_id: uploadId,
-      pagina_usata: 1,
-      raw_json: parsedData,
-      confidence_avg: confidenceScore,
-      routing_choice: 'vision',
-      provider_detected: provider_detected,
-      used_defaults: validationErrors.length > 0,
-      errors: validationErrors.length > 0 ? validationErrors.join('; ') : null
+    // Call Gemini API
+    const geminiResponse = await fetch(geminiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody)
     });
 
-    // Get user_id from upload record
-    const { data: uploadRecord } = await supabase
-      .from('uploads')
-      .select('user_id')
-      .eq('id', uploadId)
-      .maybeSingle();
+    const elapsedMs = Date.now() - startTime;
+    console.log(`[OCR] Gemini responded in ${elapsedMs}ms with status ${geminiResponse.status}`);
 
-    // Store OCR results in database with gas fields
-    const { error: insertError } = await supabase
-      .from('ocr_results')
-      .insert({
-        upload_id: uploadId,
-        user_id: uploadRecord?.user_id,
-        total_cost_eur: extractedData.total_cost_eur,
-        annual_kwh: extractedData.annual_kwh,
-        unit_price_eur_kwh: extractedData.unit_price_eur_kwh,
-        gas_smc: extractedData.gas_smc,
-        pod: extractedData.pod,
-        pdr: extractedData.pdr,
-        f1_kwh: extractedData.f1_kwh,
-        f2_kwh: extractedData.f2_kwh,
-        f3_kwh: extractedData.f3_kwh,
-        potenza_kw: extractedData.potenza_kw,
-        tariff_hint: extractedData.tariff_hint,
-        billing_period_start: extractedData.billing_period_start,
-        billing_period_end: extractedData.billing_period_end,
-        provider: extractedData.provider,
-        quality_score: extractedData.quality_score,
-        consumo_annuo_smc: parsedData.consumo_annuo_smc || null,
-        prezzo_gas_eur_smc: parsedData.prezzo_gas_eur_smc || null,
-        costo_annuo_gas: parsedData.consumo_annuo_smc && parsedData.prezzo_gas_eur_smc 
-          ? (parsedData.consumo_annuo_smc * parsedData.prezzo_gas_eur_smc) + ((parsedData.quota_fissa_mese_eur || 0) * 12)
-          : null,
-        raw_json: extractedData
-      });
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error(`[OCR] Gemini API Error: ${errorText}`);
+      
+      return new Response(
+        JSON.stringify({ 
+          ok: false, 
+          error: "Gemini API error", 
+          details: `Status ${geminiResponse.status}: ${errorText}`,
+          quality_score: 0 
+        }),
+        { status: geminiResponse.status, headers: { ...corsHeaders, "content-type": "application/json" } }
+      );
+    }
+
+    // Parse Gemini Response
+    const geminiData = await geminiResponse.json();
+    const generatedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!generatedText) {
+      console.error("[OCR] No text generated by Gemini");
+      console.error("[OCR] Full response:", JSON.stringify(geminiData, null, 2));
+      throw new Error("Gemini returned no text content");
+    }
+
+    console.log(`[OCR] Raw Gemini Response (${generatedText.length} chars):`);
+    console.log(generatedText.substring(0, 500) + "...");
+
+    // Extract JSON from response (remove markdown code blocks if present)
+    const jsonString = generatedText
+      .replace(/```json\s*/g, "")
+      .replace(/```\s*/g, "")
+      .trim();
+
+    let extractedData;
+    try {
+      extractedData = JSON.parse(jsonString);
+      console.log("[OCR] Successfully parsed JSON");
+      console.log("[OCR] Extracted fields:", Object.keys(extractedData).join(", "));
+    } catch (e) {
+      console.error("[OCR] JSON Parse Error:", e.message);
+      console.error("[OCR] Attempted to parse:", jsonString.substring(0, 200));
+      throw new Error(`Failed to parse Gemini response as JSON: ${e.message}`);
+    }
+
+    // Prepare database record
+    const dbRecord = {
+      upload_id: uploadId,
+      provider: extractedData.provider || null,
+      annual_kwh: extractedData.annual_kwh || null,
+      total_cost_eur: extractedData.total_cost_eur || null,
+      quality_score: extractedData.quality_score || 0.5,
+      tariff_hint: extractedData.tariff_hint || null,
+      pod: extractedData.pod || null,
+      pdr: extractedData.pdr || null,
+      gas_smc: extractedData.gas_smc || null,
+      costo_annuo_gas: extractedData.costo_annuo_gas || null,
+      unit_price_eur_kwh: extractedData.unit_price_eur_kwh || null,
+      f1_kwh: extractedData.f1_kwh || null,
+      f2_kwh: extractedData.f2_kwh || null,
+      f3_kwh: extractedData.f3_kwh || null,
+      potenza_kw: extractedData.potenza_kw || null,
+      raw_json: extractedData
+    };
+
+    // Log what we're about to save
+    console.log("[OCR] Saving to database:");
+    console.log(`  - Provider: ${dbRecord.provider}`);
+    console.log(`  - Annual kWh: ${dbRecord.annual_kwh}`);
+    console.log(`  - Total Cost: €${dbRecord.total_cost_eur}`);
+    console.log(`  - POD: ${dbRecord.pod}`);
+    console.log(`  - Quality: ${dbRecord.quality_score}`);
+
+    // Insert into database
+    const { data: insertedData, error: insertError } = await supabase
+      .from("ocr_results")
+      .insert(dbRecord)
+      .select()
+      .single();
 
     if (insertError) {
-      console.error('[OCR-V2] Database insert error:', insertError);
-      throw new Error('Failed to save OCR results to database');
+      console.error("[OCR] Database Insert Error:", insertError);
+      return new Response(
+        JSON.stringify({ 
+          ok: false, 
+          error: "Database save failed", 
+          details: insertError.message,
+          quality_score: 0 
+        }),
+        { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
+      );
     }
 
-    console.log('[OCR-V2-Gemini] Extraction completed successfully');
+    console.log("[OCR] ✓ Successfully saved to database");
+    console.log("[OCR] ========================================");
 
-    return new Response(JSON.stringify(extractedData), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    // Return success response
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        message: "OCR completed successfully",
+        data: dbRecord,
+        ...dbRecord  // Flatten for backward compatibility
+      }),
+      { status: 200, headers: { ...corsHeaders, "content-type": "application/json" } }
+    );
 
-  } catch (error) {
-    console.error('[OCR-V2-Gemini] Error in ocr-extract function:', error);
-
-    const message = error instanceof Error ? error.message : 'Unknown error';
-
+  } catch (err) {
+    console.error("[OCR] FATAL ERROR:", err);
+    console.error("[OCR] Stack:", err.stack);
+    
     return new Response(
       JSON.stringify({ 
-        error: message,
-        quality_score: 0 
+        ok: false, 
+        error: err instanceof Error ? err.message : "Unknown error",
+        details: String(err),
+        quality_score: 0
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
     );
   }
 });

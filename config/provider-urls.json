@@ -1,0 +1,14 @@
+{
+  "priority_providers": [
+    {"name": "Enel Energia", "url": "https://www.enel.it/it/luce-e-gas/luce"},
+    {"name": "Eni Plenitude", "url": "https://www.eniplenitude.com/it/casa/offerte-luce"},
+    {"name": "Edison Energia", "url": "https://www.edisonenergia.it/casa/luce"},
+    {"name": "A2A Energia", "url": "https://www.a2aenergia.eu/casa/luce"},
+    {"name": "Hera Comm", "url": "https://www.gruppohera.it/clienti/casa/luce"},
+    {"name": "Iren", "url": "https://lucegas.iren.it/offerte-luce"},
+    {"name": "Acea Energia", "url": "https://www.acea.it/energia/offerte-luce"},
+    {"name": "Sorgenia", "url": "https://www.sorgenia.it/offerte/luce"},
+    {"name": "Illumia", "url": "https://www.illumia.it/offerte-luce"},
+    {"name": "NeN Energia", "url": "https://www.nen.it/offerte"}
+  ]
+}
