@@ -3,13 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, Loader2, TrendingDown, AlertCircle, Zap } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import '@/types/analytics';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SummaryBanner } from '@/components/results/SummaryBanner';
+import { IntelligentAnalysis } from '@/components/results/IntelligentAnalysis';
+import { ActionSection } from '@/components/results/ActionSection';
+import { MethodSection } from '@/components/results/MethodSection';
 
 interface Offer {
   id: string;
@@ -32,6 +36,7 @@ const ResultsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [ocrData, setOcrData] = useState<any>(null);
   const [bestOffer, setBestOffer] = useState<Offer | null>(null);
+  const [allOffers, setAllOffers] = useState<Offer[]>([]);
   const [currentCost, setCurrentCost] = useState<number>(0);
   const [consumption, setConsumption] = useState<number>(0);
   const [billType, setBillType] = useState<'luce' | 'gas' | 'combo'>('luce');
@@ -76,72 +81,52 @@ const ResultsPage = () => {
       // Determine bill type
       const { data: uploadData } = await supabase
         .from('uploads')
-        .select('tipo_bolletta')
+        .select('*')
         .eq('id', uploadId)
         .maybeSingle();
 
-      const tipo = (uploadData?.tipo_bolletta || 'luce') as 'luce' | 'gas' | 'combo';
+      let tipo = (uploadData?.tipo_bolletta || 'luce') as 'luce' | 'gas' | 'combo';
+      
+      // Fallback: infer from OCR data if upload type is missing or default
+      if (!uploadData?.tipo_bolletta && ocrResult) {
+        if (ocrResult.gas_smc > 0 || ocrResult.consumo_annuo_smc > 0) {
+          tipo = 'gas';
+        } else if (ocrResult.annual_kwh > 0) {
+          tipo = 'luce';
+        }
+      }
+      
       setBillType(tipo);
 
       // Get consumption from OCR
-      const consumo = tipo === 'gas' 
-        ? (ocrResult.consumo_annuo_smc || ocrResult.gas_smc)
-        : (ocrResult.annual_kwh);
-      
+      const consumo = tipo === 'gas'
+        ? (ocrResult.consumo_annuo_smc || ocrResult.gas_smc || 0)
+        : (ocrResult.annual_kwh || 0);
+
       // Get current cost from OCR
-      const costo = ocrResult.costo_annuo_totale || ocrResult.total_cost_eur;
-
-      // RELAXED CHECK: Only show manual input if BOTH are missing
-      // If we have at least one value, proceed with what we have
-      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
-        console.warn('Both consumption and cost missing, activating manual fallback');
-        setShowManualInput(true);
-        setIsLoading(false);
-        return; // Stop here, wait for user input
-      }
-      // RELAXED CHECK: Only show manual input if BOTH are missing
-      // If we have at least one value, proceed with what we have
-      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
-        console.warn('Both consumption and cost missing, activating manual fallback');
-        setShowManualInput(true);
-        setIsLoading(false);
-        return; // Stop here, wait for user input
-      }
-      // RELAXED CHECK: Only show manual input if BOTH are missing
-      // If we have at least one value, proceed with what we have
-      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
-        console.warn('Both consumption and cost missing, activating manual fallback');
-        setShowManualInput(true);
-        setIsLoading(false);
-        return; // Stop here, wait for user input
-      }
-      // RELAXED CHECK: Only show manual input if BOTH are missing
-      // If we have at least one value, proceed with what we have
-      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
-        console.warn('Both consumption and cost missing, activating manual fallback');
-        setShowManualInput(true);
-        setIsLoading(false);
-        return; // Stop here, wait for user input
-      }
-      // RELAXED CHECK: Only show manual input if BOTH are missing
-      // If we have at least one value, proceed with what we have
-      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
-        console.warn('Both consumption and cost missing, activating manual fallback');
-        setShowManualInput(true);
-        setIsLoading(false);
-        return; // Stop here, wait for user input
-      }
-      // RELAXED CHECK: Only show manual input if BOTH are missing
-      // If we have at least one value, proceed with what we have
-      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
-        console.warn('Both consumption and cost missing, activating manual fallback');
-        setShowManualInput(true);
-        setIsLoading(false);
-        return; // Stop here, wait for user input
+      let costo = ocrResult.costo_annuo_totale || ocrResult.total_cost_eur || 0;
+      
+      // HEURISTIC: Fix "Bill Total" vs "Annual Cost"
+      // If cost is suspiciously low relative to consumption (e.g. < 0.10 €/unit), 
+      // it's likely a bimonthly bill, not annual cost.
+      if (consumo > 0 && costo > 0) {
+        const costPerUnit = costo / consumo;
+        if (costPerUnit < 0.10) {
+          console.warn('Suspiciously low annual cost (' + costo + '€ for ' + consumo + ' units). Assuming bimonthly bill.');
+          costo = costo * 6; // Project to annual
+        }
       }
 
-      setConsumption(consumo);
-      setCurrentCost(costo);
+      // RELAXED CHECK: Only show manual input if BOTH are missing or zero
+      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
+        console.warn('Both consumption and cost missing, activating manual fallback');
+        setShowManualInput(true);
+        setIsLoading(false);
+        return;
+      }
+
+      setConsumption(Number(consumo));
+      setCurrentCost(Number(costo));
 
       // 2. Get comparison results - MUST exist
       const { data: comparisonData, error: compError } = await supabase
@@ -157,13 +142,25 @@ const ResultsPage = () => {
         throw new Error('Nessuna offerta disponibile per i tuoi parametri. Riprova più tardi.');
       }
 
-      // Get best offer
+            // Get best offer and all ranked offers
       if (comparisonData.ranked_offers && Array.isArray(comparisonData.ranked_offers)) {
         const ranked = comparisonData.ranked_offers as unknown as Offer[];
         if (ranked.length === 0) {
           throw new Error('Nessuna offerta disponibile per i tuoi parametri. Riprova più tardi.');
         }
         setBestOffer(ranked[0]);
+        setAllOffers(ranked);
+
+        // Trigger AI Analysis after successful data fetch
+        fetchAiAnalysis(
+          uploadId, 
+          Number(consumo), 
+          Number(costo) / 12, 
+          Number(costo), 
+          ocrResult.provider || 'Fornitore sconosciuto', 
+          ocrResult.tariff_hint
+        );
+
       } else {
         throw new Error('Nessuna offerta disponibile per i tuoi parametri. Riprova più tardi.');
       }
@@ -175,16 +172,66 @@ const ResultsPage = () => {
         description: error instanceof Error ? error.message : 'Errore nel caricamento dei risultati',
         variant: 'destructive'
       });
-      
-      // Block navigation - go back to upload
       setTimeout(() => navigate('/upload'), 2000);
     } finally {
-      // Only stop loading if we are NOT showing manual input
-      // If showing manual input, we keep loading state 'false' but content hidden? 
-      // Actually we set isLoading(false) inside the if block above, so here we just ensure it is false if we reached here
       if (!showManualInput) {
-         setIsLoading(false);
+        setIsLoading(false);
       }
+    }
+  };
+
+  // AI Analysis State
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<boolean>(false);
+
+  const fetchAiAnalysis = async (
+    uId: string, 
+    consumo: number, 
+    mensile: number, 
+    annuo: number, 
+    provider: string, 
+    offerta?: string
+  ) => {
+    try {
+      setIsAiLoading(true);
+      setAiError(false);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      const response = await fetch(
+        'https://jxluygtonamgadqgzgyh.supabase.co/functions/v1/energy-coach',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            upload_id: uId,
+            consumo_annuo_kwh: consumo,
+            spesa_mensile_corrente: mensile,
+            spesa_annua_corrente: annuo,
+            fornitore_attuale: provider,
+            tipo_offerta_attuale: offerta || 'non specificato'
+          })
+        }
+      );
+
+      if (!response.ok) throw new Error('AI Error');
+      
+      const data = await response.json();
+      if (data.ok && data.analysis) {
+        setAiAnalysis(data.analysis);
+      } else {
+        throw new Error('Invalid AI response');
+      }
+    } catch (err) {
+      console.error('AI Analysis failed:', err);
+      setAiError(true);
+    } finally {
+      setIsAiLoading(false);
     }
   };
 
@@ -203,10 +250,9 @@ const ResultsPage = () => {
         return;
       }
 
-      // Update OCR results
       const updateData: any = {
         total_cost_eur: eur,
-        quality_score: 1.0, // User verified
+        quality_score: 1.0,
         tariff_hint: 'manual_fallback'
       };
 
@@ -224,7 +270,6 @@ const ResultsPage = () => {
 
       if (updateError) throw updateError;
 
-      // Re-run comparison
       const { error: compareError } = await supabase.functions.invoke('compare-offers', {
         body: { uploadId }
       });
@@ -233,7 +278,7 @@ const ResultsPage = () => {
 
       setShowManualInput(false);
       setIsLoading(true);
-      fetchRealResults(); // Reload everything
+      fetchRealResults();
 
     } catch (error) {
       console.error('Manual update failed:', error);
@@ -257,9 +302,8 @@ const ResultsPage = () => {
       return;
     }
 
-    // Track lead
     const annualSaving = currentCost - offer.simulated_cost;
-    
+
     await supabase.from('leads').insert({
       upload_id: uploadId || crypto.randomUUID(),
       provider: offer.provider,
@@ -270,7 +314,6 @@ const ResultsPage = () => {
       current_annual_cost_eur: currentCost,
     });
 
-    // Analytics
     if (typeof gtag !== 'undefined') {
       gtag('event', 'offer_activated', {
         event_category: 'conversion',
@@ -278,9 +321,6 @@ const ResultsPage = () => {
         annual_saving: annualSaving
       });
     }
-
-    // Redirect
-    window.open(offer.redirect_url, '_blank');
   };
 
   const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
@@ -294,6 +334,7 @@ const ResultsPage = () => {
   const monthlySaving = annualSaving / 12;
   const currentMonthly = currentCost / 12;
   const newMonthly = bestOffer ? bestOffer.simulated_cost / 12 : currentMonthly;
+  const hasSavings = monthlySaving > 0;
 
   if (isLoading) {
     return (
@@ -323,100 +364,107 @@ const ResultsPage = () => {
           Analizza un'altra bolletta
         </Button>
 
-        {/* Hero Numbers - Apple Style */}
-        <div className='text-center space-y-12 py-8'>
+        {/* HERO / RIASSUNTO */}
+        <div className='text-center space-y-8 py-8'>
           <div>
-            <h1 className='text-5xl md:text-6xl font-bold mb-4'>La tua analisi</h1>
-            <p className='text-xl text-muted-foreground'>Dati reali estratti dalla tua bolletta {billType}</p>
+            <h1 className='text-4xl md:text-5xl font-bold mb-3'>La tua analisi</h1>
+            <p className='text-lg md:text-xl text-muted-foreground'>
+              Dati reali estratti dalla tua bolletta {billType}
+            </p>
           </div>
 
-          {/* I 3 NUMERI CHIAVE */}
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-8'>
-            {/* Quanto spendi ora */}
+          {/* Le 2 card principali */}
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+            {/* Card 1: Spendi ora */}
             <Card className='border-2'>
-              <CardContent className='p-8 text-center space-y-2'>
-                <p className='text-sm text-muted-foreground uppercase tracking-wide'>Spendi ora</p>
-                <p className='text-5xl font-bold'>{fmt(currentMonthly)}</p>
+              <CardContent className='p-6 md:p-8 text-center space-y-3'>
+                <p className='text-sm text-muted-foreground uppercase tracking-wide font-medium'>Spendi ora</p>
+                <p className='text-4xl md:text-5xl font-bold'>{fmt(currentMonthly)}</p>
                 <p className='text-sm text-muted-foreground'>al mese</p>
-                <div className='pt-4 border-t mt-4'>
-                  <p className='text-xs text-muted-foreground'>Consumo: {consumption} {billType === 'gas' ? 'Smc' : 'kWh'}</p>
-                  <p className='text-xs text-muted-foreground'>Provider: {ocrData?.provider || 'N/A'}</p>
+                <div className='pt-4 border-t mt-4 space-y-1'>
+                  <p className='text-xs text-muted-foreground'>Consumo: {consumption.toLocaleString('it-IT')} {billType === 'gas' ? 'Smc' : 'kWh'}</p>
+                  <p className='text-xs text-muted-foreground'>Fornitore: {ocrData?.provider || 'N/A'}</p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Quanto spenderesti */}
+            {/* Card 2: Con l'offerta migliore */}
             {bestOffer && (
-              <Card className='border-2 border-green-500/50 bg-green-500/5'>
-                <CardContent className='p-8 text-center space-y-2'>
-                  <p className='text-sm text-muted-foreground uppercase tracking-wide'>Spenderesti</p>
-                  <p className='text-5xl font-bold text-green-600'>{fmt(newMonthly)}</p>
+              <Card className='border-2 border-primary/30'>
+                <CardContent className='p-6 md:p-8 text-center space-y-3'>
+                  <p className='text-sm text-muted-foreground uppercase tracking-wide font-medium'>Con l'offerta migliore</p>
+                  <p className='text-4xl md:text-5xl font-bold text-primary'>{fmt(newMonthly)}</p>
                   <p className='text-sm text-muted-foreground'>al mese</p>
-                  <div className='pt-4 border-t mt-4'>
+                  <div className='pt-4 border-t mt-4 space-y-1'>
                     <p className='text-xs font-semibold'>{bestOffer.provider}</p>
                     <p className='text-xs text-muted-foreground'>{bestOffer.plan_name}</p>
                   </div>
                 </CardContent>
               </Card>
             )}
-
-            {/* Quanto risparmi */}
-            {bestOffer && annualSaving > 0 && (
-              <Card className='border-2 border-primary/50 bg-primary/5'>
-                <CardContent className='p-8 text-center space-y-2'>
-                  <p className='text-sm text-muted-foreground uppercase tracking-wide'>Risparmi</p>
-                  <p className='text-5xl font-bold text-primary'>{fmt(monthlySaving)}</p>
-                  <p className='text-sm text-muted-foreground'>al mese</p>
-                  <div className='pt-4 border-t mt-4'>
-                    <TrendingDown className='h-6 w-6 mx-auto text-primary mb-1' />
-                    <p className='text-xs text-muted-foreground'>{fmt(annualSaving)} all'anno</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
-          {/* No savings scenario */}
-          {bestOffer && annualSaving <= 0 && (
-            <Card className='border-2 border-blue-500/30 bg-blue-500/5'>
-              <CardContent className='p-8 text-center space-y-4'>
-                <AlertCircle className='h-12 w-12 mx-auto text-blue-600' />
-                <div>
-                  <h3 className='text-2xl font-bold mb-2'>La tua tariffa è già competitiva</h3>
-                  <p className='text-muted-foreground'>
-                    Non abbiamo trovato offerte migliori rispetto a quella che hai ora.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+          {/* BANNER RIASSUNTO DECISIONE */}
+          {bestOffer && (
+            <SummaryBanner
+              hasSavings={hasSavings}
+              monthlySaving={monthlySaving}
+              yearlySaving={annualSaving}
+              bestOfferName={bestOffer.plan_name}
+              bestOfferProvider={bestOffer.provider}
+              currentProvider={ocrData?.provider || 'provider attuale'}
+            />
           )}
 
-          {/* CTA - Attiva offerta */}
-          {bestOffer && annualSaving > 0 && (
-            <Card className='border-2 border-primary'>
-              <CardContent className='p-8 text-center space-y-6'>
-                <div>
-                  <h3 className='text-3xl font-bold mb-2'>Pronto per risparmiare?</h3>
-                  <p className='text-muted-foreground'>
-                    Clicca per attivare l'offerta con {bestOffer.provider}
-                  </p>
-                </div>
-
-                <Button 
-                  size='lg' 
-                  className='text-xl px-12 py-8 h-auto gradient-hero'
-                  onClick={() => handleActivateOffer(bestOffer)}
-                >
-                  <Zap className='h-6 w-6 mr-2' />
-                  Attiva e risparmia {fmt(monthlySaving)}/mese
-                </Button>
-
-                <p className='text-sm text-muted-foreground'>
-                  Verrai reindirizzato al sito ufficiale del provider per completare l'attivazione
-                </p>
-              </CardContent>
-            </Card>
+          {/* ANALISI INTELLIGENTE */}
+          {/* ANALISI INTELLIGENTE */}
+          {bestOffer && (
+            <IntelligentAnalysis
+              consumption={consumption}
+              billType={billType}
+              currentMonthly={currentMonthly}
+              currentAnnual={currentCost}
+              currentProvider={ocrData?.provider || 'provider attuale'}
+              currentOfferType={ocrData?.tariff_hint}
+              bestOfferName={bestOffer.plan_name}
+              bestOfferProvider={bestOffer.provider}
+              bestOfferMonthly={newMonthly}
+              bestOfferAnnual={bestOffer.simulated_cost}
+              savingMonthly={monthlySaving}
+              savingAnnual={annualSaving}
+              aiAnalysis={aiAnalysis}
+              isLoading={isAiLoading}
+              error={aiError}
+            />
           )}
+
+          {/* SEZIONE AZIONE */}
+          {bestOffer && (
+            <ActionSection
+              hasSavings={hasSavings}
+              savingMonthly={monthlySaving}
+              bestOfferUrl={bestOffer.redirect_url}
+              bestOfferProvider={bestOffer.provider}
+              onActivate={() => handleActivateOffer(bestOffer)}
+            />
+          )}
+
+          {/* COME ABBIAMO FATTO L'ANALISI */}
+          {allOffers.length > 0 && (
+            <MethodSection
+              offersCount={allOffers.length}
+              providersCount={new Set(allOffers.map(o => o.provider)).size}
+              providers={Array.from(new Set(allOffers.map(o => o.provider)))}
+            />
+          )}
+
+          {/* FOOTER TRASPARENZA */}
+          <div className='pt-4 text-center'>
+            <p className='text-xs text-muted-foreground leading-relaxed max-w-2xl mx-auto'>
+              Le cifre mostrate sono stime basate sui dati della tua bolletta e sui prezzi disponibili al momento dell'analisi. 
+              Gli importi finali possono variare in base alle condizioni contrattuali e ai consumi effettivi.
+            </p>
+          </div>
         </div>
       </main>
 
@@ -425,7 +473,7 @@ const ResultsPage = () => {
           <DialogHeader>
             <DialogTitle>Dati mancanti</DialogTitle>
             <DialogDescription>
-              Non siamo riusciti a trovare il consumo o il costo annuo nella tua bolletta (potrebbe essere una nuova fornitura). 
+              Non siamo riusciti a trovare il consumo o il costo annuo nella tua bolletta (potrebbe essere una nuova fornitura).
               Inserisci i dati manualmente per continuare.
             </DialogDescription>
           </DialogHeader>
