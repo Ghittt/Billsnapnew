@@ -21,6 +21,12 @@ import "@/types/analytics";
 const OCR_FUNCTION_URL = import.meta.env.VITE_OCR_FUNCTION_URL || "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_OCR_SUPABASE_ANON_KEY || "";
 
+// Debug: Log env var status (remove in production after fixing)
+console.log("[ENV CHECK] VITE_OCR_FUNCTION_URL:", OCR_FUNCTION_URL ? "SET" : "MISSING");
+console.log("[ENV CHECK] VITE_OCR_SUPABASE_ANON_KEY:", SUPABASE_ANON_KEY ? "SET" : "MISSING");
+console.log("[ENV CHECK] VITE_SUPABASE_URL:", import.meta.env.VITE_SUPABASE_URL ? "SET" : "MISSING");
+console.log("[ENV CHECK] VITE_SUPABASE_PUBLISHABLE_KEY:", import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ? "SET" : "MISSING");
+
 const UploadPage = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
@@ -239,6 +245,25 @@ const UploadPage = () => {
           event_category: "engagement",
         });
       }
+
+      // Call compare-offers to analyze and save offer recommendations
+      console.log("Calling compare-offers for upload:", uploadId);
+      const { data: compareData, error: compareError } = await supabase.functions.invoke("compare-offers", {
+        body: { uploadId },
+      });
+
+      if (compareError) {
+        console.error("Compare offers error:", compareError);
+        await logError({
+          type: "network",
+          message: "Compare offers failed",
+          uploadId,
+          payload: { error: compareError },
+        });
+      } else {
+        console.log("Offers compared successfully:", compareData);
+      }
+
 
       setCurrentStep("complete");
       setUploadedFiles(files);
