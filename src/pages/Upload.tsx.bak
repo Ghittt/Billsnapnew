@@ -11,6 +11,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, Clock, Upload, Shield, Zap } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { logError, updateUploadStatus } from "@/lib/errorLogger";
+import "@/types/analytics";
+
+// ======================================================
+// CONFIG OCR → Using environment variables
+// ======================================================
+
+// Get OCR function URL and anon key from environment variables
+const OCR_FUNCTION_URL = import.meta.env.VITE_OCR_FUNCTION_URL || "";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_OCR_SUPABASE_ANON_KEY || "";
 
 const UploadPage = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -113,7 +122,8 @@ const UploadPage = () => {
           errorCode: uploadError?.code || "DB_ERROR",
           payload: { error: uploadError?.message },
         });
-        throw new Error("Errore durante la creazione del record. Riprova.");
+        // MODIFIED: Show specific DB error
+        throw new Error(`Errore DB: ${uploadError?.message || "Dati mancanti"} (Code: ${uploadError?.code})`);
       }
 
       const uploadId = uploadData.id as string;
@@ -142,6 +152,12 @@ const UploadPage = () => {
           setOcrTimeoutWarning(true);
         }
       }, 30000);
+
+      console.log("Calling OCR function at:", OCR_FUNCTION_URL);
+      
+      if (!OCR_FUNCTION_URL) {
+        throw new Error("Configuration Error: OCR_FUNCTION_URL is missing.");
+      }
 
       // 5) chiamata edge function OCR (multipart + JWT anon)
       const ocrFormData = new FormData();
@@ -182,7 +198,7 @@ const UploadPage = () => {
           payload: { fileName: file.name, error: errorText },
         });
 
-        throw new Error("Errore durante la lettura della bolletta. Riprova più tardi.");
+        throw new Error(`OCR Error (${ocrResponse.status}): ${errorText || "Unknown error"}`);
       }
 
       const ocrData = await ocrResponse.json();
@@ -197,24 +213,25 @@ const UploadPage = () => {
 
       console.log("OCR response:", ocrData);
 
-      if (!ocrData.success) {
+      // Backend returns the data directly, or { error: ... } on failure
+      if (ocrData.error) {
         await supabase
           .from("uploads")
           .update({
             ocr_status: "failed",
-            ocr_error: "OCR returned success=false",
+            ocr_error: ocrData.error || "Unknown OCR error",
             ocr_completed_at: new Date().toISOString(),
           })
           .eq("id", uploadId);
 
         await logError({
           type: "ocr",
-          message: "OCR returned success=false",
+          message: "OCR returned error",
           uploadId,
           payload: { response: ocrData },
         });
 
-        throw new Error("Errore durante la lettura della bolletta. Riprova più tardi.");
+        throw new Error(ocrData.error || "Errore durante la lettura della bolletta.");
       }
 
       if (typeof gtag !== "undefined") {
@@ -251,15 +268,13 @@ const UploadPage = () => {
 
       toast({
         title: "Errore durante la lettura della bolletta",
-        description: "Riprova più tardi.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setIsUploading(false);
     }
   };
-
-  // --- resto: manual fallback & UI identici ---
 
   const handleManualFallbackSubmit = async (data: { provider: string; annualKwh: number; totalCostEur?: number }) => {
     if (!pendingUploadId) return;

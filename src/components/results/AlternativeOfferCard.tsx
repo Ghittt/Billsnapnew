@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ProviderLogo } from './ProviderLogo';
 
 interface AlternativeOfferCardProps {
   provider: string;
@@ -47,7 +48,12 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
-            <CardTitle className="text-lg">{provider}</CardTitle>
+            <div className="flex items-center gap-2 mb-1">
+              <ProviderLogo provider={provider} size='sm' />
+              <div>
+                <CardTitle className="text-lg">{provider}</CardTitle>
+              </div>
+            </div>
             <p className="text-sm text-muted-foreground">{offerName}</p>
             {source && source !== '#' && (() => {
               try {
@@ -127,7 +133,7 @@ export const AlternativeOfferCard: React.FC<AlternativeOfferCardProps> = ({
             aria-label={`Vedi offerta ${provider}`}
           >
             <ExternalLink className="w-4 h-4 mr-2" />
-            Vedi offerta
+            🔗 Vedi offerta
           </a>
         </Button>
       </CardContent>
