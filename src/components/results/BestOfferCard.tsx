@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ExternalLink, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ProviderLogo } from './ProviderLogo';
 
 interface BestOfferCardProps {
   provider: string;
@@ -67,7 +68,10 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
                 </span>
               )}
             </div>
-            <CardTitle className="text-xl md:text-2xl">{provider}</CardTitle>
+            <div className="flex items-center gap-3 mb-1">
+              <ProviderLogo provider={provider} size='md' />
+              <CardTitle className="text-xl md:text-2xl">{provider}</CardTitle>
+            </div>
             <p className="text-sm text-muted-foreground mt-1">{offerName}</p>
             {source && source !== '#' && (() => {
               try {
@@ -159,7 +163,7 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
             ) : (
               <>
                 <ExternalLink className="w-5 h-5" />
-                Attiva subito e risparmia
+                🔗 Attiva subito e risparmia
               </>
             )}
           </a>

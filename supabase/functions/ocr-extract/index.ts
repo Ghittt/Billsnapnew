@@ -59,12 +59,14 @@ CAMPI DA ESTRARRE (JSON):
    Esempi: "Enel Energia", "A2A Energia", "Edison Energia"
 
 2. **annual_kwh** (number): Consumo annuo LUCE in kWh.
-   - Cerca: "Consumo annuo", "Consumo annuo stimato", "Stima annua", "Energia attiva annua"
-   - Se trovi solo consumo bimestrale/trimestrale, moltiplica per 6 o 4
+   - PRIORITÀ ASSOLUTA: Cerca "Consumo Annuo Effettivo" o "Consumo Reale".
+   - Se non trovi il reale, cerca "Consumo annuo stimato" o "Stima annua".
+   - Se trovi solo consumo bimestrale/trimestrale, MOLTIPLICA per i periodi necessari (es. bimestrale * 6) per ottenere l'annuo.
    - Formato: 1200.5 (NON "1.200 kWh")
 
 3. **total_cost_eur** (number): Totale da pagare QUESTA bolletta in euro.
-   - Cerca: "Totale da pagare", "Importo totale", "Totale bolletta", "Totale fattura"
+   - Cerca: "Totale da pagare", "Importo totale", "Totale bolletta", "Totale fattura".
+   - ATTENZIONE: Non confondere con "Spesa per la materia energia". Cerca il TOTALE COMPLESSIVO.
    - Formato: 85.50 (NON "€ 85,50")
 
 4. **pod** (string): Codice POD per luce (inizia con IT).
@@ -104,6 +106,16 @@ CAMPI DA ESTRARRE (JSON):
     - Cerca: "Potenza impegnata", "Potenza disponibile"
     - Formato: 3.0
 
+13. **costo_annuo_luce** (number): Spesa annua stimata per la luce in euro.
+    - Cerca: "Spesa annua stimata", "Costo annuo", "Totale annuo"
+    - Se non presente esplicitamente, STIMALO: (Totale Bolletta / Mesi Fatturati) * 12.
+    - Sii conservativo nella stima.
+    - Formato: 1200.00
+
+14. **bill_period_months** (number): Periodo di fatturazione in mesi.
+    - 1 = mensile, 2 = bimestrale
+    - Default: 2 (bimestrale) se non specificato
+
 REGOLE CRITICHE:
 - Restituisci SOLO un oggetto JSON valido, niente altro.
 - Se un campo è assente o illeggibile, usa null.
@@ -117,6 +129,8 @@ ESEMPIO OUTPUT:
   "provider": "Enel Energia",
   "annual_kwh": 2400.0,
   "total_cost_eur": 85.50,
+  "costo_annuo_luce": 513.00,
+  "bill_period_months": 2,
   "pod": "IT001E12345678",
   "pdr": null,
   "gas_smc": null,
@@ -132,6 +146,7 @@ ESEMPIO OUTPUT:
 
 Analizza ora il documento.
 `;
+
 
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
@@ -286,6 +301,8 @@ serve(async (req: Request): Promise<Response> => {
       f2_kwh: extractedData.f2_kwh || null,
       f3_kwh: extractedData.f3_kwh || null,
       potenza_kw: extractedData.potenza_kw || null,
+      costo_annuo_luce: extractedData.costo_annuo_luce || null,
+      bill_period_months: extractedData.bill_period_months || null,
       raw_json: extractedData
     };
 
