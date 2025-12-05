@@ -97,7 +97,6 @@ OFFERTA MIGLIORE CONSIGLIATA:
 - Risparmio mensile: €${monthlySavings.toFixed(2)}
 - Risparmio annuo: €${annualSavings.toFixed(2)}
 - Prezzo offerta kWh: €${bestOffer?.price_kwh || 'N/A'}
-- Link offerta: ${bestOffer?.redirect_url || '#'}
 
 REGOLE DI OUTPUT:
 1. Parla SEMPRE come se stessi spiegando a una persona che non capisce nulla di energia.
@@ -105,11 +104,10 @@ REGOLE DI OUTPUT:
 3. Non usare gergo tecnico senza spiegarlo.
 4. Devi SEMPRE spiegare PERCHÉ l’offerta consigliata è migliore PER QUEL consumo.
 5. Devi SEMPRE analizzare le fasce orarie F1, F2, F3 e spiegarne il senso.
-6. Devi SEMPRE includere un pulsante “Sottoscrivi l’offerta” usando il link fornito.
-7. Devi SEMPRE spiegare se l’utente consuma molto, poco o nella media.
-8. Devi SEMPRE evidenziare se l’offerta attuale è sbilanciata rispetto al profilo di consumo.
-9. Devi dare consigli concreti (es. elettrodomestici energivori, fasce sbagliate, ecc.).
-10. NO FRASEGGI GENERICI. NO MINCHIATE.
+6. Devi SEMPRE spiegare se l’utente consuma molto, poco o nella media.
+7. Devi SEMPRE evidenziare se l’offerta attuale è sbilanciata rispetto al profilo di consumo.
+8. Devi dare consigli concreti (es. elettrodomestici energivori, fasce sbagliate, ecc.).
+9. NO FRASEGGI GENERICI. NO MINCHIATE.
 
 STRUTTURA OBBLIGATORIA DELL’ANALISI:
 
@@ -146,11 +144,7 @@ E spiega perché questo incide sulle offerte.
 ### 5. Cosa devi fare adesso (azione concreta)
 Tre punti semplicissimi e pratici.
 
-### 6. Pulsante di sottoscrizione
-Obbligatorio:
-[ **Sottoscrivi l’offerta** ](${bestOffer?.redirect_url || '#'})
-
-### 7. Trasparenza (breve e onesta)
+### 6. Trasparenza (breve e onesta)
 Aggiungi SEMPRE una nota chiara:
 “Le cifre sono stime basate sui tuoi consumi reali e sui prezzi attuali. Controlla sempre i dettagli sul sito del fornitore prima di sottoscrivere.”
 
