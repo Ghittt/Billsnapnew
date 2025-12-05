@@ -4,70 +4,88 @@ import { FileText } from 'lucide-react';
 
 const TermsPage = () => {
   return (
-    <div className="min-h-screen bg-gradient-subtle">
+    <div className="min-h-screen bg-background">
       <Header />
       
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6 max-w-4xl mx-auto">
           <div className="text-center space-y-4">
-            <h1 className="text-3xl font-bold text-foreground flex items-center justify-center gap-2">
+            <h1 className="text-3xl font-bold text-primary flex items-center justify-center gap-2">
               <FileText className="w-8 h-8 text-primary" />
               Termini di Servizio
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-foreground">
               Condizioni d'uso del servizio BillSnap
             </p>
           </div>
 
-          <Card>
+          <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle>Servizio</CardTitle>
+              <CardTitle className="text-primary">Servizio</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p>
+              <p className="text-foreground">
                 BillSnap è un servizio di analisi bollette energetiche che permette di:
               </p>
-              <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-                <li>Analizzare bollette energetiche tramite OCR</li>
-                <li>Calcolare potenziali risparmi</li>
-                <li>Raccomandare offerte competitive</li>
+              <ul className="space-y-2 text-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Analizzare bollette energetiche tramite OCR</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Calcolare potenziali risparmi</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Raccomandare offerte competitive</span>
+                </li>
               </ul>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle>Utilizzo Accettabile</CardTitle>
+              <CardTitle className="text-primary">Utilizzo Accettabile</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p>Utilizzando BillSnap, accetti di:</p>
-              <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-                <li>Fornire dati accurati e veritieri</li>
-                <li>Non utilizzare il servizio per scopi illegali</li>
-                <li>Rispettare i diritti di proprietà intellettuale</li>
+              <p className="text-foreground">Utilizzando BillSnap, accetti di:</p>
+              <ul className="space-y-2 text-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Fornire dati accurati e veritieri</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Non utilizzare il servizio per scopi illegali</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Rispettare i diritti di proprietà intellettuale</span>
+                </li>
               </ul>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle>Limitazioni</CardTitle>
+              <CardTitle className="text-primary">Limitazioni</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p>
+              <p className="text-foreground">
                 BillSnap fornisce stime basate sui dati disponibili. 
                 I risparmi effettivi possono variare e dipendono da fattori esterni.
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle>Contatti</CardTitle>
+              <CardTitle className="text-primary">Contatti</CardTitle>
             </CardHeader>
             <CardContent>
-              <p>
-                Per supporto: <a href="mailto:support@billsnap.app" className="text-primary underline">support@billsnap.app</a>
+              <p className="text-foreground">
+                Per supporto: <a href="mailto:support@billsnap.app" className="text-primary underline font-medium">support@billsnap.app</a>
               </p>
             </CardContent>
           </Card>

@@ -51,7 +51,6 @@ const FeedbackPage = () => {
         description: "Grazie per il tuo contributo. Analizzeremo il feedback entro 48h.",
       });
 
-      // Reset form
       setFormData({
         email: '',
         category: '',
@@ -73,29 +72,29 @@ const FeedbackPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
+    <div className="min-h-screen bg-background">
       <Header />
       
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6 max-w-2xl mx-auto">
           <div className="text-center space-y-4">
-            <h1 className="text-3xl font-bold text-foreground flex items-center justify-center gap-2">
+            <h1 className="text-3xl font-bold text-primary flex items-center justify-center gap-2">
               <MessageSquare className="w-8 h-8 text-primary" />
               Feedback Tester
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-foreground">
               Aiutaci a migliorare BillSnap. Il tuo feedback è prezioso per le iterazioni rapide.
             </p>
           </div>
 
-          <Card>
+          <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle>Invia Feedback</CardTitle>
+              <CardTitle className="text-primary">Invia Feedback</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email (opzionale)</Label>
+                  <Label htmlFor="email" className="text-foreground">Email (opzionale)</Label>
                   <Input
                     id="email"
                     type="email"
@@ -106,7 +105,7 @@ const FeedbackPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="category">Categoria Feedback *</Label>
+                  <Label htmlFor="category" className="text-foreground">Categoria Feedback *</Label>
                   <Select value={formData.category} onValueChange={(value) => setFormData({...formData, category: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleziona categoria" />
@@ -123,7 +122,7 @@ const FeedbackPage = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <Label>Valutazione Generale *</Label>
+                  <Label className="text-foreground">Valutazione Generale *</Label>
                   <RadioGroup 
                     value={formData.rating} 
                     onValueChange={(value) => setFormData({...formData, rating: value})}
@@ -153,7 +152,7 @@ const FeedbackPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="device">Device/Piattaforma</Label>
+                  <Label htmlFor="device" className="text-foreground">Device/Piattaforma</Label>
                   <Select value={formData.device} onValueChange={(value) => setFormData({...formData, device: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleziona device" />
@@ -167,7 +166,7 @@ const FeedbackPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="message">Descrizione Dettagliata *</Label>
+                  <Label htmlFor="message" className="text-foreground">Descrizione Dettagliata *</Label>
                   <Textarea
                     id="message"
                     placeholder="Descrivi cosa hai notato, che problemi hai riscontrato o suggerimenti per migliorare..."
@@ -195,18 +194,18 @@ const FeedbackPage = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle>Altri Canali</CardTitle>
+              <CardTitle className="text-primary">Altri Canali</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 text-foreground">
               <p>
-                <strong>Email:</strong> <a href="mailto:feedback@billsnap.app" className="text-primary underline">feedback@billsnap.app</a>
+                <strong className="text-primary">Email:</strong> <a href="mailto:feedback@billsnap.app" className="text-primary underline font-medium">feedback@billsnap.app</a>
               </p>
               <p>
-                <strong>Telegram Tester:</strong> <a href="https://t.me/billsnap_tester" className="text-primary underline">@billsnap_tester</a>
+                <strong className="text-primary">Telegram Tester:</strong> <a href="https://t.me/billsnap_tester" className="text-primary underline font-medium">@billsnap_tester</a>
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-foreground/70">
                 Cicli di iterazione: ogni 7 giorni. Feedback prioritari vengono implementati entro 48h.
               </p>
             </CardContent>
