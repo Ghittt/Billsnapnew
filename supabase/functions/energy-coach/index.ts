@@ -28,7 +28,11 @@ serve(async (req) => {
       spesa_mensile_corrente, 
       spesa_annua_corrente, 
       fornitore_attuale,
-      tipo_offerta_attuale 
+      tipo_offerta_attuale,
+      f1_consumption,
+      f2_consumption,
+      f3_consumption,
+      current_price_kwh
     } = await req.json();
 
     if (!upload_id || !consumo_annuo_kwh || !spesa_mensile_corrente) {
@@ -37,7 +41,7 @@ serve(async (req) => {
 
     console.log('EnergyCoach: Processing analysis for upload:', upload_id);
 
-    // Get comparison results to understand savings potential
+    // Get comparison results
     const { data: comparisonData } = await supabaseClient
       .from('comparison_results')
       .select('*')
@@ -56,11 +60,10 @@ serve(async (req) => {
     const billType = uploadData?.tipo_bolletta || 'luce';
     const unitLabel = billType === 'gas' ? 'Smc' : 'kWh';
 
-    // Calculate savings if we have comparison data
     let bestOffer = null;
     let annualSavings = 0;
     let monthlySavings = 0;
-
+    
     if (comparisonData?.ranked_offers && Array.isArray(comparisonData.ranked_offers)) {
       const ranked = comparisonData.ranked_offers;
       if (ranked.length > 0) {
@@ -70,45 +73,88 @@ serve(async (req) => {
       }
     }
 
-        // Build comprehensive prompt for Gemini
-    const systemPrompt = `Sei SnapAI™, il consulente energetico intelligente di BillSnap.
+    const systemPrompt = `Sei l’AI ufficiale di BillSnap. La tua analisi DEVE sembrare fatta da un consulente umano esperto, non da un riepilogo di dati.
 
-Il tuo compito è fornire un'analisi personalizzata e professionale della situazione energetica dell'utente.
+OBIETTIVO:
+Produrre un’analisi “a prova di principiante”, lineare, comprensibile, senza termini tecnici inutili, andando dritto al punto.
 
 DATI UTENTE:
-- Tipo bolletta: ${billType}
+- Spesa mensile attuale: €${Number(spesa_mensile_corrente).toFixed(2)}
+- Spesa annua attuale: €${Number(spesa_annua_corrente).toFixed(2)}
 - Consumo annuo: ${consumo_annuo_kwh} ${unitLabel}
-- Spesa mensile attuale: €${spesa_mensile_corrente.toFixed(2)}
-- Spesa annua attuale: €${spesa_annua_corrente.toFixed(2)}
+- Consumo F1: ${f1_consumption || 0} ${unitLabel}
+- Consumo F2: ${f2_consumption || 0} ${unitLabel}
+- Consumo F3: ${f3_consumption || 0} ${unitLabel}
 - Fornitore attuale: ${fornitore_attuale}
-- Tipo offerta: ${tipo_offerta_attuale || 'Non specificato'}
+- Tipo offerta attuale: ${tipo_offerta_attuale || 'Non specificato'}
+- Prezzo attuale kWh: €${current_price_kwh || 'N/A'}
 
-${bestOffer ? `MIGLIOR OFFERTA TROVATA:
-- Provider: ${bestOffer.provider}
-- Piano: ${bestOffer.plan_name || 'N/A'}
-- Costo annuo stimato: €${bestOffer.simulated_cost?.toFixed(2) || 'N/A'}
-- Risparmio potenziale: €${annualSavings.toFixed(2)}/anno (€${monthlySavings.toFixed(2)}/mese)
-` : 'NESSUNA OFFERTA MIGLIORE: La tariffa attuale è già competitiva.'}
+OFFERTA MIGLIORE CONSIGLIATA:
+- Nome: ${bestOffer?.plan_name || 'N/A'}
+- Fornitore: ${bestOffer?.provider || 'N/A'}
+- Spesa mensile stimata: €${bestOffer ? (bestOffer.simulated_cost / 12).toFixed(2) : 'N/A'}
+- Spesa annua stimata: €${bestOffer?.simulated_cost.toFixed(2) || 'N/A'}
+- Risparmio mensile: €${monthlySavings.toFixed(2)}
+- Risparmio annuo: €${annualSavings.toFixed(2)}
+- Prezzo offerta kWh: €${bestOffer?.price_kwh || 'N/A'}
+- Link offerta: ${bestOffer?.redirect_url || '#'}
 
-TONO E STILE:
-- Professionale ma accessibile
-- Diretto e onesto
-- Empatico e rassicurante
-- ASSOLUTAMENTE NO EMOJI
-- NO disclaimer generici
-- NO frasi vaghe tipo "potrebbe" o "forse"
+REGOLE DI OUTPUT:
+1. Parla SEMPRE come se stessi spiegando a una persona che non capisce nulla di energia.
+2. Usa frasi brevi, chiare, pulite.
+3. Non usare gergo tecnico senza spiegarlo.
+4. Devi SEMPRE spiegare PERCHÉ l’offerta consigliata è migliore PER QUEL consumo.
+5. Devi SEMPRE analizzare le fasce orarie F1, F2, F3 e spiegarne il senso.
+6. Devi SEMPRE includere un pulsante “Sottoscrivi l’offerta” usando il link fornito.
+7. Devi SEMPRE spiegare se l’utente consuma molto, poco o nella media.
+8. Devi SEMPRE evidenziare se l’offerta attuale è sbilanciata rispetto al profilo di consumo.
+9. Devi dare consigli concreti (es. elettrodomestici energivori, fasce sbagliate, ecc.).
+10. NO FRASEGGI GENERICI. NO MINCHIATE.
 
-STRUTTURA DELLA RISPOSTA (Obbligatoria):
-1. **Analisi Iniziale**: Valuta sinteticamente se il consumo è alto/basso/medio per il tipo di utenza.
-2. **Valutazione Costi**: Giudica se la spesa attuale è in linea con il mercato o eccessiva.
-3. **Il Verdetto**: Dì chiaramente se conviene cambiare o restare.
-4. **Perché Cambiare (o Restare)**: Spiega i motivi matematici (es. "Risparmieresti X€ all'anno").
-5. **Azione Consigliata**: Un invito all'azione chiaro (es. "Attiva subito l'offerta X" o "Tieni la tua tariffa").
+STRUTTURA OBBLIGATORIA DELL’ANALISI:
 
-LUNGHEZZA: Massimo 200 parole. Usa elenchi puntati se necessario per chiarezza.
+### 1. Diagnosi immediata (apertura)
+Spiega in modo diretto:
+- quanto spende ora l’utente
+- quanto spenderebbe con l’offerta consigliata
+- la differenza
+- se il risparmio è significativo, marginale o nullo
 
-Genera l'analisi in italiano, usando numeri concreti e fatti verificabili.`;
+### 2. Perché questa offerta è migliore (la parte AI vera)
+Qui devi essere chirurgico:
+- confronta il tipo di tariffa (monoraria/bioraria)
+- guarda i consumi F1/F2/F3 e spiega se l’offerta si adatta bene o male
+- spiega se l’utente consuma più nelle fasce costose = errore del contratto attuale
+- spiega se l’offerta proposta ha prezzo fisso più stabile
+- spiega se l’utente ha elettrodomestici energivori
 
+### 3. Analisi fasce orarie (F1, F2, F3)
+DEVI spiegare:
+- quale fascia pesa di più
+- se l’offerta consigliata è più conveniente in quella fascia
+- quanto potrebbe influire un cambio abitudini
+
+### 4. Analisi del consumo totale
+Classifica sempre:
+- Sotto 2500 kWh → Consumo basso
+- 2500–4500 kWh → Consumo medio
+- 4500–7000 kWh → Consumo alto
+- Oltre 7000 kWh → Consumo molto alto
+
+E spiega perché questo incide sulle offerte.
+
+### 5. Cosa devi fare adesso (azione concreta)
+Tre punti semplicissimi e pratici.
+
+### 6. Pulsante di sottoscrizione
+Obbligatorio:
+[ **Sottoscrivi l’offerta** ](${bestOffer?.redirect_url || '#'})
+
+### 7. Trasparenza (breve e onesta)
+Aggiungi SEMPRE una nota chiara:
+“Le cifre sono stime basate sui tuoi consumi reali e sui prezzi attuali. Controlla sempre i dettagli sul sito del fornitore prima di sottoscrivere.”
+
+Rispondi SEMPRE in italiano perfetto, con tono professionale ma amichevole. Usa Markdown.`;
 
     // Call Gemini API
     const response = await fetch(
@@ -120,7 +166,7 @@ Genera l'analisi in italiano, usando numeri concreti e fatti verificabili.`;
           contents: [{ parts: [{ text: systemPrompt }] }],
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 1000,
+            maxOutputTokens: 1500,
           }
         }),
       }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { TrendingDown, CheckCircle } from 'lucide-react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface SummaryBannerProps {
   hasSavings: boolean;
@@ -9,6 +9,10 @@ interface SummaryBannerProps {
   bestOfferName: string;
   bestOfferProvider: string;
   currentProvider: string;
+  bestOfferUrl: string | null;
+  onActivate: () => void;
+  currentMonthly?: number;
+  newMonthly?: number;
 }
 
 export const SummaryBanner: React.FC<SummaryBannerProps> = ({
@@ -18,6 +22,8 @@ export const SummaryBanner: React.FC<SummaryBannerProps> = ({
   bestOfferName,
   bestOfferProvider,
   currentProvider,
+  currentMonthly = 0,
+  newMonthly = 0
 }) => {
   const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
     style: 'currency',
@@ -26,21 +32,34 @@ export const SummaryBanner: React.FC<SummaryBannerProps> = ({
     maximumFractionDigits: 0
   }).format(n);
 
-  if (hasSavings) {
+  let bgColor = 'bg-green-50 border-green-200';
+  let textColor = 'text-green-800';
+  let icon = <CheckCircle2 className='h-6 w-6 text-green-600' />;
+  let savingLevel = "moderato";
+
+  if (monthlySaving >= 15) {
+    savingLevel = "molto alto";
+  } else if (monthlySaving >= 5) {
+    savingLevel = "alto";
+  } else if (monthlySaving > 0) {
+    savingLevel = "basso";
+  } else {
+    bgColor = 'bg-blue-50 border-blue-200';
+    textColor = 'text-blue-800';
+    icon = <AlertCircle className='h-6 w-6 text-blue-600' />;
+  }
+
+  if (!hasSavings) {
     return (
-      <Card className='border-2 border-green-500/30 bg-green-50/50'>
-        <CardContent className='p-6 md:p-8'>
-          <div className='flex items-start gap-4'>
-            <TrendingDown className='h-8 w-8 text-green-600 flex-shrink-0 mt-1' />
-            <div>
-              <h3 className='text-xl md:text-2xl font-bold mb-2'>Hai margine di risparmio</h3>
-              <p className='text-base text-foreground leading-relaxed'>
-                Con l'offerta <span className='font-semibold'>{bestOfferName}</span> di{' '}
-                <span className='font-semibold'>{bestOfferProvider}</span> potresti risparmiare circa{' '}
-                <span className='font-bold text-green-600'>{fmt(monthlySaving)}/mese</span>{' '}
-                (≈ {fmt(yearlySaving)}/anno).
-              </p>
-            </div>
+      <Card className={`${bgColor} border-2`}>
+        <CardContent className='p-6 md:p-8 flex items-start gap-4'>
+          <div className='mt-1'>{icon}</div>
+          <div className='space-y-2'>
+            <h3 className={`text-xl font-bold ${textColor}`}>Sei già messo bene</h3>
+            <p className='text-base text-foreground/80'>
+              Non abbiamo trovato offerte significativamente migliori della tua attuale con {currentProvider}. 
+              Ti consigliamo di mantenere il tuo contratto attuale.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -48,18 +67,24 @@ export const SummaryBanner: React.FC<SummaryBannerProps> = ({
   }
 
   return (
-    <Card className='border-2 border-blue-500/30 bg-blue-50/50'>
-      <CardContent className='p-6 md:p-8'>
-        <div className='flex items-start gap-4'>
-          <CheckCircle className='h-8 w-8 text-blue-600 flex-shrink-0 mt-1' />
-          <div>
-            <h3 className='text-xl md:text-2xl font-bold mb-2'>In questo momento la tua tariffa è competitiva</h3>
-            <p className='text-base text-foreground leading-relaxed'>
-              Le offerte che abbiamo analizzato non migliorano la tua spesa attuale. Restare con{' '}
-              <span className='font-semibold'>{currentProvider}</span> è una scelta ragionevole.
-            </p>
-          </div>
+    <Card className={`${bgColor} border-2`}>
+      <CardContent className='p-6 md:p-8 space-y-4'>
+        <div className='flex items-center gap-3'>
+          {icon}
+          <h3 className={`text-2xl font-bold ${textColor}`}>Hai margine di risparmio</h3>
         </div>
+        
+        <p className='text-lg leading-relaxed text-foreground'>
+          Con l'offerta <strong>{bestOfferName}</strong> di <strong>{bestOfferProvider}</strong> potresti spendere circa <strong>{fmt(newMonthly)}/mese</strong> invece di <strong>{fmt(currentMonthly)}/mese</strong>.
+          <br />
+          Il risparmio stimato è di circa <strong>{fmt(monthlySaving)}/mese</strong> (≈ {fmt(yearlySaving)}/anno).
+          <br />
+          Per un profilo come il tuo si tratta di un risparmio <strong>{savingLevel}</strong>.
+        </p>
+
+        <p className='text-sm text-muted-foreground pt-2'>
+          Il calcolo è fatto sui tuoi consumi reali: non è una stima generica, ma basata sulla tua bolletta.
+        </p>
       </CardContent>
     </Card>
   );
