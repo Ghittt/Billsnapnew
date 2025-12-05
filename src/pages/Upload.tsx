@@ -22,10 +22,16 @@ const OCR_FUNCTION_URL = import.meta.env.VITE_OCR_FUNCTION_URL || "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_OCR_SUPABASE_ANON_KEY || "";
 
 // Debug: Log env var status (remove in production after fixing)
-console.log("[ENV CHECK] VITE_OCR_FUNCTION_URL:", OCR_FUNCTION_URL ? "SET" : "MISSING");
-console.log("[ENV CHECK] VITE_OCR_SUPABASE_ANON_KEY:", SUPABASE_ANON_KEY ? "SET" : "MISSING");
-console.log("[ENV CHECK] VITE_SUPABASE_URL:", import.meta.env.VITE_SUPABASE_URL ? "SET" : "MISSING");
-console.log("[ENV CHECK] VITE_SUPABASE_PUBLISHABLE_KEY:", import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ? "SET" : "MISSING");
+// Debug: Log env var status (Safe logging)
+const safeLog = (name: string, value: string | undefined) => {
+  if (!value) return console.log(`[ENV CHECK] ${name}: MISSING`);
+  console.log(`[ENV CHECK] ${name}: SET (Starts with: ${value.substring(0, 8)}...)`);
+};
+
+safeLog("VITE_OCR_FUNCTION_URL", OCR_FUNCTION_URL);
+safeLog("VITE_OCR_SUPABASE_ANON_KEY", SUPABASE_ANON_KEY);
+safeLog("VITE_SUPABASE_URL", import.meta.env.VITE_SUPABASE_URL);
+safeLog("VITE_SUPABASE_PUBLISHABLE_KEY", import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
 
 const UploadPage = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
