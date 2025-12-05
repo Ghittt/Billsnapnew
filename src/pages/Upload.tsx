@@ -204,8 +204,7 @@ const UploadPage = () => {
           payload: { error: ocrError },
         });
 
-        throw new Error(\`Errore OCR: \${ocrError.message || "Errore di connessione"}\`);
-      }
+        throw new Error(`Errore OCR: ${ocrError.message || "Errore di connessione"}`);
       }
 
       const ocrResponseData = ocrData; // Rename for clarity
