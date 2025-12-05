@@ -164,15 +164,21 @@ const UploadPage = () => {
         }
       }, 30000);
 
-      // 5) chiamata edge function OCR (via supabase.functions.invoke)
+      // 5) chiamata edge function OCR (convert file to base64 for invoke)
       console.log("Calling OCR function via supabase.functions.invoke...");
       
-      const ocrFormData = new FormData();
-      ocrFormData.append("file", file);
-      ocrFormData.append("uploadId", uploadId);
+      // Convert File to base64
+      const fileArrayBuffer = await file.arrayBuffer();
+      const fileUint8Array = new Uint8Array(fileArrayBuffer);
+      const fileBase64 = btoa(String.fromCharCode(...fileUint8Array));
 
       const { data: ocrData, error: ocrError } = await supabase.functions.invoke("ocr-extract", {
-        body: ocrFormData,
+        body: {
+          fileBase64: fileBase64,
+          fileName: file.name,
+          fileType: file.type,
+          uploadId: uploadId,
+        },
       });
 
       clearTimeout(timeoutWarning);
@@ -198,7 +204,8 @@ const UploadPage = () => {
           payload: { error: ocrError },
         });
 
-        throw new Error(`Errore OCR: ${ocrError.message || "Errore di connessione"}`);
+        throw new Error(\`Errore OCR: \${ocrError.message || "Errore di connessione"}\`);
+      }
       }
 
       const ocrResponseData = ocrData; // Rename for clarity
