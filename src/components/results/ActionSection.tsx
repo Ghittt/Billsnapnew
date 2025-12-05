@@ -1,86 +1,60 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Info } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 
 interface ActionSectionProps {
   hasSavings: boolean;
   savingMonthly: number;
-  bestOfferUrl?: string | null;
+  bestOfferName: string;
   bestOfferProvider: string;
+  bestOfferProviderName: string; // kept for compatibility
+  bestOfferUrl: string | null;
   onActivate: () => void;
 }
 
 export const ActionSection: React.FC<ActionSectionProps> = ({
   hasSavings,
-  savingMonthly,
-  bestOfferUrl,
+  bestOfferName,
   bestOfferProvider,
-  onActivate,
+  bestOfferUrl,
+  onActivate
 }) => {
-  if (hasSavings) {
-    return (
-      <Card className='border-2'>
-        <CardContent className='p-6 md:p-8 space-y-4'>
-          <h2 className='text-2xl font-bold'>Cosa ti conviene fare adesso</h2>
-          
-          <ul className='space-y-2 text-base text-foreground'>
-            <li className='flex items-start gap-2'>
-              <span className='text-primary mt-1'>•</span>
-              <span>Verifica sul sito del fornitore i dettagli contrattuali prima di sottoscrivere.</span>
-            </li>
-            <li className='flex items-start gap-2'>
-              <span className='text-primary mt-1'>•</span>
-              <span>Conserva una copia della tua bolletta attuale per confrontare le condizioni.</span>
-            </li>
-            {savingMonthly >= 5 && (
-              <li className='flex items-start gap-2'>
-                <span className='text-primary mt-1'>•</span>
-                <span>Il risparmio stimato è superiore a 5 €/mese: il cambio ha senso dal punto di vista economico.</span>
-              </li>
-            )}
-          </ul>
-
-          {bestOfferUrl && (
-            <Button
-              size='lg'
-              className='w-full md:w-auto text-lg px-8 py-6'
-              onClick={onActivate}
-              asChild
-            >
-              <a href={bestOfferUrl} target='_blank' rel='noopener noreferrer'>
-                <ExternalLink className='w-5 h-5 mr-2' />
-                Vai all'offerta sul sito di {bestOfferProvider}
-              </a>
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
+  if (!hasSavings) return null;
 
   return (
-    <Card className='border-2 border-blue-500/30 bg-blue-50/50'>
-      <CardContent className='p-6 md:p-8 space-y-4'>
-        <div className='flex items-center gap-3'>
-          <Info className='h-6 w-6 text-blue-600' />
-          <h2 className='text-2xl font-bold'>Cosa ti conviene fare adesso</h2>
-        </div>
+    <Card className='border-2 bg-white'>
+      <CardContent className='p-6 md:p-8 space-y-6'>
+        <h2 className='text-2xl md:text-3xl font-bold text-center'>Cosa ti conviene fare adesso</h2>
         
-        <p className='text-base text-foreground leading-relaxed'>
-          In base alle offerte analizzate, non ti consigliamo di cambiare fornitore adesso.
-        </p>
+        <ol className='list-decimal list-outside pl-5 space-y-4 text-lg text-foreground'>
+          <li>
+            Apri l'offerta <strong>{bestOfferName}</strong> di <strong>{bestOfferProvider}</strong> con il pulsante qui sotto.
+          </li>
+          <li>
+            Verifica che i dati principali coincidano con questa analisi: prezzo energia, costi fissi, eventuali bonus.
+          </li>
+          <li>
+            Controlla due soli punti del contratto: penali di uscita (devono essere nulle o minime) e durata del prezzo bloccato.
+          </li>
+          <li>
+            Se tutto è allineato, il cambio ha senso: con i tuoi consumi il risparmio stimato è reale e sostenuto.
+          </li>
+        </ol>
 
-        <ul className='space-y-2 text-base text-foreground'>
-          <li className='flex items-start gap-2'>
-            <span className='text-blue-600 mt-1'>•</span>
-            <span>Continua a monitorare le tue bollette nei prossimi mesi.</span>
-          </li>
-          <li className='flex items-start gap-2'>
-            <span className='text-blue-600 mt-1'>•</span>
-            <span>Valuta interventi di efficienza energetica in casa (luci LED, elettrodomestici efficienti, termostato intelligente).</span>
-          </li>
-        </ul>
+        <div className='pt-6 text-center'>
+          <Button 
+            size='lg' 
+            className='w-full md:w-auto px-8 py-6 text-lg font-bold shadow-lg hover:shadow-xl transition-all'
+            onClick={() => {
+              onActivate();
+              if (bestOfferUrl) window.open(bestOfferUrl, '_blank');
+            }}
+          >
+            Vai all'offerta e sottoscrivi
+            <ExternalLink className='ml-2 h-5 w-5' />
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

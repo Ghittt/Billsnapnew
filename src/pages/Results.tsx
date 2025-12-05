@@ -14,6 +14,7 @@ import { SummaryBanner } from '@/components/results/SummaryBanner';
 import { IntelligentAnalysis } from '@/components/results/IntelligentAnalysis';
 import { ActionSection } from '@/components/results/ActionSection';
 import { MethodSection } from '@/components/results/MethodSection';
+import { getOfferUrl } from '@/utils/offerUrls';
 
 interface Offer {
   id: string;
@@ -64,7 +65,6 @@ const ResultsPage = () => {
     try {
       setIsLoading(true);
 
-      // 1. Get OCR data - MUST exist
       const { data: ocrResult, error: ocrError } = await supabase
         .from('ocr_results')
         .select('*')
@@ -78,7 +78,6 @@ const ResultsPage = () => {
 
       setOcrData(ocrResult);
 
-      // Determine bill type
       const { data: uploadData } = await supabase
         .from('uploads')
         .select('*')
@@ -87,7 +86,6 @@ const ResultsPage = () => {
 
       let tipo = (uploadData?.tipo_bolletta || 'luce') as 'luce' | 'gas' | 'combo';
       
-      // Fallback: infer from OCR data if upload type is missing or default
       if (!uploadData?.tipo_bolletta && ocrResult) {
         if (ocrResult.gas_smc > 0 || ocrResult.consumo_annuo_smc > 0) {
           tipo = 'gas';
@@ -98,26 +96,20 @@ const ResultsPage = () => {
       
       setBillType(tipo);
 
-      // Get consumption from OCR
       const consumo = tipo === 'gas'
         ? (ocrResult.consumo_annuo_smc || ocrResult.gas_smc || 0)
         : (ocrResult.annual_kwh || 0);
 
-      // Get current cost from OCR
       let costo = ocrResult.costo_annuo_totale || ocrResult.total_cost_eur || 0;
       
-      // HEURISTIC: Fix "Bill Total" vs "Annual Cost"
-      // If cost is suspiciously low relative to consumption (e.g. < 0.10 €/unit), 
-      // it's likely a bimonthly bill, not annual cost.
       if (consumo > 0 && costo > 0) {
         const costPerUnit = costo / consumo;
         if (costPerUnit < 0.10) {
           console.warn('Suspiciously low annual cost (' + costo + '€ for ' + consumo + ' units). Assuming bimonthly bill.');
-          costo = costo * 6; // Project to annual
+          costo = costo * 6;
         }
       }
 
-      // RELAXED CHECK: Only show manual input if BOTH are missing or zero
       if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
         console.warn('Both consumption and cost missing, activating manual fallback');
         setShowManualInput(true);
@@ -128,7 +120,6 @@ const ResultsPage = () => {
       setConsumption(Number(consumo));
       setCurrentCost(Number(costo));
 
-      // 2. Get comparison results - MUST exist
       const { data: comparisonData, error: compError } = await supabase
         .from('comparison_results')
         .select('*')
@@ -142,7 +133,6 @@ const ResultsPage = () => {
         throw new Error('Nessuna offerta disponibile per i tuoi parametri. Riprova più tardi.');
       }
 
-            // Get best offer and all ranked offers
       if (comparisonData.ranked_offers && Array.isArray(comparisonData.ranked_offers)) {
         const ranked = comparisonData.ranked_offers as unknown as Offer[];
         if (ranked.length === 0) {
@@ -151,14 +141,17 @@ const ResultsPage = () => {
         setBestOffer(ranked[0]);
         setAllOffers(ranked);
 
-        // Trigger AI Analysis after successful data fetch
         fetchAiAnalysis(
           uploadId, 
           Number(consumo), 
           Number(costo) / 12, 
           Number(costo), 
           ocrResult.provider || 'Fornitore sconosciuto', 
-          ocrResult.tariff_hint
+          ocrResult.tariff_hint,
+          Number(ocrResult.f1_kwh || 0),
+          Number(ocrResult.f2_kwh || 0),
+          Number(ocrResult.f3_kwh || 0),
+          Number(ocrResult.unit_price_eur_kwh || 0)
         );
 
       } else {
@@ -191,7 +184,11 @@ const ResultsPage = () => {
     mensile: number, 
     annuo: number, 
     provider: string, 
-    offerta?: string
+    offerta: string | undefined,
+    f1: number,
+    f2: number,
+    f3: number,
+    priceKwh: number
   ) => {
     try {
       setIsAiLoading(true);
@@ -214,7 +211,11 @@ const ResultsPage = () => {
             spesa_mensile_corrente: mensile,
             spesa_annua_corrente: annuo,
             fornitore_attuale: provider,
-            tipo_offerta_attuale: offerta || 'non specificato'
+            tipo_offerta_attuale: offerta || 'non specificato',
+            f1_consumption: f1,
+            f2_consumption: f2,
+            f3_consumption: f3,
+            current_price_kwh: priceKwh
           })
         }
       );
@@ -293,22 +294,14 @@ const ResultsPage = () => {
   };
 
   const handleActivateOffer = async (offer: Offer) => {
-    if (!offer.redirect_url) {
-      toast({
-        title: 'Link non disponibile',
-        description: "Il link all'offerta non è disponibile",
-        variant: 'destructive'
-      });
-      return;
-    }
-
+    const offerUrl = offer.redirect_url || getOfferUrl(offer.provider, offer.plan_name);
     const annualSaving = currentCost - offer.simulated_cost;
 
     await supabase.from('leads').insert({
       upload_id: uploadId || crypto.randomUUID(),
       provider: offer.provider,
       offer_id: offer.id,
-      redirect_url: offer.redirect_url,
+      redirect_url: offerUrl,
       offer_annual_cost_eur: offer.simulated_cost,
       annual_saving_eur: annualSaving,
       current_annual_cost_eur: currentCost,
@@ -321,6 +314,8 @@ const ResultsPage = () => {
         annual_saving: annualSaving
       });
     }
+    
+    window.open(offerUrl, '_blank');
   };
 
   const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
@@ -335,6 +330,11 @@ const ResultsPage = () => {
   const currentMonthly = currentCost / 12;
   const newMonthly = bestOffer ? bestOffer.simulated_cost / 12 : currentMonthly;
   const hasSavings = monthlySaving > 0;
+  
+  // Generate offer URL using utility function
+  const bestOfferUrl = bestOffer 
+    ? (bestOffer.redirect_url || getOfferUrl(bestOffer.provider, bestOffer.plan_name))
+    : null;
 
   if (isLoading) {
     return (
@@ -354,7 +354,6 @@ const ResultsPage = () => {
     <div className='min-h-screen bg-background'>
       <Header />
       <main className='container mx-auto px-4 py-8 max-w-4xl'>
-        {/* Navigation */}
         <Button
           variant='ghost'
           onClick={() => navigate('/upload')}
@@ -364,47 +363,67 @@ const ResultsPage = () => {
           Analizza un'altra bolletta
         </Button>
 
-        {/* HERO / RIASSUNTO */}
-        <div className='text-center space-y-8 py-8'>
-          <div>
-            <h1 className='text-4xl md:text-5xl font-bold mb-3'>La tua analisi</h1>
-            <p className='text-lg md:text-xl text-muted-foreground'>
-              Dati reali estratti dalla tua bolletta {billType}
-            </p>
-          </div>
+        <div className='text-center space-y-4 py-4 mb-8'>
+          <h1 className='text-4xl md:text-5xl font-bold'>La tua analisi personalizzata</h1>
+          <p className='text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto'>
+            Dati reali estratti dalla tua bolletta e confrontati con le migliori offerte disponibili oggi.
+          </p>
+        </div>
 
-          {/* Le 2 card principali */}
+        <div className='space-y-12'>
           <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-            {/* Card 1: Spendi ora */}
-            <Card className='border-2'>
-              <CardContent className='p-6 md:p-8 text-center space-y-3'>
-                <p className='text-sm text-muted-foreground uppercase tracking-wide font-medium'>Spendi ora</p>
-                <p className='text-4xl md:text-5xl font-bold'>{fmt(currentMonthly)}</p>
-                <p className='text-sm text-muted-foreground'>al mese</p>
-                <div className='pt-4 border-t mt-4 space-y-1'>
-                  <p className='text-xs text-muted-foreground'>Consumo: {consumption.toLocaleString('it-IT')} {billType === 'gas' ? 'Smc' : 'kWh'}</p>
-                  <p className='text-xs text-muted-foreground'>Fornitore: {ocrData?.provider || 'N/A'}</p>
+            <Card className='border-2 shadow-sm'>
+              <CardContent className='p-6 md:p-8 text-center space-y-4'>
+                <p className='text-xs font-bold uppercase tracking-widest text-muted-foreground'>SPENDI ORA</p>
+                
+                <div className='py-2'>
+                  <span className='text-5xl font-bold'>{fmt(currentMonthly)}</span>
+                  <p className='text-sm text-muted-foreground mt-1'>al mese</p>
+                </div>
+
+                <div className='border-t pt-4 space-y-2 text-sm text-muted-foreground'>
+                  <p>≈ {fmt(currentCost)} all'anno</p>
+                  <p>Consumo annuo: {consumption.toLocaleString('it-IT')} {billType === 'gas' ? 'Smc' : 'kWh'}</p>
+                  <p>Fornitore attuale: <span className='font-medium text-foreground'>{ocrData?.provider || 'N/A'}</span></p>
+                  {ocrData?.tariff_hint && (
+                    <p>Tipo offerta: {ocrData.tariff_hint}</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Card 2: Con l'offerta migliore */}
             {bestOffer && (
-              <Card className='border-2 border-primary/30'>
-                <CardContent className='p-6 md:p-8 text-center space-y-3'>
-                  <p className='text-sm text-muted-foreground uppercase tracking-wide font-medium'>Con l'offerta migliore</p>
-                  <p className='text-4xl md:text-5xl font-bold text-primary'>{fmt(newMonthly)}</p>
-                  <p className='text-sm text-muted-foreground'>al mese</p>
-                  <div className='pt-4 border-t mt-4 space-y-1'>
-                    <p className='text-xs font-semibold'>{bestOffer.provider}</p>
-                    <p className='text-xs text-muted-foreground'>{bestOffer.plan_name}</p>
+              <Card className='border-2 border-primary/40 shadow-md relative overflow-hidden'>
+                <div className='absolute top-0 left-0 w-full h-1 bg-primary'></div>
+                <CardContent className='p-6 md:p-8 text-center space-y-4'>
+                  <p className='text-xs font-bold uppercase tracking-widest text-primary'>CON L'OFFERTA MIGLIORE PER TE</p>
+                  
+                  <div className='py-2'>
+                    <span className='text-5xl font-bold text-primary'>{fmt(newMonthly)}</span>
+                    <p className='text-sm text-muted-foreground mt-1'>al mese</p>
+                  </div>
+
+                  <div className='border-t pt-4 space-y-2 text-sm text-muted-foreground'>
+                    <p>≈ {fmt(bestOffer.simulated_cost)} all'anno</p>
+                    <p>Offerta consigliata: <span className='font-medium text-foreground'>{bestOffer.plan_name}</span></p>
+                    <p>Fornitore: <span className='font-medium text-foreground'>{bestOffer.provider}</span></p>
+                    
+                    <div className='pt-2 mt-2 bg-green-50 text-green-700 p-2 rounded-md font-medium'>
+                      Risparmio stimato: {fmt(monthlySaving)}/mese
+                      <span className='block text-xs opacity-80'>(≈ {fmt(annualSaving)}/anno)</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             )}
           </div>
 
-          {/* BANNER RIASSUNTO DECISIONE */}
+          {bestOffer && (
+            <p className='text-center text-muted-foreground text-sm italic'>
+              Questa è l'offerta che oggi risulta più conveniente per il tuo profilo di consumo.
+            </p>
+          )}
+
           {bestOffer && (
             <SummaryBanner
               hasSavings={hasSavings}
@@ -413,11 +432,13 @@ const ResultsPage = () => {
               bestOfferName={bestOffer.plan_name}
               bestOfferProvider={bestOffer.provider}
               currentProvider={ocrData?.provider || 'provider attuale'}
+              bestOfferUrl={bestOfferUrl}
+              onActivate={() => handleActivateOffer(bestOffer)}
+              currentMonthly={currentMonthly}
+              newMonthly={newMonthly}
             />
           )}
 
-          {/* ANALISI INTELLIGENTE */}
-          {/* ANALISI INTELLIGENTE */}
           {bestOffer && (
             <IntelligentAnalysis
               consumption={consumption}
@@ -438,18 +459,18 @@ const ResultsPage = () => {
             />
           )}
 
-          {/* SEZIONE AZIONE */}
           {bestOffer && (
             <ActionSection
               hasSavings={hasSavings}
               savingMonthly={monthlySaving}
-              bestOfferUrl={bestOffer.redirect_url}
+              bestOfferName={bestOffer.plan_name}
               bestOfferProvider={bestOffer.provider}
+              bestOfferProviderName={bestOffer.provider}
+              bestOfferUrl={bestOfferUrl}
               onActivate={() => handleActivateOffer(bestOffer)}
             />
           )}
 
-          {/* COME ABBIAMO FATTO L'ANALISI */}
           {allOffers.length > 0 && (
             <MethodSection
               offersCount={allOffers.length}
@@ -457,14 +478,6 @@ const ResultsPage = () => {
               providers={Array.from(new Set(allOffers.map(o => o.provider)))}
             />
           )}
-
-          {/* FOOTER TRASPARENZA */}
-          <div className='pt-4 text-center'>
-            <p className='text-xs text-muted-foreground leading-relaxed max-w-2xl mx-auto'>
-              Le cifre mostrate sono stime basate sui dati della tua bolletta e sui prezzi disponibili al momento dell'analisi. 
-              Gli importi finali possono variare in base alle condizioni contrattuali e ai consumi effettivi.
-            </p>
-          </div>
         </div>
       </main>
 

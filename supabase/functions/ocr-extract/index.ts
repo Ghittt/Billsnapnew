@@ -12,7 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Environment Configuration
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const geminiApiKey = Deno.env.get("GEMINI_API_KEY_2") || Deno.env.get("GEMINI_API_KEY") || "AIzaSyCC8aktKbEn9-6g9tnd11MOEEBI4b4YIOU";
+const geminiApiKey = Deno.env.get("GEMINI_API_KEY_2") || Deno.env.get("GEMINI_API_KEY");
 
 if (!supabaseUrl || !serviceRoleKey) {
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -26,9 +26,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-/**
- * Optimized System Prompt for Italian Energy Bills
- */
 const ITALIAN_BILL_PROMPT = `
 Sei un esperto analista di bollette energetiche italiane con 10 anni di esperienza.
 
@@ -80,7 +77,6 @@ ESEMPIO OUTPUT:
 Analizza ora il documento.
 `;
 
-
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -92,10 +88,7 @@ serve(async (req: Request): Promise<Response> => {
     if (!geminiApiKey) {
       console.error("[OCR] GEMINI_API_KEY missing");
       return new Response(
-        JSON.stringify({ 
-          ok: false, 
-          error: "Server configuration error: Missing API key" 
-        }),
+        JSON.stringify({ ok: false, error: "Server configuration error: Missing API key" }),
         { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
       );
     }
@@ -119,11 +112,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log(`[OCR] ========================================`);
-    console.log(`[OCR] Processing: ${fileName || 'unknown'}`);
-    console.log(`[OCR] Upload ID: ${uploadId}`);
-    console.log(`[OCR] MIME Type: ${fileType || 'unknown'}`);
-    console.log(`[OCR] ========================================`);
+    console.log(`[OCR] Processing: ${fileName || 'unknown'}, Upload: ${uploadId}`);
 
     const mimeType = fileType || "application/pdf";
 
@@ -182,39 +171,55 @@ serve(async (req: Request): Promise<Response> => {
     // Extract JSON from response
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error("[OCR] No JSON found in response");
+      console.error("[OCR] No JSON found in response:", rawText);
       return new Response(
         JSON.stringify({ ok: false, error: "Failed to parse bill data" }),
         { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
       );
     }
 
-    const extractedData = JSON.parse(jsonMatch[0]);
+    let extractedData;
+    try {
+      extractedData = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      console.error("[OCR] JSON parse error:", parseError);
+      return new Response(
+        JSON.stringify({ ok: false, error: "Invalid JSON from AI" }),
+        { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
+      );
+    }
+
     console.log("[OCR] Extracted data:", extractedData);
 
-    // Save to database
-    const { error: insertError } = await supabase.from("ocr_results").insert({
-      upload_id: uploadId,
-      provider: extractedData.provider || null,
-      bill_date: extractedData.bill_date || null,
-      period_start: extractedData.period_start || null,
-      period_end: extractedData.period_end || null,
-      period_days: extractedData.period_days || null,
-      annual_kwh: extractedData.annual_kwh || null,
-      kwh_period: extractedData.kwh_period || null,
-      total_cost_eur: extractedData.total_cost_eur || null,
-      f1_kwh: extractedData.f1_kwh || null,
-      f2_kwh: extractedData.f2_kwh || null,
-      f3_kwh: extractedData.f3_kwh || null,
-      potenza_kw: extractedData.potenza_kw || null,
-      unit_price_eur_kwh: extractedData.unit_price_eur_kwh || null,
-      quality_score: 0.95,
-    });
+    // Save to database with better error handling
+    try {
+      const { error: insertError } = await supabase.from("ocr_results").insert({
+        upload_id: uploadId,
+        provider: extractedData.provider || null,
+        billing_period_start: extractedData.period_start || null,
+        billing_period_end: extractedData.period_end || null,
+        annual_kwh: extractedData.annual_kwh || null,
+        total_cost_eur: extractedData.total_cost_eur || null,
+        f1_kwh: extractedData.f1_kwh || null,
+        f2_kwh: extractedData.f2_kwh || null,
+        f3_kwh: extractedData.f3_kwh || null,
+        potenza_kw: extractedData.potenza_kw || null,
+        unit_price_eur_kwh: extractedData.unit_price_eur_kwh || null,
+        quality_score: 0.95,
+        tariff_hint: "auto",
+      });
 
-    if (insertError) {
-      console.error("[OCR] Database insert error:", insertError);
+      if (insertError) {
+        console.error("[OCR] Database insert error:", JSON.stringify(insertError));
+        return new Response(
+          JSON.stringify({ ok: false, error: `Database error: ${insertError.message}` }),
+          { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
+        );
+      }
+    } catch (dbError) {
+      console.error("[OCR] Database exception:", dbError);
       return new Response(
-        JSON.stringify({ ok: false, error: "Database error" }),
+        JSON.stringify({ ok: false, error: "Database connection error" }),
         { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
       );
     }
@@ -222,21 +227,14 @@ serve(async (req: Request): Promise<Response> => {
     console.log("[OCR] Success!");
 
     return new Response(
-      JSON.stringify({ 
-        ok: true, 
-        uploadId,
-        data: extractedData 
-      }),
+      JSON.stringify({ ok: true, uploadId, data: extractedData }),
       { headers: { ...corsHeaders, "content-type": "application/json" } }
     );
 
   } catch (error) {
     console.error("[OCR] Unexpected error:", error);
     return new Response(
-      JSON.stringify({ 
-        ok: false, 
-        error: error.message || "Internal server error" 
-      }),
+      JSON.stringify({ ok: false, error: error.message || "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
     );
   }

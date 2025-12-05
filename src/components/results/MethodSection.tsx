@@ -1,6 +1,5 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { ProviderBadge } from './ProviderLogo';
 
 interface MethodSectionProps {
   offersCount: number;
@@ -8,38 +7,30 @@ interface MethodSectionProps {
   providers: string[];
 }
 
-export const MethodSection: React.FC<MethodSectionProps> = ({
-  offersCount,
-  providersCount,
-  providers,
-}) => {
+export const MethodSection: React.FC<MethodSectionProps> = () => {
   return (
-    <Card className='border'>
+    <Card className='border shadow-sm bg-gray-50/50'>
       <CardContent className='p-6 md:p-8 space-y-4'>
-        <h2 className='text-2xl font-bold'>Come abbiamo fatto l'analisi</h2>
+        <div>
+          <h2 className='text-2xl font-bold'>Come abbiamo fatto l'analisi</h2>
+          <p className='text-sm text-muted-foreground'>Perché puoi fidarti di questi numeri</p>
+        </div>
         
-        {offersCount > 0 && providersCount > 0 ? (
-          <p className='text-base text-foreground leading-relaxed'>
-            Per questa analisi abbiamo confrontato{' '}
-            <span className='font-semibold'>{offersCount} offerte</span> reali da{' '}
-            <span className='font-semibold'>{providersCount} fornitori</span> energetici.
-          </p>
-        ) : (
-          <p className='text-base text-foreground leading-relaxed'>
-            Per questa analisi abbiamo confrontato un insieme di offerte reali disponibili sul mercato libero, 
-            selezionando solo quelle compatibili con il tuo profilo di consumo.
-          </p>
-        )}
+        <ul className='list-disc list-outside pl-5 space-y-2 text-base text-foreground/90'>
+          <li>
+            Abbiamo estratto in automatico i dati principali dalla tua bolletta (consumo annuo, fornitore, tipo di contratto, prezzo per kWh e costi fissi).
+          </li>
+          <li>
+            Abbiamo confrontato questi dati con le offerte disponibili di più fornitori reali utilizzando condizioni pubbliche aggiornate.
+          </li>
+          <li>
+            Abbiamo calcolato la spesa stimata per ciascuna offerta e selezionato solo quella con il miglior rapporto tra prezzo, stabilità e semplicità delle condizioni.
+          </li>
+        </ul>
 
-        {providers.length > 0 && (
-          <div className='flex flex-wrap gap-2 pt-2'>
-            {providers.map((provider, idx) => (
-              <div key={idx} className='opacity-60'>
-                <ProviderBadge provider={provider} size='sm' />
-              </div>
-            ))}
-          </div>
-        )}
+        <p className='text-xs text-muted-foreground pt-4 mt-2 border-t'>
+          Questi valori sono stime basate sui tuoi consumi e sui prezzi disponibili oggi. Controlla sempre i dettagli sul sito del fornitore prima di sottoscrivere.
+        </p>
       </CardContent>
     </Card>
   );
