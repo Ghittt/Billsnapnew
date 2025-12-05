@@ -4,9 +4,9 @@ export function getOfferUrl(provider: string, planName: string): string {
   const p = (provider || '').toLowerCase();
   const plan = (planName || '').toLowerCase();
   
-  // Pulsee - direct to offers page
+  // Pulsee - direct to homepage as specific offer pages change frequently
   if (p.includes('pulsee')) {
-    return 'https://www.pulsee.it/luce-e-gas';
+    return 'https://www.pulsee.it/';
   }
   
   // Enel Energia
@@ -34,7 +34,7 @@ export function getOfferUrl(provider: string, planName: string): string {
     return 'https://www.sorgenia.it/offerte';
   }
   
-  // Illumia - homepage has offers
+  // Illumia
   if (p.includes('illumia')) {
     return 'https://www.illumia.it/casa/';
   }
@@ -117,6 +117,16 @@ export function getOfferUrl(provider: string, planName: string): string {
   // CVA Energie
   if (p.includes('cva')) {
     return 'https://www.cva-energie.it/';
+  }
+  
+  // NeN
+  if (p.includes('nen')) {
+    return 'https://nen.it/';
+  }
+
+  // Octopus Energy
+  if (p.includes('octopus')) {
+    return 'https://octopusenergy.it/';
   }
   
   // Fallback: Google search for the specific offer with Italian market context
