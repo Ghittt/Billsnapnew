@@ -167,10 +167,20 @@ const UploadPage = () => {
       // 5) chiamata edge function OCR (convert file to base64 for invoke)
       console.log("Calling OCR function via supabase.functions.invoke...");
       
-      // Convert File to base64
+      // Convert File to base64 in chunks to avoid stack overflow
       const fileArrayBuffer = await file.arrayBuffer();
       const fileUint8Array = new Uint8Array(fileArrayBuffer);
-      const fileBase64 = btoa(String.fromCharCode(...fileUint8Array));
+      
+      // Process in chunks to avoid "Maximum call stack size exceeded"
+      let binary = "";
+      const chunkSize = 8192; // Process 8KB at a time
+      for (let i = 0; i < fileUint8Array.length; i += chunkSize) {
+        const chunk = fileUint8Array.subarray(i, Math.min(i + chunkSize, fileUint8Array.length));
+        binary += String.fromCharCode.apply(null, Array.from(chunk));
+      }
+      const fileBase64 = btoa(binary);
+
+      console.log(`[Upload] File converted to base64, size: ${fileBase64.length} chars`);
 
       const { data: ocrData, error: ocrError } = await supabase.functions.invoke("ocr-extract", {
         body: {
