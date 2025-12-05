@@ -21,7 +21,6 @@ import "@/types/analytics";
 const OCR_FUNCTION_URL = import.meta.env.VITE_OCR_FUNCTION_URL || "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_OCR_SUPABASE_ANON_KEY || "";
 
-// Debug: Log env var status (remove in production after fixing)
 // Debug: Log env var status (Safe logging)
 const safeLog = (name: string, value: string | undefined) => {
   if (!value) return console.log(`[ENV CHECK] ${name}: MISSING`);
@@ -165,55 +164,44 @@ const UploadPage = () => {
         }
       }, 30000);
 
-      console.log("Calling OCR function at:", OCR_FUNCTION_URL);
+      // 5) chiamata edge function OCR (via supabase.functions.invoke)
+      console.log("Calling OCR function via supabase.functions.invoke...");
       
-      if (!OCR_FUNCTION_URL) {
-        throw new Error("Configuration Error: OCR_FUNCTION_URL is missing.");
-      }
-
-      // 5) chiamata edge function OCR (multipart + JWT anon)
       const ocrFormData = new FormData();
       ocrFormData.append("file", file);
       ocrFormData.append("uploadId", uploadId);
 
-      const ocrResponse = await fetch(OCR_FUNCTION_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          Accept: "application/json",
-          // NON mettiamo Content-Type: la gestisce automaticamente il browser per il multipart
-        },
+      const { data: ocrData, error: ocrError } = await supabase.functions.invoke("ocr-extract", {
         body: ocrFormData,
       });
 
       clearTimeout(timeoutWarning);
       setOcrTimeoutWarning(false);
 
-      if (!ocrResponse.ok) {
-        const errorText = await ocrResponse.text();
-        console.error("OCR failed, status:", ocrResponse.status, errorText);
-
+      if (ocrError) {
+        console.error("OCR invoke error:", ocrError);
+        
         await supabase
           .from("uploads")
           .update({
             ocr_status: "failed",
-            ocr_error: `HTTP ${ocrResponse.status}`,
+            ocr_error: ocrError.message || "Invoke Error",
             ocr_completed_at: new Date().toISOString(),
           })
           .eq("id", uploadId);
 
         await logError({
           type: "ocr",
-          message: `OCR failed with status ${ocrResponse.status}`,
+          message: "OCR invoke failed",
           uploadId,
-          errorCode: `HTTP_${ocrResponse.status}`,
-          payload: { fileName: file.name, error: errorText },
+          errorCode: "INVOKE_ERROR",
+          payload: { error: ocrError },
         });
 
-        throw new Error(`OCR Error (${ocrResponse.status}): ${errorText || "Unknown error"}`);
+        throw new Error(`Errore OCR: ${ocrError.message || "Errore di connessione"}`);
       }
 
-      const ocrData = await ocrResponse.json();
+      const ocrResponseData = ocrData; // Rename for clarity
 
       await supabase
         .from("uploads")
@@ -223,15 +211,15 @@ const UploadPage = () => {
         })
         .eq("id", uploadId);
 
-      console.log("OCR response:", ocrData);
+      console.log("OCR response:", ocrResponseData);
 
       // Backend returns the data directly, or { error: ... } on failure
-      if (ocrData.error) {
+      if (ocrResponseData.error) {
         await supabase
           .from("uploads")
           .update({
             ocr_status: "failed",
-            ocr_error: ocrData.error || "Unknown OCR error",
+            ocr_error: ocrResponseData.error || "Unknown OCR error",
             ocr_completed_at: new Date().toISOString(),
           })
           .eq("id", uploadId);
@@ -240,10 +228,10 @@ const UploadPage = () => {
           type: "ocr",
           message: "OCR returned error",
           uploadId,
-          payload: { response: ocrData },
+          payload: { response: ocrResponseData },
         });
 
-        throw new Error(ocrData.error || "Errore durante la lettura della bolletta.");
+        throw new Error(ocrResponseData.error || "Errore durante la lettura della bolletta.");
       }
 
       if (typeof gtag !== "undefined") {
@@ -564,6 +552,3 @@ const UploadPage = () => {
 };
 
 export default UploadPage;
-// Trigger deployment Thu Dec  4 17:54:19 CET 2025
-// Force new deploy 1764868576
-// Trigger Vercel 1764869518
