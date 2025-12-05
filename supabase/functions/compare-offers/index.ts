@@ -50,14 +50,28 @@ serve(async (req) => {
     }
 
     // 2. Fetch All Active Offers
-    // We fetch from offers_scraped directly to ensure we get the latest data
-    const { data: allOffers, error: offersError } = await supabase
-      .from('offers_scraped')
-      .select('*');
-      // .eq('is_active', true); // Assuming all scraped offers are candidates
+    // FILTER: Only offers updated in the last 45 days to ensure they are active
+    const fortyFiveDaysAgo = new Date();
+    fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
 
+    let { data: allOffers, error: offersError } = await supabase
+      .from('offers_scraped')
+      .select('*')
+      .gt('updated_at', fortyFiveDaysAgo.toISOString());
+
+    // Fallback: if no recent offers, fetch the latest 20 regardless of date
     if (offersError || !allOffers || allOffers.length === 0) {
-      throw new Error('No offers available in database');
+      console.warn('[COMPARE] No recent offers found. Falling back to latest 20 offers.');
+      const { data: fallbackOffers, error: fallbackError } = await supabase
+        .from('offers_scraped')
+        .select('*')
+        .limit(20)
+        .order('updated_at', { ascending: false });
+        
+      if (fallbackError || !fallbackOffers || fallbackOffers.length === 0) {
+        throw new Error('No offers available in database');
+      }
+      allOffers = fallbackOffers;
     }
 
     console.log(`[COMPARE] Found ${allOffers.length} candidate offers`);
@@ -67,7 +81,7 @@ serve(async (req) => {
       type: billType,
       annual_consumption: billType === 'gas' ? ocrData?.consumo_annuo_smc : ocrData?.annual_kwh,
       current_provider: ocrData?.provider || 'Sconosciuto',
-      current_annual_cost: billType === 'gas' ? ocrData?.costo_annuo_gas : ocrData?.total_cost_eur, // Note: total_cost_eur might be bill total, not annual. AI will handle logic.
+      current_annual_cost: billType === 'gas' ? ocrData?.costo_annuo_gas : ocrData?.total_cost_eur,
       raw_ocr: ocrData
     };
 
