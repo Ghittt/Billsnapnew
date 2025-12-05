@@ -229,7 +229,6 @@ const UploadPage = () => {
       console.log("Response data:", ocrData);
 
       const ocrResponseData = ocrData; // Rename for clarity
-      const ocrResponseData = ocrData; // Rename for clarity
 
       await supabase
         .from("uploads")
