@@ -128,7 +128,7 @@ serve(async (req: Request): Promise<Response> => {
     const mimeType = fileType || "application/pdf";
 
     // Gemini API Configuration
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`;
 
     const requestBody = {
       contents: [{

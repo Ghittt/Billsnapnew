@@ -167,18 +167,16 @@ const UploadPage = () => {
       // 5) chiamata edge function OCR (convert file to base64 for invoke)
       console.log("Calling OCR function via supabase.functions.invoke...");
       
-      // Convert File to base64 in chunks to avoid stack overflow
-      const fileArrayBuffer = await file.arrayBuffer();
-      const fileUint8Array = new Uint8Array(fileArrayBuffer);
-      
-      // Process in chunks to avoid "Maximum call stack size exceeded"
-      let binary = "";
-      const chunkSize = 8192; // Process 8KB at a time
-      for (let i = 0; i < fileUint8Array.length; i += chunkSize) {
-        const chunk = fileUint8Array.subarray(i, Math.min(i + chunkSize, fileUint8Array.length));
-        binary += String.fromCharCode.apply(null, Array.from(chunk));
-      }
-      const fileBase64 = btoa(binary);
+      // Convert File to baseURL reader to get clean base64
+      const fileBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1]; // Remove data:...;base64, prefix
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
       console.log(`[Upload] File converted to base64, size: ${fileBase64.length} chars`);
 
@@ -190,18 +188,23 @@ const UploadPage = () => {
           uploadId: uploadId,
         },
       });
-
+      clearTimeout(timeoutWarning);
       clearTimeout(timeoutWarning);
       setOcrTimeoutWarning(false);
 
       if (ocrError) {
-        console.error("OCR invoke error:", ocrError);
+        console.error("=== OCR INVOKE ERROR START ===");
+        console.error("Full error object:", JSON.stringify(ocrError, null, 2));
+        console.error("Error message:", ocrError.message);
+        console.error("Error name:", ocrError.name);
+        console.error("Error context:", ocrError.context);
+        console.error("=== OCR INVOKE ERROR END ===");
         
         await supabase
           .from("uploads")
           .update({
             ocr_status: "failed",
-            ocr_error: ocrError.message || "Invoke Error",
+            ocr_error: `${ocrError.name}: ${ocrError.message || "Unknown error"}`,
             ocr_completed_at: new Date().toISOString(),
           })
           .eq("id", uploadId);
@@ -211,12 +214,21 @@ const UploadPage = () => {
           message: "OCR invoke failed",
           uploadId,
           errorCode: "INVOKE_ERROR",
-          payload: { error: ocrError },
+          payload: { 
+            error: ocrError,
+            errorString: JSON.stringify(ocrError),
+            fileName: file.name,
+            fileSize: file.size,
+          },
         });
 
-        throw new Error(`Errore OCR: ${ocrError.message || "Errore di connessione"}`);
+        throw new Error(`Errore OCR: ${ocrError.message || "Errore di connessione"}. Controlla la console per dettagli.`);
       }
 
+      console.log("=== OCR SUCCESS ===");
+      console.log("Response data:", ocrData);
+
+      const ocrResponseData = ocrData; // Rename for clarity
       const ocrResponseData = ocrData; // Rename for clarity
 
       await supabase
