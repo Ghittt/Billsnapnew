@@ -28,10 +28,10 @@ const TermsPage = () => {
             </CardHeader>
             <CardContent className="space-y-4 text-foreground">
               <p>
-                BillSnap è un progetto sperimentale attualmente in fase di test ("Beta privata"). Non rappresenta un servizio commerciale, non costituisce un prodotto finito e non è gestito da una società attiva. L'accesso viene fornito esclusivamente per finalità di prova, ricerca e validazione tecnica.
-              </p>
-              <p>
-                BillSnap non genera alcun guadagno diretto, non vende servizi, non stipula contratti con gli utenti e non svolge attività commerciale o professionale.
+                BillSnap è un progetto sperimentale attualmente in fase di test (“Beta privata”).
+                Non rappresenta un servizio commerciale, non costituisce un prodotto finito e non è gestito da una società attiva.
+                L'accesso viene fornito esclusivamente per finalità di prova, ricerca e validazione tecnica.
+                Il progetto non genera alcun ricavo, non vende servizi e non effettua attività commerciale.
               </p>
             </CardContent>
           </Card>
@@ -42,33 +42,31 @@ const TermsPage = () => {
             </CardHeader>
             <CardContent className="space-y-4 text-foreground">
               <p>
-                BillSnap fornisce strumenti di analisi automatica delle bollette e funzioni informative basate su AI, al solo scopo di testarne l'accuratezza.
-                Le informazioni fornite sono stime, output sperimentali e non costituiscono consulenza professionale, energetica o finanziaria.
+                BillSnap permette di caricare bollette e ottenere analisi generate da sistemi automatizzati.
+                Le informazioni fornite sono stime sperimentali e non costituiscono consulenza energetica, tecnica o finanziaria.
               </p>
               <p>L'utente accetta che:</p>
               <ul className="list-disc pl-6 space-y-2">
                 <li>gli output possono contenere errori;</li>
-                <li>il sistema è in continua evoluzione;</li>
-                <li>il servizio può essere interrotto o modificato in qualsiasi momento.</li>
+                <li>il servizio può essere modificato o interrotto;</li>
+                <li>il sistema è in costante sviluppo.</li>
               </ul>
             </CardContent>
           </Card>
 
           <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle className="text-primary">3. Limitazioni di Responsabilità</CardTitle>
+              <CardTitle className="text-primary">3. Limitazione di Responsabilità</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-foreground">
-              <p>
-                Poiché il progetto è in fase di test e non è un servizio professionale, BillSnap non può essere ritenuto responsabile per:
-              </p>
+              <p>Essendo un progetto in fase di test, BillSnap non può essere ritenuto responsabile per:</p>
               <ul className="list-disc pl-6 space-y-2">
-                <li>errori nei calcoli delle bollette;</li>
-                <li>suggerimenti inesatti;</li>
-                <li>malfunzionamenti tecnici;</li>
-                <li>decisioni dell'utente prese sulla base dei risultati forniti.</li>
+                <li>errori nei calcoli;</li>
+                <li>interpretazioni errate delle bollette;</li>
+                <li>interruzioni o malfunzionamenti;</li>
+                <li>decisioni prese dall'utente sulla base degli output generati.</li>
               </ul>
-              <p className="font-medium">L'utilizzo è a rischio esclusivo dell'utente.</p>
+              <p className="font-medium">L'utilizzo avviene sotto esclusiva responsabilità dell'utente.</p>
             </CardContent>
           </Card>
 
@@ -77,44 +75,39 @@ const TermsPage = () => {
               <CardTitle className="text-primary">4. Uso Consentito</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-foreground">
-              <p>All'utente è permesso utilizzare BillSnap esclusivamente per:</p>
+              <p>L'utente può utilizzare la piattaforma esclusivamente per finalità di test.</p>
+              <p>Non è consentito:</p>
               <ul className="list-disc pl-6 space-y-2">
-                <li>testare le funzionalità;</li>
-                <li>fornire feedback;</li>
-                <li>validare l'accuratezza delle analisi.</li>
-              </ul>
-              <p>È vietato:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>utilizzare BillSnap per scopi professionali o commerciali;</li>
-                <li>rivendere o redistribuire i contenuti;</li>
-                <li>tentare di reverse-engineerare la tecnologia;</li>
-                <li>inviare bollette o dati non di tua proprietà senza consenso.</li>
+                <li>usarla a fini commerciali o professionali;</li>
+                <li>redistribuire o rivendere i contenuti;</li>
+                <li>tentare di accedere a componenti interne o tecniche;</li>
+                <li>inviare dati di terzi senza autorizzazione.</li>
               </ul>
             </CardContent>
           </Card>
 
           <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle className="text-primary">5. Contenuti dell'Utente</CardTitle>
+              <CardTitle className="text-primary">5. Contenuti Caricati dall'Utente</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-foreground">
-              <p>I dati caricati (es. foto bollette) vengono utilizzati esclusivamente:</p>
+              <p>I dati forniti (es. bollette, immagini, testi) vengono trattati solo per:</p>
               <ul className="list-disc pl-6 space-y-2">
-                <li>per l'elaborazione tecnica;</li>
-                <li>per il miglioramento del servizio;</li>
-                <li>per test interni.</li>
+                <li>generare analisi richieste dall'utente;</li>
+                <li>migliorare la qualità del sistema;</li>
+                <li>finalità di test e sviluppo.</li>
               </ul>
-              <p>Non vengono condivisi con terze parti commerciali.</p>
+              <p>I contenuti non sono condivisi con soggetti commerciali.</p>
             </CardContent>
           </Card>
 
           <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle className="text-primary">6. Interruzioni del Servizio</CardTitle>
+              <CardTitle className="text-primary">6. Interruzione o Modifica del Servizio</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-foreground">
               <p>
-                BillSnap può sospendere, modificare o interrompere l'accesso in qualsiasi momento, senza preavviso, essendo un progetto non commerciale in fase sperimentale.
+                BillSnap può essere sospeso, aggiornato o interrotto in qualsiasi momento senza preavviso, trattandosi di un progetto non commerciale in evoluzione.
               </p>
             </CardContent>
           </Card>
@@ -125,7 +118,8 @@ const TermsPage = () => {
             </CardHeader>
             <CardContent className="space-y-4 text-foreground">
               <p>
-                Tutti i contenuti, testi, interfacce, design e logiche appartengono all'autore del progetto. È vietata la copia non autorizzata dei contenuti o dell'interfaccia.
+                Design, contenuti e logiche appartengono all'autore del progetto.
+                È vietata la copia o l'utilizzo non autorizzato.
               </p>
             </CardContent>
           </Card>
@@ -136,18 +130,7 @@ const TermsPage = () => {
             </CardHeader>
             <CardContent className="space-y-4 text-foreground">
               <p>
-                Essendo un progetto sperimentale non collegato a una società, non sussiste un rapporto commerciale giuridicamente vincolante. In caso di contenzioso, si applicano i principi generali del diritto italiano in materia di responsabilità per strumenti in fase di test.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">Contatti</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-foreground">
-                Per supporto: <a href="mailto:support@billsnap.app" className="text-primary underline font-medium">support@billsnap.app</a>
+                In assenza di un rapporto commerciale, si applicano i principi generali del diritto italiano.
               </p>
             </CardContent>
           </Card>
