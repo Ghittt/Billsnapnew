@@ -255,11 +255,11 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border bg-background/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-            <div>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-muted-foreground">
+            <div className="text-center md:text-left">
               <p>© {new Date().getFullYear()} BillSnap.it - Progetto in fase di test</p>
             </div>
-            <div className="flex flex-wrap gap-4 justify-center">
+            <div className="flex flex-wrap gap-x-6 gap-y-2 justify-center md:justify-end">
               <Link to="/chi-siamo" className="hover:text-foreground transition-colors">
                 Chi Siamo
               </Link>
@@ -269,18 +269,17 @@ const Index = () => {
               <Link to="/privacy" className="hover:text-foreground transition-colors">
                 Privacy Policy
               </Link>
+              <Link to="/cookie-policy" className="hover:text-foreground transition-colors">
+                Cookie Policy
+              </Link>
               <Link to="/data-deletion" className="hover:text-foreground transition-colors">
                 Cancella i miei dati
               </Link>
               <Link to="/feedback" className="hover:text-foreground transition-colors">
                 Feedback
               </Link>
-              <Link to="/cookie-policy" className="hover:text-foreground transition-colors">
-                Cookie Policy
-              </Link>
               <Link to="/disclaimer" className="hover:text-foreground transition-colors">
                 Disclaimer
-                Feedback
               </Link>
             </div>
           </div>
