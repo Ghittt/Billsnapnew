@@ -24,60 +24,18 @@ const CookiePolicyPage = () => {
 
           <Card className="border-primary/20">
             <CardHeader>
-              <CardTitle className="text-primary">1. Tipologie di Cookie</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-foreground">
-              <p>BillSnap utilizza esclusivamente:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>cookie tecnici essenziali;</li>
-                <li>cookie per funzionamento del sistema (sessione, login).</li>
-              </ul>
-              <p>Non vengono usati cookie:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>di marketing;</li>
-                <li>di tracciamento;</li>
-                <li>di profilazione;</li>
-                <li>di advertising.</li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">2. Finalità dei Cookie</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-foreground">
-              <p>I cookie servono solo per:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>mantenere la sessione utente;</li>
-                <li>gestire l'accesso a funzionalità di test.</li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">3. Cookie di Terze Parti</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-foreground">
-              <p>In fase di test possono essere presenti cookie tecnici dei provider:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>Supabase (autenticazione);</li>
-                <li>OpenAI / Gemini (API tecniche);</li>
-                <li>Lovable / Antigravity (ambiente di sviluppo).</li>
-              </ul>
-              <p>Nessuno di essi è utilizzato per profilazione commerciale.</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">4. Gestione Cookie</CardTitle>
+              <CardTitle className="text-primary">1. Tipologie di Cookie Utilizzati</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-foreground">
               <p>
-                L'utente può disabilitare i cookie tramite il proprio browser, consapevole che la piattaforma potrebbe non funzionare correttamente.
+                BillSnap utilizza solo cookie tecnici necessari al funzionamento dell'applicazione, come:
               </p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>gestione sessione;</li>
+                <li>autenticazione;</li>
+                <li>sicurezza.</li>
+              </ul>
+              <p>Nessun cookie è utilizzato per pubblicità o profilazione.</p>
             </CardContent>
           </Card>
         </div>
