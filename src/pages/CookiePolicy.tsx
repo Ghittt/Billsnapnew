@@ -38,6 +38,29 @@ const CookiePolicyPage = () => {
               <p>Nessun cookie è utilizzato per pubblicità o profilazione.</p>
             </CardContent>
           </Card>
+
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-primary">2. Cookie di Terze Parti</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-foreground">
+              <p>
+                Durante la fase di test possono essere utilizzati cookie tecnici di terze parti per garantire il funzionamento di componenti essenziali.
+                Questi cookie non vengono utilizzati per finalità commerciali, di tracciamento o marketing.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-primary">3. Gestione dei Cookie</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-foreground">
+              <p>
+                L'utente può disabilitare i cookie tramite le impostazioni del browser, consapevole che ciò potrebbe compromettere il funzionamento della piattaforma.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
