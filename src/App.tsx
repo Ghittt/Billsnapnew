@@ -29,6 +29,8 @@ import NotFound from "./pages/NotFound";
 import CollectiveOffer from "./pages/CollectiveOffer";
 import Contracts from "./pages/Contracts";
 import ScrapingTest from "./pages/ScrapingTest";
+import CookiePolicy from "./pages/CookiePolicy";
+import Disclaimer from "./pages/Disclaimer";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,8 @@ const App = () => (
             <Route path="/chi-siamo" element={<About />} />
             <Route path="/data-deletion" element={<DataDeletion />} />
             <Route path="/feedback" element={<Feedback />} />
+            <Route path="/cookie-policy" element={<CookiePolicy />} />
+            <Route path="/disclaimer" element={<Disclaimer />} />
             <Route path="/debug" element={<Debug />} />
             <Route path="/debug-ocr" element={<DebugOCR />} />
             <Route path="/debug-scraping" element={<DebugScraping />} />

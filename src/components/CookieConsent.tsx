@@ -100,7 +100,7 @@ export default function CookieConsent() {
               <p className="text-sm text-muted-foreground">
                 Utilizziamo cookie tecnici necessari per il funzionamento del sito e, 
                 con il tuo consenso, cookie analitici per migliorare l'esperienza utente. 
-                I tuoi dati sono trattati secondo il <Link to="/terms-and-conditions" className="text-primary hover:underline">GDPR</Link>.
+                I tuoi dati sono trattati secondo il <Link to="/cookie-policy" className="text-primary hover:underline">GDPR</Link>.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -209,7 +209,7 @@ export default function CookieConsent() {
 
               <p className="text-xs text-muted-foreground text-center">
                 Puoi modificare queste impostazioni in qualsiasi momento. 
-                <Link to="/terms-and-conditions" className="text-primary hover:underline ml-1">
+                <Link to="/cookie-policy" className="text-primary hover:underline ml-1">
                   Maggiori informazioni
                 </Link>
               </p>
