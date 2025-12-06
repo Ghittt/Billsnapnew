@@ -15,26 +15,23 @@ const DisclaimerPage = () => {
               DISCLAIMER LEGALE
             </h1>
             <p className="text-foreground font-medium">
-              SPECIFICO PER PROGETTI AI IN FASE DI TEST
+              PROGETTO AI IN FASE DI TEST
             </p>
           </div>
 
           <Card className="border-primary/20">
             <CardContent className="space-y-4 text-foreground pt-6">
-              <p className="font-medium text-lg">
-                BillSnap è un progetto di sperimentazione AI.
+              <p>
+                BillSnap fornisce risultati generati automaticamente a scopo sperimentale.
               </p>
               <p>
-                Gli output generati (analisi di consumo, suggerimenti di risparmio, consigli energetici) sono stati preliminari e non certificati.
+                Le informazioni non costituiscono consulenza energetica, tecnica o finanziaria.
               </p>
-              <p>Non sostituiscono:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>consulenti energetici;</li>
-                <li>esperti fiscali;</li>
-                <li>operatori del settore.</li>
-              </ul>
-              <p className="font-bold mt-4">
-                Ogni decisione presa dall'utente resta sotto sua esclusiva responsabilità.
+              <p>
+                Qualsiasi decisione presa sulla base degli output generati resta sotto esclusiva responsabilità dell'utente.
+              </p>
+              <p>
+                Il progetto non rappresenta un servizio professionale né commerciale.
               </p>
             </CardContent>
           </Card>
