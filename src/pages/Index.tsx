@@ -275,6 +275,13 @@ const Index = () => {
               <Link to="/feedback" className="hover:text-foreground transition-colors">
                 Feedback
               </Link>
+              <Link to="/cookie-policy" className="hover:text-foreground transition-colors">
+                Cookie Policy
+              </Link>
+              <Link to="/disclaimer" className="hover:text-foreground transition-colors">
+                Disclaimer
+                Feedback
+              </Link>
             </div>
           </div>
         </div>
