@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { IntelligentAnalysis } from '@/components/results/IntelligentAnalysis';
 import { MethodSection } from '@/components/results/MethodSection';
+import RedirectPopup from '@/components/results/RedirectPopup';
 import { getOfferUrl } from '@/utils/offerUrls';
 import { fixOfferUrlCommodity } from '@/utils/offerUrlFixer';
 
@@ -47,6 +48,10 @@ const ResultsPage = () => {
   const [manualConsumption, setManualConsumption] = useState('');
   const [manualCost, setManualCost] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Redirect Popup State
+  const [showRedirectPopup, setShowRedirectPopup] = useState(false);
+  const [redirectData, setRedirectData] = useState<{provider: string; offerName: string; url: string} | null>(null);
 
   useEffect(() => {
     if (!uploadId) {
@@ -321,8 +326,8 @@ const ResultsPage = () => {
   };
 
   const handleActivateOffer = async (offer: Offer) => {
-    const baseUrl = offer.redirect_url || getOfferUrl(offer.provider, offer.plan_name);
-    const offerUrl = fixOfferUrlCommodity(baseUrl, billType, offer.provider, offer.plan_name) || baseUrl;
+    // Always use provider homepage for stability
+    const providerUrl = getOfferUrl(offer.provider, offer.plan_name);
     
     const annualSaving = currentCost - offer.simulated_cost;
 
@@ -330,7 +335,7 @@ const ResultsPage = () => {
       upload_id: uploadId || crypto.randomUUID(),
       provider: offer.provider,
       offer_id: offer.id,
-      redirect_url: offerUrl,
+      redirect_url: providerUrl,
       offer_annual_cost_eur: offer.simulated_cost,
       annual_saving_eur: annualSaving,
       current_annual_cost_eur: currentCost,
@@ -344,7 +349,13 @@ const ResultsPage = () => {
       });
     }
     
-    window.open(offerUrl, '_blank');
+    // Show popup with instructions instead of direct redirect
+    setRedirectData({
+      provider: offer.provider,
+      offerName: offer.plan_name,
+      url: providerUrl
+    });
+    setShowRedirectPopup(true);
   };
 
   const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
@@ -530,6 +541,15 @@ const ResultsPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Redirect Popup with Instructions */}
+      <RedirectPopup
+        isOpen={showRedirectPopup}
+        provider={redirectData?.provider || ''}
+        offerName={redirectData?.offerName || ''}
+        providerUrl={redirectData?.url || ''}
+        onClose={() => setShowRedirectPopup(false)}
+      />
     </div>
   );
 };

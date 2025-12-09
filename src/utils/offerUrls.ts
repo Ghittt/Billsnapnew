@@ -1,138 +1,87 @@
-// Utility function to generate offer URLs based on provider name
-// Updated December 2025 - FIXED matching order to prevent false positives
+// Provider Homepage URLs - STABLE, NEVER BREAK
+// Updated December 2025 - Only homepage URLs to avoid 404s
 export function getOfferUrl(provider: string, planName: string): string {
   const p = (provider || '').toLowerCase().trim();
-  const plan = (planName || '').toLowerCase();
   
-  // IMPORTANT: Check more specific names FIRST to avoid false matches
-  // e.g., "Sorgenia" contains "eni" so we must check Sorgenia before Eni
+  // IMPORTANT: All URLs are HOMEPAGE only - no internal pages that can break
   
-  // Sorgenia - MUST be before Eni check (contains "eni" in name)
-  if (p.includes('sorgenia')) {
-    return 'https://www.sorgenia.it/offerte';
-  }
+  // Sorgenia - MUST be before Eni (contains "eni")
+  if (p.includes('sorgenia')) return 'https://www.sorgenia.it/';
   
-  // Eni Plenitude - check after Sorgenia
+  // Eni Plenitude
   if (p === 'eni' || p === 'plenitude' || p === 'eni plenitude' || p.includes('plenitude')) {
-    return 'https://eniplenitude.com/offerte-luce-e-gas';
+    return 'https://eniplenitude.com/';
   }
   
   // Pulsee
-  if (p.includes('pulsee')) {
-    return 'https://www.pulsee.it/';
-  }
+  if (p.includes('pulsee')) return 'https://www.pulsee.it/';
   
   // Enel Energia
-  if (p.includes('enel')) {
-    return 'https://www.enel.it/it/luce-gas/offerte';
-  }
+  if (p.includes('enel')) return 'https://www.enel.it/';
   
   // A2A Energia
-  if (p.includes('a2a')) {
-    return 'https://www.a2aenergia.eu/offerte';
-  }
+  if (p.includes('a2a')) return 'https://www.a2aenergia.eu/';
   
   // Edison Energia
-  if (p.includes('edison')) {
-    return 'https://www.edison.it/offerte';
-  }
+  if (p.includes('edison')) return 'https://www.edison.it/';
   
   // Illumia
-  if (p.includes('illumia')) {
-    return 'https://www.illumia.it/casa/';
-  }
+  if (p.includes('illumia')) return 'https://www.illumia.it/';
   
   // Wekiwi
-  if (p.includes('wekiwi')) {
-    return 'https://www.wekiwi.it/casa/';
-  }
+  if (p.includes('wekiwi')) return 'https://www.wekiwi.it/';
   
   // Iren Luce Gas e Servizi
-  if (p.includes('iren')) {
-    return 'https://www.irenlucegas.it/casa';
-  }
+  if (p.includes('iren')) return 'https://www.irenlucegas.it/';
   
   // Hera Comm
-  if (p.includes('hera')) {
-    return 'https://www.heracomm.it/casa';
-  }
+  if (p.includes('hera')) return 'https://www.heracomm.it/';
   
   // Axpo Italia
-  if (p.includes('axpo')) {
-    return 'https://www.axpo.com/it/it/privati.html';
-  }
+  if (p.includes('axpo')) return 'https://www.axpo.com/it/';
   
   // Engie Italia
-  if (p.includes('engie')) {
-    return 'https://www.engie.it/offerte';
-  }
+  if (p.includes('engie')) return 'https://www.engie.it/';
   
   // Acea Energia
-  if (p.includes('acea')) {
-    return 'https://www.acea.it/offerte-luce-gas';
-  }
+  if (p.includes('acea')) return 'https://www.acea.it/';
   
   // Optima Italia
-  if (p.includes('optima')) {
-    return 'https://www.optimaitalia.com/offerte';
-  }
+  if (p.includes('optima')) return 'https://www.optimaitalia.com/';
   
   // Green Network Energy
-  if (p.includes('green network')) {
-    return 'https://www.greennetworkenergy.it/offerte';
-  }
+  if (p.includes('green network')) return 'https://www.greennetworkenergy.it/';
   
   // E.ON Energia
-  if (p.includes('e.on') || p === 'eon') {
-    return 'https://www.eon-energia.com/offerte.html';
-  }
+  if (p.includes('e.on') || p === 'eon') return 'https://www.eon-energia.com/';
   
   // Fastweb Energia
-  if (p.includes('fastweb')) {
-    return 'https://www.fastweb.it/energia/';
-  }
+  if (p.includes('fastweb')) return 'https://www.fastweb.it/';
   
   // Duferco Energia
-  if (p.includes('duferco')) {
-    return 'https://www.dufercoenergia.com/';
-  }
+  if (p.includes('duferco')) return 'https://www.dufercoenergia.com/';
   
   // Servizio Elettrico Nazionale
-  if (p.includes('servizio elettrico') || p === 'sen') {
-    return 'https://www.servizioelettriconazionale.it/';
-  }
+  if (p.includes('servizio elettrico') || p === 'sen') return 'https://www.servizioelettriconazionale.it/';
   
   // Tate Energia
-  if (p.includes('tate')) {
-    return 'https://www.tate.it/';
-  }
+  if (p.includes('tate')) return 'https://www.tate.it/';
   
   // Alperia
-  if (p.includes('alperia')) {
-    return 'https://www.alperia.eu/offerte';
-  }
+  if (p.includes('alperia')) return 'https://www.alperia.eu/';
   
   // Dolomiti Energia
-  if (p.includes('dolomiti')) {
-    return 'https://www.dolomitienergia.it/casa';
-  }
+  if (p.includes('dolomiti')) return 'https://www.dolomitienergia.it/';
   
   // CVA Energie
-  if (p.includes('cva')) {
-    return 'https://www.cva-energie.it/';
-  }
+  if (p.includes('cva')) return 'https://www.cva-energie.it/';
   
   // NeN
-  if (p === 'nen' || p.includes('nen energia')) {
-    return 'https://nen.it/';
-  }
+  if (p === 'nen' || p.includes('nen energia')) return 'https://nen.it/';
 
   // Octopus Energy
-  if (p.includes('octopus')) {
-    return 'https://octopusenergy.it/';
-  }
+  if (p.includes('octopus')) return 'https://octopusenergy.it/';
   
-  // Fallback: Google search for the specific offer
-  const searchQuery = `${provider} ${planName} offerta luce gas attiva`;
-  return `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+  // Fallback: provider homepage via Google (I'm Feeling Lucky style)
+  return `https://www.${provider.toLowerCase().replace(/\s+/g, '')}.it/`;
 }
