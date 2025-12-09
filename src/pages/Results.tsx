@@ -320,7 +320,29 @@ const ResultsPage = () => {
   };
 
   const handleActivateOffer = async (offer: Offer) => {
-    const offerUrl = offer.redirect_url || getOfferUrl(offer.provider, offer.plan_name);
+    let offerUrl = offer.redirect_url || getOfferUrl(offer.provider, offer.plan_name);
+    
+    // FIX: Replace commodity parameter to match user's bill type
+    // This prevents landing on wrong pages (e.g., DUAL when user has only LUCE)
+    if (offerUrl && billType) {
+      try {
+        const url = new URL(offerUrl);
+        const currentCommodity = url.searchParams.get('commodity');
+        
+        if (currentCommodity) {
+          // Map billType to correct commodity parameter
+          const correctCommodity = billType === 'luce' ? 'LUCE' : 
+                                   billType === 'gas' ? 'GAS' : 
+                                   'DUAL';
+          
+          url.searchParams.set('commodity', correctCommodity);
+          offerUrl = url.toString();
+          
+          console.log(`[URL FIX] Changed commodity from ${currentCommodity} to ${correctCommodity}`);
+        }
+      } catch (e) { console.error('URL parsing error:', e); }
+    }
+    
     const annualSaving = currentCost - offer.simulated_cost;
 
     await supabase.from('leads').insert({
