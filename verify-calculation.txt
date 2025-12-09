@@ -1,0 +1,41 @@
+Test Results Analysis:
+======================
+
+USER DATA (from screenshot):
+- Consumption: 3450 kWh/year
+- Actual Bill: 1494€/year
+- Current Provider: a2a energia
+
+GPT-4O ANALYSIS:
+- Used Consumption: 2700 kWh (WRONG - should be 3450!)
+- Best Offer: Sorgenia NEXT ENERGY SMART
+  - Energy Price: 0.107€/kWh
+  - Fixed Fee: 9€/month
+  - Simulated Cost: 567.3€/year
+  - Savings: 332.7€/year
+
+MANUAL CALCULATION (with correct 3450 kWh):
+============================================
+Energy Component:
+- (3450 kWh × 0.107€) = 369.15€
+- Fixed Fee (9€ × 12) = 108€
+- Energy Total = 477.15€
+
+System/Transport:
+- (3450 kWh × 0.06€) = 207€
+- Fixed = 35€
+- System Total = 242€
+
+Subtotal: 477.15 + 242 = 719.15€
++ 10% VAT: 719.15 × 1.10 = 791.07€
+
+REALISTIC SIMULATED COST: ~791€
+REALISTIC SAVINGS: 1494€ - 791€ = 703€/year (reasonable)
+
+ISSUE IDENTIFIED:
+1. GPT used wrong consumption (2700 vs 3450)
+2. Even with 2700, its calc (567€) is wrong:
+   Should be: ((2700×0.107)+108 + (2700×0.06)+35) × 1.10 = 653€
+   GPT returned: 567€
+   
+CONCLUSION: GPT is NOT following the formula properly.

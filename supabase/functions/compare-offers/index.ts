@@ -7,6 +7,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/**
+ * Calculate realistic total annual cost for an offer
+ * Formula: (Energy Component + System/Transport) * 1.10 (VAT)
+ */
+function calculateTotalCost(
+  consumption: number,
+  energyPrice: number,
+  fixedFeeMonthly: number,
+  billType: string
+): number {
+  // Energy Component
+  const energyCost = (consumption * energyPrice) + (fixedFeeMonthly * 12);
+  
+  // System/Transport/Distribution Charges (regulatory estimates)
+  let systemCharges = 0;
+  if (billType === 'luce') {
+    // Luce: ~0.06€/kWh + 35€ fixed
+    systemCharges = (consumption * 0.06) + 35;
+  } else if (billType === 'gas') {
+    // Gas: ~0.25€/Smc + 70€ fixed
+    systemCharges = (consumption * 0.25) + 70;
+  }
+  
+  // VAT 10% on total
+  const subtotal = energyCost + systemCharges;
+  const total = subtotal * 1.10;
+  
+  return Math.round(total * 100) / 100;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -15,11 +45,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const openAiKey = Deno.env.get('OPENAI_API_KEY');
-
-    if (!openAiKey) {
-      throw new Error('OPENAI_API_KEY not configured');
-    }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { uploadId } = await req.json();
@@ -113,140 +138,100 @@ serve(async (req) => {
 
     console.log(`[COMPARE] Total offers for analysis: ${allOffers.length}`);
 
-    // 3. Prepare Data for OpenAI
-    // ROBUST FALLBACK LOGIC: If OCR returns 0 or null, use national averages.
-    // This prevents the "You consume 0 kWh" error.
+    // 3. Determine user consumption
     let annualConsumption = billType === 'gas' ? ocrData?.consumo_annuo_smc : ocrData?.annual_kwh;
     
-    // If invalid (null, undefined, 0), try to estimate from cost or use standard profile
     if (!annualConsumption || annualConsumption <= 0) {
         console.warn('[COMPARE] Consumption is 0/null. Using defaults/estimates.');
         
-        // Try estimation from cost
         const cost = billType === 'gas' ? ocrData?.costo_annuo_gas : ocrData?.total_cost_eur;
-        if (cost && cost > 100) { // arbitrary threshold to ensure it's a real annual cost
-             // Rough estimate: Cost / AvgPrice (approx 0.30/kWh or 1.10/Smc)
+        if (cost && cost > 100) { 
              const avgPrice = billType === 'gas' ? 1.10 : 0.30;
              annualConsumption = Math.round(cost / avgPrice);
              console.log(`[COMPARE] Estimated consumption from cost: ${annualConsumption}`);
         } else {
-             // Use Default National Profile
              annualConsumption = billType === 'gas' ? 1400 : 2700;
              console.log(`[COMPARE] Using default national profile: ${annualConsumption}`);
         }
     }
 
-    const billContext = {
-      type: billType,
-      annual_consumption: annualConsumption,
-      current_provider: ocrData?.provider || 'Sconosciuto',
-      current_annual_cost: billType === 'gas' ? ocrData?.costo_annuo_gas : ocrData?.total_cost_eur,
-      raw_ocr: ocrData
-    };
+    const currentAnnualCost = billType === 'gas' ? ocrData?.costo_annuo_gas : ocrData?.total_cost_eur;
 
-    const offersContext = allOffers
-      .filter(o => o.commodity === billType || o.commodity === 'dual' || o.commodity === 'luce')
-      .map(o => ({
-        id: o.id,
-        provider: o.provider,
-        name: o.plan_name,
-        price_energy: billType === 'gas' ? o.unit_price_eur_smc : o.price_kwh,
-        fixed_fee: o.fixed_fee_eur_mo,
-        type: o.pricing_type,
-        is_green: o.is_green,
-        promo: o.promo_active ? o.promo_text : null,
-        url: o.redirect_url
-      }));
+    // 4. Calculate costs for all relevant offers
+    const relevantOffers = allOffers.filter(o => 
+      o.commodity === billType || o.commodity === 'dual' || o.commodity === 'luce'
+    );
 
-    console.log(`[COMPARE] Sending ${offersContext.length} relevant offers to OpenAI`);
+    const calculatedOffers = relevantOffers
+      .map(offer => {
+        const energyPrice = billType === 'gas' ? offer.unit_price_eur_smc : offer.price_kwh;
+        
+        if (!energyPrice || energyPrice <= 0) {
+          console.warn(`[COMPARE] Skipping offer ${offer.plan_name} - invalid price`);
+          return null;
+        }
 
-    // 4. Call OpenAI
-    const systemPrompt = `You are an expert energy analyst for the Italian market.
-Compare a user's energy bill against available offers and recommend the TOP 3 best offers.
+        const simulatedCost = calculateTotalCost(
+          annualConsumption,
+          energyPrice,
+          offer.fixed_fee_eur_mo || 0,
+          billType
+        );
 
-RULES:
-1. Calculate annual savings based on user's annual consumption.
-   - Annual Cost = (Consumption * Energy Price) + (Fixed Fee * 12).
-   - The user's consumption is provided in 'annual_consumption'. Use this value.
-   - If current cost is missing, estimate from standard rates (Luce=0.25€/kWh, Gas=1.0€/Smc).
-2. Select the 3 best offers based on LOWEST annual cost.
-3. Include any active promotions in the savings calculation.
-4. Return strictly valid JSON.
+        const savings = currentAnnualCost ? (currentAnnualCost - simulatedCost) : 0;
 
-JSON FORMAT:
-{
-  "success": true,
-  "bestOffer": { "id": "uuid", "simulated_cost": 123.45, "savings": 50.00, "reason": "..." },
-  "runnerUp": { "id": "uuid", "simulated_cost": 130.00, "savings": 45.00, "reason": "..." },
-  "thirdOption": { "id": "uuid", "simulated_cost": 135.00, "savings": 40.00, "reason": "..." },
-  "analysis": {
-    "user_consumption": 2700,
-    "user_current_annual_cost_estimated": 900,
-    "offers_analyzed": 10,
-    "market_trend": "..."
-  }
-}`;
-
-    const userPrompt = JSON.stringify({
-      bill: billContext,
-      available_offers: offersContext
-    });
-
-    const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.2,
-        response_format: { type: "json_object" }
+        return {
+          ...offer,
+          simulated_cost: simulatedCost,
+          savings: Math.round(savings * 100) / 100,
+          reason: `Calculated with realistic formula including system charges and taxes`
+        };
       })
-    });
+      .filter(Boolean) // Remove nulls
+      .sort((a, b) => a!.simulated_cost - b!.simulated_cost); // Sort by lowest cost
 
-    if (!openAiResponse.ok) {
-      const err = await openAiResponse.text();
-      console.error('[COMPARE] OpenAI Error:', err);
-      throw new Error(`OpenAI API error: ${err}`);
+    if (calculatedOffers.length === 0) {
+      throw new Error('No valid offers could be calculated');
     }
 
-    const aiData = await openAiResponse.json();
-    const result = JSON.parse(aiData.choices[0].message.content);
-
-    console.log('[COMPARE] AI Analysis complete:', result.success);
-
-    // 5. Hydrate Results & Save
-    const getFullOffer = (shortOffer: any) => {
-      if (!shortOffer) return null;
-      const full = allOffers.find(o => o.id === shortOffer.id);
-      return full ? { ...full, ...shortOffer } : null;
-    };
-
-    const bestOffer = getFullOffer(result.bestOffer);
-    const runnerUp = getFullOffer(result.runnerUp);
-    const thirdOption = getFullOffer(result.thirdOption);
+    // 5. Select top 3
+    const bestOffer = calculatedOffers[0];
+    const runnerUp = calculatedOffers[1] || null;
+    const thirdOption = calculatedOffers[2] || null;
 
     const rankedOffers = [bestOffer, runnerUp, thirdOption].filter(Boolean);
 
-    // Save to comparison_results
+    console.log(`[COMPARE] Best offer: ${bestOffer?.plan_name} at ${bestOffer?.simulated_cost}€/year`);
+
+    // 6. Save to comparison_results
     await supabase.from('comparison_results').insert({
       upload_id: uploadId,
       user_id: ocrData?.user_id,
-      profile_json: result.analysis,
+      profile_json: {
+        user_consumption: annualConsumption,
+        user_current_annual_cost: currentAnnualCost,
+        offers_analyzed: calculatedOffers.length,
+        calculation_method: 'typescript_direct',
+        market_trend: 'Calculated with realistic total cost formula'
+      },
       ranked_offers: rankedOffers,
       best_offer_id: bestOffer?.id,
       best_personalized_offer_id: bestOffer?.id,
-      personalization_factors: { method: 'ai_gpt4o', analysis: result.analysis, source: bestOffer?.source }
+      personalization_factors: { 
+        method: 'typescript_calculation', 
+        formula: 'Energy + System/Transport + VAT', 
+        source: bestOffer?.source 
+      }
     });
 
     return new Response(JSON.stringify({
       ok: true,
-      profile: result.analysis,
+      profile: {
+        user_consumption: annualConsumption,
+        user_current_annual_cost: currentAnnualCost,
+        offers_analyzed: calculatedOffers.length,
+        calculation_method: 'typescript_direct'
+      },
       ranked: rankedOffers,
       best: bestOffer,
       runnerUp: runnerUp,
