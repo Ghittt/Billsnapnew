@@ -143,10 +143,10 @@ export const BestOfferCard: React.FC<BestOfferCardProps> = ({
           asChild
           size="lg"
           className="w-full text-lg font-semibold"
-          disabled={isLoading || !source}
+          disabled={isLoading}
         >
           <a
-            href={source || '#'}
+            href={source || 'https://www.google.com/search?q=' + encodeURIComponent(provider + ' ' + offerName)}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => {

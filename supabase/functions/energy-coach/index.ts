@@ -1,3 +1,11 @@
+// @ts-nocheck
+/**
+ * Energy Coach v5.3 - Professional Friend Edition (Clean Style)
+ * 
+ * Provides professional, human-like energy analysis with Pros/Cons.
+ * Uses Gemini 1.5 Flash (stable) as primary model.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
@@ -13,14 +21,10 @@ serve(async (req) => {
 
   try {
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY_2') || Deno.env.get('GEMINI_API_KEY');
+    
     if (!GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY not configured');
     }
-
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
 
     const { 
       upload_id, 
@@ -32,159 +36,156 @@ serve(async (req) => {
       f1_consumption,
       f2_consumption,
       f3_consumption,
-      current_price_kwh
+      current_price_kwh,
+      offerta_fissa,
+      offerta_variabile,
+      scenario_con_bonus,
+      isee_basso,
+      eta_utente,
+      nucleo_familiare
     } = await req.json();
 
-    if (!upload_id || !consumo_annuo_kwh || !spesa_mensile_corrente) {
-      throw new Error('Missing required fields');
+    // Context Building
+    const calcSavings = (offer) => {
+      if (!offer || !offer.costo_annuo) return { annual: 0, monthly: 0 };
+      const annual = spesa_annua_corrente - offer.costo_annuo;
+      return { annual, monthly: annual / 12 };
+    };
+
+    const fixedSavings = calcSavings(offerta_fissa);
+    const variableSavings = calcSavings(offerta_variabile);
+
+    let offerteFissaSection = "Nessuna offerta a prezzo fisso disponibile.";
+    if (offerta_fissa && offerta_fissa.costo_annuo) {
+      offerteFissaSection = `
+- **Nome:** ${offerta_fissa.nome_offerta || offerta_fissa.plan_name}
+- **Fornitore:** ${offerta_fissa.fornitore || offerta_fissa.provider}
+- **Costo Annuo:** €${offerta_fissa.costo_annuo?.toFixed(2)}
+- **Risparmio:** €${fixedSavings.annual.toFixed(2)}/anno`;
     }
 
-    console.log('EnergyCoach: Processing analysis for upload:', upload_id);
+    let offerteVariabileSection = "Nessuna offerta a prezzo variabile disponibile.";
+    if (offerta_variabile && offerta_variabile.costo_annuo) {
+      offerteVariabileSection = `
+- **Nome:** ${offerta_variabile.nome_offerta || offerta_variabile.plan_name}
+- **Fornitore:** ${offerta_variabile.fornitore || offerta_variabile.provider}
+- **Costo Annuo:** €${offerta_variabile.costo_annuo?.toFixed(2)}
+- **Risparmio:** €${variableSavings.annual.toFixed(2)}/anno`;
+    }
 
-    // Get comparison results
-    const { data: comparisonData } = await supabaseClient
-      .from('comparison_results')
-      .select('*')
-      .eq('upload_id', upload_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    let bonusSection = "";
+    if (isee_basso && scenario_con_bonus) {
+      bonusSection = `
+SCENARIO BONUS:
+- Risparmio con bonus: €${scenario_con_bonus.risparmio_annuo_con_bonus?.toFixed(2) || 'N/A'}`;
+    }
 
-    // Get upload type
-    const { data: uploadData } = await supabaseClient
-      .from('uploads')
-      .select('tipo_bolletta')
-      .eq('id', upload_id)
-      .maybeSingle();
-
-    const billType = uploadData?.tipo_bolletta || 'luce';
-    const unitLabel = billType === 'gas' ? 'Smc' : 'kWh';
-
-    let bestOffer = null;
-    let annualSavings = 0;
-    let monthlySavings = 0;
+    // Determine Logic prior to prompt to guide AI
     
-    if (comparisonData?.ranked_offers && Array.isArray(comparisonData.ranked_offers)) {
-      const ranked = comparisonData.ranked_offers;
-      if (ranked.length > 0) {
-        bestOffer = ranked[0];
-        annualSavings = spesa_annua_corrente - (bestOffer.simulated_cost || spesa_annua_corrente);
-        monthlySavings = annualSavings / 12;
-      }
-    }
-
-    const systemPrompt = `Sei l’AI ufficiale di BillSnap. La tua analisi DEVE sembrare fatta da un consulente umano esperto, non da un riepilogo di dati.
-
-OBIETTIVO:
-Produrre un’analisi “a prova di principiante”, lineare, comprensibile, senza termini tecnici inutili, andando dritto al punto.
+    const systemPrompt = `Sei l'Energy Coach di BillSnap: un amico esperto, professionale ma informale (dai del tu).
+Il tuo obiettivo è analizzare la bolletta e dare un consiglio schietto e utile.
 
 DATI UTENTE:
-- Spesa mensile attuale: €${Number(spesa_mensile_corrente).toFixed(2)}
-- Spesa annua attuale: €${Number(spesa_annua_corrente).toFixed(2)}
-- Consumo annuo: ${consumo_annuo_kwh} ${unitLabel}
-- Consumo F1: ${f1_consumption || 0} ${unitLabel}
-- Consumo F2: ${f2_consumption || 0} ${unitLabel}
-- Consumo F3: ${f3_consumption || 0} ${unitLabel}
+- Spesa attuale: €${Number(spesa_mensile_corrente).toFixed(2)}/mese (€${Number(spesa_annua_corrente).toFixed(2)}/anno)
+- Consumo annuo: ${consumo_annuo_kwh} kWh
 - Fornitore attuale: ${fornitore_attuale}
-- Tipo offerta attuale: ${tipo_offerta_attuale || 'Non specificato'}
-- Prezzo attuale kWh: €${current_price_kwh || 'N/A'}
+- Fasce orarie: F1: ${f1_consumption||0}, F2: ${f2_consumption||0}, F3: ${f3_consumption||0} kWh
 
-OFFERTA MIGLIORE CONSIGLIATA:
-- Nome: ${bestOffer?.plan_name || 'N/A'}
-- Fornitore: ${bestOffer?.provider || 'N/A'}
-- Spesa mensile stimata: €${bestOffer ? (bestOffer.simulated_cost / 12).toFixed(2) : 'N/A'}
-- Spesa annua stimata: €${bestOffer?.simulated_cost.toFixed(2) || 'N/A'}
-- Risparmio mensile: €${monthlySavings.toFixed(2)}
-- Risparmio annuo: €${annualSavings.toFixed(2)}
-- Prezzo offerta kWh: €${bestOffer?.price_kwh || 'N/A'}
+MIGLIORI OFFERTE TROVATE:
+1. FISSO: ${offerteFissaSection}
+2. VARIABILE: ${offerteVariabileSection}
+${bonusSection}
 
-REGOLE DI OUTPUT:
-1. Parla SEMPRE come se stessi spiegando a una persona che non capisce nulla di energia.
-2. Usa frasi brevi, chiare, pulite.
-3. Non usare gergo tecnico senza spiegarlo.
-4. Devi SEMPRE spiegare PERCHÉ l’offerta consigliata è migliore PER QUEL consumo.
-5. Devi SEMPRE analizzare le fasce orarie F1, F2, F3 e spiegarne il senso.
-6. Devi SEMPRE spiegare se l’utente consuma molto, poco o nella media.
-7. Devi SEMPRE evidenziare se l’offerta attuale è sbilanciata rispetto al profilo di consumo.
-8. Devi dare consigli concreti (es. elettrodomestici energivori, fasce sbagliate, ecc.).
-9. NO FRASEGGI GENERICI. NO MINCHIATE.
+LINEE GUIDA PERSONA:
+1. **Tono**: Amichevole, diretto, empatico. Professionalità pulita. Evita emoji eccessivi o infantili.
+2. **Analisi Fasce**: Spiega brevemente le fasce F1/F2/F3 solo se rilevante per il risparmio.
+3. **Pro & Contro**: Elenca i punti di forza e debolezza in modo oggettivo.
+4. **Verdetto**:
+   - Se risparmio > 50€: CONSIGLIA DI CAMBIARE.
+   - Se risparmio < 30€: Sii onesto sul basso impatto.
+   - Se paga poco: Complimentati.
+5. **COMPLETEZZA**: Concludi sempre il ragionamento.
 
-STRUTTURA OBBLIGATORIA DELL’ANALISI:
+STRUTTURA RISPOSTA (Markdown):
 
-### 1. Diagnosi immediata (apertura)
-Spiega in modo diretto:
-- quanto spende ora l’utente
-- quanto spenderebbe con l’offerta consigliata
-- la differenza
-- se il risparmio è significativo, marginale o nullo
+#### Analisi dei tuoi consumi
+[Spiegazione chiara e pulita del consumo.]
 
-### 2. Perché questa offerta è migliore (la parte AI vera)
-Qui devi essere chirurgico:
-- confronta il tipo di tariffa (monoraria/bioraria)
-- guarda i consumi F1/F2/F3 e spiega se l’offerta si adatta bene o male
-- spiega se l’utente consuma più nelle fasce costose = errore del contratto attuale
-- spiega se l’offerta proposta ha prezzo fisso più stabile
-- spiega se l’utente ha elettrodomestici energivori
+#### Pro e Contro delle opzioni
+**Se resti con ${fornitore_attuale}:**
+- Paghi circa €${Number(spesa_annua_corrente).toFixed(0)} all'anno.
+- [Svantaggi/Vantaggi principali]
 
-### 3. Analisi fasce orarie (F1, F2, F3)
-DEVI spiegare:
-- quale fascia pesa di più
-- se l’offerta consigliata è più conveniente in quella fascia
-- quanto potrebbe influire un cambio abitudini
+**Se passi all'offerta migliore (${offerta_fissa?.provider || offerta_variabile?.provider || 'nuovo fornitore'}):**
+- **Risparmi circa €${Math.max(fixedSavings.annual, variableSavings.annual).toFixed(0)} all'anno.**
+- [Vantaggi principali es. Prezzo bloccato]
+- [Eventuali attenzioni]
 
-### 4. Analisi del consumo totale
-Classifica sempre:
-- Sotto 2500 kWh → Consumo basso
-- 2500–4500 kWh → Consumo medio
-- 4500–7000 kWh → Consumo alto
-- Oltre 7000 kWh → Consumo molto alto
+#### Consiglio dell'esperto
+[Verdetto finale netto e professionale.]
 
-E spiega perché questo incide sulle offerte.
+#### Cosa devi fare ora
+1. Clicca su **Attiva Offerta Online** per bloccare il prezzo.
+2. Tieni a portata di mano IBAN e dati intestatario.
+3. La procedura è automatica e senza interruzioni.
 
-### 5. Cosa devi fare adesso (azione concreta)
-Tre punti semplicissimi e pratici.
+IMPORTANTE: Stile pulito, niente pallini colorati, niente emoji nel corpo del testo (salvo titoli). Massima leggibilità.`;
 
-### 6. Trasparenza (breve e onesta)
-Aggiungi SEMPRE una nota chiara:
-“Le cifre sono stime basate sui tuoi consumi reali e sui prezzi attuali. Controlla sempre i dettagli sul sito del fornitore prima di sottoscrivere.”
+    const callGemini = async (modelId) => {
+       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${GEMINI_API_KEY}`;
+       const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: systemPrompt }] }],
+            generationConfig: { 
+                temperature: 0.4, 
+                maxOutputTokens: 1000, 
+            }
+          }),
+        });
+        if (!response.ok) throw new Error(await response.text());
+        return response.json();
+    };
 
-Rispondi SEMPRE in italiano perfetto, con tono professionale ma amichevole. Usa Markdown.`;
+    let analysis = null;
+    let modelUsed = "";
 
-    // Call Gemini API
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: systemPrompt }] }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1500,
-          }
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error:', errorText);
-      throw new Error(`Gemini API error: ${response.status}`);
+    try {
+        // 1. Try Gemini 1.5 Flash (Most stable currently)
+        const data = await callGemini("gemini-1.5-flash");
+        analysis = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        modelUsed = "gemini-1.5-flash";
+    } catch (e) {
+        console.warn("Gemini 1.5 Flash failed, trying Pro", e);
+        try {
+            // 2. Fallback to Gemini 1.5 Pro
+            const data = await callGemini("gemini-1.5-pro");
+            analysis = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            modelUsed = "gemini-1.5-pro";
+        } catch (e2) {
+             console.warn("Gemini 1.5 Pro failed, trying 2.0 Flash", e2);
+             try {
+                // 3. Fallback to Gemini 2.0 Flash (Experimental)
+                const data = await callGemini("gemini-2.0-flash-exp");
+                analysis = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                modelUsed = "gemini-2.0-flash-exp";
+             } catch (e3) {
+                 // Final fallback
+                 throw new Error("All Gemini models failed.");
+             }
+        }
     }
-
-    const data = await response.json();
-    const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!analysis) {
-      throw new Error('Empty AI response');
+      throw new Error('All Gemini models failed to generate response');
     }
-
-    console.log('EnergyCoach: Analysis generated successfully');
 
     return new Response(
       JSON.stringify({ 
         ok: true, 
-        analysis 
+        analysis,
+        model_used: modelUsed
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

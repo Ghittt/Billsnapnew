@@ -10,9 +10,7 @@ import '@/types/analytics';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { SummaryBanner } from '@/components/results/SummaryBanner';
 import { IntelligentAnalysis } from '@/components/results/IntelligentAnalysis';
-import { ActionSection } from '@/components/results/ActionSection';
 import { MethodSection } from '@/components/results/MethodSection';
 import { getOfferUrl } from '@/utils/offerUrls';
 
@@ -141,6 +139,19 @@ const ResultsPage = () => {
         setBestOffer(ranked[0]);
         setAllOffers(ranked);
 
+        // Determine best fixed and variable
+        let bestFixed = undefined; 
+        let bestVar = undefined;
+        
+        if (ranked && ranked.length > 0) {
+             bestFixed = ranked.find(o => o.plan_name.toLowerCase().includes('fix') || o.plan_name.toLowerCase().includes('fissa') || (o as any).tipo_prezzo === 'fisso');
+             bestVar = ranked.find(o => !bestFixed || (o.id !== bestFixed.id && ((o as any).tipo_prezzo === 'variabile' || !(o.plan_name.toLowerCase().includes('fix')))));
+             
+             // Fallback if type not found explicitly
+             if (!bestFixed) bestFixed = ranked[0]; 
+             if (!bestVar && ranked.length > 1) bestVar = ranked[1];
+        }
+
         fetchAiAnalysis(
           uploadId, 
           Number(consumo), 
@@ -151,7 +162,9 @@ const ResultsPage = () => {
           Number(ocrResult.f1_kwh || 0),
           Number(ocrResult.f2_kwh || 0),
           Number(ocrResult.f3_kwh || 0),
-          Number(ocrResult.unit_price_eur_kwh || 0)
+          Number(ocrResult.unit_price_eur_kwh || 0),
+          bestFixed,
+          bestVar
         );
 
       } else {
@@ -188,7 +201,9 @@ const ResultsPage = () => {
     f1: number,
     f2: number,
     f3: number,
-    priceKwh: number
+    priceKwh: number,
+    offertaFissa?: any,
+    offertaVariabile?: any
   ) => {
     try {
       setIsAiLoading(true);
@@ -215,7 +230,17 @@ const ResultsPage = () => {
             f1_consumption: f1,
             f2_consumption: f2,
             f3_consumption: f3,
-            current_price_kwh: priceKwh
+            current_price_kwh: priceKwh,
+            offerta_fissa: offertaFissa ? {
+                nome_offerta: offertaFissa.plan_name,
+                provider: offertaFissa.provider,
+                costo_annuo: offertaFissa.simulated_cost
+            } : null,
+            offerta_variabile: offertaVariabile ? {
+                nome_offerta: offertaVariabile.plan_name,
+                provider: offertaVariabile.provider,
+                costo_annuo: offertaVariabile.simulated_cost
+            } : null
           })
         }
       );
@@ -425,21 +450,6 @@ const ResultsPage = () => {
           )}
 
           {bestOffer && (
-            <SummaryBanner
-              hasSavings={hasSavings}
-              monthlySaving={monthlySaving}
-              yearlySaving={annualSaving}
-              bestOfferName={bestOffer.plan_name}
-              bestOfferProvider={bestOffer.provider}
-              currentProvider={ocrData?.provider || 'provider attuale'}
-              bestOfferUrl={bestOfferUrl}
-              onActivate={() => handleActivateOffer(bestOffer)}
-              currentMonthly={currentMonthly}
-              newMonthly={newMonthly}
-            />
-          )}
-
-          {bestOffer && (
             <IntelligentAnalysis
               consumption={consumption}
               billType={billType}
@@ -456,17 +466,6 @@ const ResultsPage = () => {
               aiAnalysis={aiAnalysis}
               isLoading={isAiLoading}
               error={aiError}
-            />
-          )}
-
-          {bestOffer && (
-            <ActionSection
-              hasSavings={hasSavings}
-              savingMonthly={monthlySaving}
-              bestOfferName={bestOffer.plan_name}
-              bestOfferProvider={bestOffer.provider}
-              bestOfferProviderName={bestOffer.provider}
-              bestOfferUrl={bestOfferUrl}
               onActivate={() => handleActivateOffer(bestOffer)}
             />
           )}

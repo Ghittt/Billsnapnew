@@ -6,9 +6,11 @@ import UploadZone from "@/components/upload/UploadZone";
 import ProgressIndicator from "@/components/upload/ProgressIndicator";
 import { ManualBillInputModal } from "@/components/upload/ManualBillInputModal";
 import { ManualBillInputFallback } from "@/components/upload/ManualBillInputFallback";
+import { ProfilePopupStep1 } from "@/components/upload/ProfilePopupStep1";
+import { ProfilePopupStep2 } from "@/components/upload/ProfilePopupStep2";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Clock, Upload, Shield, Zap } from "lucide-react";
+import { CheckCircle, Clock, Upload, Shield, Zap, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { logError, updateUploadStatus } from "@/lib/errorLogger";
 import "@/types/analytics";
@@ -43,6 +45,21 @@ const UploadPage = () => {
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
   const [uploadStartTime, setUploadStartTime] = useState<number>(0);
   const [ocrTimeoutWarning, setOcrTimeoutWarning] = useState(false);
+  
+  // Pop-up flow states
+  const [popupStep, setPopupStep] = useState<0 | 1 | 2>(0);
+  const [loaderText, setLoaderText] = useState("Sto analizzando la tua bolletta, ci vuole qualche secondo...");
+  const [userProfile, setUserProfile] = useState<{
+    dataNascita: string | null;
+    nucleoFamiliare: number | null;
+    iseeRange: "basso" | "medio" | "alto" | null;
+    codiceFiscale: string | null;
+  }>({
+    dataNascita: null,
+    nucleoFamiliare: null,
+    iseeRange: null,
+    codiceFiscale: null,
+  });
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -73,6 +90,24 @@ const UploadPage = () => {
       return;
     }
 
+    setIsUploading(true);
+    setLoaderText("Sto analizzando la tua bolletta, ci vuole qualche secondo...");
+    setPopupStep(1); // Show first pop-up
+  };
+
+  // Handle Pop-up Step 1 completion
+  const handlePopupStep1Complete = (dataNascita: string) => {
+    setUserProfile(prev => ({ ...prev, dataNascita }));
+    setPopupStep(2); // Move to second pop-up
+  };
+
+  // Handle Pop-up Step 2 completion - NOW start actual OCR
+  const handlePopupStep2Complete = async (data: { nucleoFamiliare: number; iseeRange: "basso" | "medio" | "alto" }) => {
+    setUserProfile(prev => ({ ...prev, ...data }));
+    setPopupStep(0); // Close pop-ups
+    setLoaderText("Sto finalizzando la tua analisi...");
+    
+    // NOW start the actual file upload and OCR
     await handleFileUpload(stagedFiles);
   };
 
@@ -517,19 +552,19 @@ const UploadPage = () => {
               </div>
             </>
           )}
-
           {isUploading && (
             <div className="space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-semibold mb-2">Analisi in corso</h2>
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
                 <p className="text-muted-foreground">
-                  {ocrTimeoutWarning
-                    ? "Stiamo ancora elaborando... Qualche secondo in più del solito."
-                    : "Non chiudere questa pagina"}
+                  {loaderText}
                 </p>
               </div>
 
-              <ProgressIndicator currentStep={currentStep} />
+              {popupStep === 0 && <ProgressIndicator currentStep={currentStep} />}
 
               {ocrTimeoutWarning && (
                 <Card className="glass border-primary/20">
@@ -565,6 +600,20 @@ const UploadPage = () => {
           )}
         </div>
       </div>
+
+      
+      {/* Pop-up Step 1: Birth Date */}
+      <ProfilePopupStep1
+        open={popupStep === 1}
+        codiceFiscale={userProfile.codiceFiscale}
+        onNext={handlePopupStep1Complete}
+      />
+
+      {/* Pop-up Step 2: Household */}
+      <ProfilePopupStep2
+        open={popupStep === 2}
+        onComplete={handlePopupStep2Complete}
+      />
 
       <ManualBillInputModal
         open={showManualInput}

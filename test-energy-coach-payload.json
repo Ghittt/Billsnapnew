@@ -1,0 +1,22 @@
+{
+  "upload_id": "test-uuid-12345",
+  "consumo_annuo_kwh": 3000,
+  "spesa_mensile_corrente": 75,
+  "spesa_annua_corrente": 900,
+  "fornitore_attuale": "VecchiaEnelCostosa",
+  "tipo_offerta_attuale": "Tutela",
+  "f1_consumption": 1000,
+  "f2_consumption": 1000,
+  "f3_consumption": 1000,
+  "current_price_kwh": 0.30,
+  "offerta_fissa": {
+    "provider": "Sorgenia",
+    "plan_name": "Next Energy Smart",
+    "costo_annuo": 600
+  },
+  "offerta_variabile": {
+    "provider": "Iren",
+    "plan_name": "Iren 10x3 Variabile",
+    "costo_annuo": 550
+  }
+}
