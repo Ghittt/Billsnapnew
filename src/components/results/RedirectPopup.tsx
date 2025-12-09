@@ -19,32 +19,34 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
   const [countdown, setCountdown] = useState(10);
   const hasRedirected = useRef(false);
 
+  // Reset state when popup opens
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
       setCountdown(10);
       hasRedirected.current = false;
-      return;
     }
+  }, [isOpen]);
+
+  // Handle countdown timer
+  useEffect(() => {
+    if (!isOpen || countdown <= 0) return;
 
     const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          // Perform redirect
-          if (!hasRedirected.current) {
-            hasRedirected.current = true;
-            // Use window.location.href for auto-redirect to avoid popup blockers
-            // This navigates in the same tab, which is reliable
-            window.location.href = providerUrl;
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
+      setCountdown((prev) => prev - 1);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen, providerUrl]); // Removed onClose from dependencies to prevent closure staleness issues
+  }, [isOpen, countdown]);
+
+  // Trigger redirect when countdown hits 0
+  useEffect(() => {
+    if (isOpen && countdown === 0 && !hasRedirected.current) {
+      hasRedirected.current = true;
+      console.log('Redirecting to:', providerUrl);
+      // Force redirect in same tab - reliable and bypasses popup blockers
+      window.location.href = providerUrl;
+    }
+  }, [countdown, isOpen, providerUrl]);
 
   const handleGoNow = () => {
     if (!hasRedirected.current) {
