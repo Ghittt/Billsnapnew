@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ExternalLink, Search, Clock } from 'lucide-react';
 
 interface RedirectPopupProps {
@@ -16,11 +16,13 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
   providerUrl,
   onClose
 }) => {
-  const [countdown, setCountdown] = useState(5);
+  const [countdown, setCountdown] = useState(7);
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
     if (!isOpen) {
-      setCountdown(5);
+      setCountdown(7);
+      hasRedirected.current = false;
       return;
     }
 
@@ -28,9 +30,12 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // Open provider homepage in new tab
-          window.open(providerUrl, '_blank');
-          onClose();
+          // Perform redirect
+          if (!hasRedirected.current) {
+            hasRedirected.current = true;
+            window.open(providerUrl, '_blank');
+            onClose();
+          }
           return 0;
         }
         return prev - 1;
@@ -39,6 +44,14 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
 
     return () => clearInterval(timer);
   }, [isOpen, providerUrl, onClose]);
+
+  const handleGoNow = () => {
+    if (!hasRedirected.current) {
+      hasRedirected.current = true;
+      window.open(providerUrl, '_blank');
+      onClose();
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -85,10 +98,7 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
             <span className="text-sm">Reindirizzamento in {countdown} secondi...</span>
           </div>
           <button
-            onClick={() => {
-              window.open(providerUrl, '_blank');
-              onClose();
-            }}
+            onClick={handleGoNow}
             className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
           >
             Vai ora →
@@ -99,7 +109,7 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
         <div className="mt-4 h-1 bg-gray-200 rounded-full overflow-hidden">
           <div 
             className="h-full bg-purple-600 transition-all duration-1000 ease-linear"
-            style={{ width: `${(countdown / 5) * 100}%` }}
+            style={{ width: `${(countdown / 7) * 100}%` }}
           />
         </div>
       </div>
