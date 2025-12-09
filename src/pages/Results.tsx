@@ -322,7 +322,7 @@ const ResultsPage = () => {
 
   const handleActivateOffer = async (offer: Offer) => {
     const baseUrl = offer.redirect_url || getOfferUrl(offer.provider, offer.plan_name);
-    const offerUrl = fixOfferUrlCommodity(baseUrl, billType) || baseUrl;
+    const offerUrl = fixOfferUrlCommodity(baseUrl, billType, offer.provider, offer.plan_name) || baseUrl;
     
     const annualSaving = currentCost - offer.simulated_cost;
 
