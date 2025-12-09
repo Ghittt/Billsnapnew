@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2, AlertTriangle, ExternalLink } from 'lucide-react';
+import { ComparisonTable } from './ComparisonTable';
 
 interface IntelligentAnalysisProps {
   consumption: number;
@@ -20,16 +21,26 @@ interface IntelligentAnalysisProps {
   isLoading: boolean;
   error: boolean;
   onActivate?: () => void;
+  bestOfferPromo?: string | null;
 }
 
 export const IntelligentAnalysis: React.FC<IntelligentAnalysisProps> = ({
-  aiAnalysis,
+  consumption,
+  billType,
+  currentMonthly,
+  currentAnnual,
+  currentProvider,
+  currentOfferType,
   bestOfferName,
   bestOfferProvider,
+  bestOfferMonthly,
+  bestOfferAnnual,
   savingAnnual,
+  aiAnalysis,
   isLoading,
   error,
-  onActivate
+  onActivate,
+  bestOfferPromo
 }) => {
   
   if (error) {
@@ -79,24 +90,15 @@ export const IntelligentAnalysis: React.FC<IntelligentAnalysisProps> = ({
         return <h4 key={i} className="text-lg font-bold mt-6 mb-3 text-purple-800 flex items-center gap-2">{line.replace('#### ', '')}</h4>;
       }
       if (line.startsWith('### ')) {
-        return <h3 key={i} className="text-xl font-bold mt-8 mb-4 text-purple-900 border-b border-purple-200 pb-2">{line.replace('### ', '')}</h3>;
+        return <h3 key={i} className="text-xl font-bold mt-6 mb-3 text-purple-800">{line.replace('### ', '')}</h3>;
       }
-      if (line.startsWith('## ')) {
-        return <h2 key={i} className="text-2xl font-bold mt-8 mb-3 text-purple-900">{line.replace('## ', '')}</h2>;
-      }
-      // List items
+      // Bullet points
       if (line.trim().startsWith('- ')) {
-         const parts = line.replace('- ', '').split(/(\*\*.*?\*\*)/g);
-         return (
-          <li key={i} className="ml-4 list-disc mb-2 text-purple-900/90 pl-1">
-            {parts.map((part, j) => {
-              if (part.startsWith('**') && part.endsWith('**')) {
-                return <strong key={j} className="text-purple-900 font-semibold">{part.slice(2, -2)}</strong>;
-              }
-              return part;
-            })}
-          </li>
-         );
+        return <li key={i} className="ml-6 mb-2 text-purple-900/80">{line.replace(/^[\s-]*/, '')}</li>;
+      }
+      // Empty lines
+      if (line.trim() === '') {
+        return <div key={i} className="h-2"></div>;
       }
       // Bold
       const parts = line.split(/(\*\*.*?\*\*)/g);
@@ -139,6 +141,22 @@ export const IntelligentAnalysis: React.FC<IntelligentAnalysisProps> = ({
               </p>
             )}
           </div>
+
+          {/* COMPARISON TABLE - NEW */}
+          <ComparisonTable
+            currentProvider={currentProvider}
+            currentOfferType={currentOfferType}
+            currentMonthly={currentMonthly}
+            currentAnnual={currentAnnual}
+            bestOfferName={bestOfferName}
+            bestOfferProvider={bestOfferProvider}
+            bestOfferMonthly={bestOfferMonthly}
+            bestOfferAnnual={bestOfferAnnual}
+            bestOfferPromo={bestOfferPromo}
+            savingAnnual={savingAnnual}
+            consumption={consumption}
+            billType={billType}
+          />
         </CardContent>
       </Card>
 

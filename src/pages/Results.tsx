@@ -24,6 +24,7 @@ interface Offer {
   simulated_cost: number;
   redirect_url: string | null;
   commodity: string;
+  promo_text?: string | null;
 }
 
 const ResultsPage = () => {
@@ -467,6 +468,7 @@ const ResultsPage = () => {
               isLoading={isAiLoading}
               error={aiError}
               onActivate={() => handleActivateOffer(bestOffer)}
+              bestOfferPromo={bestOffer.promo_text}
             />
           )}
 
