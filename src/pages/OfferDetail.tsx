@@ -1,7 +1,8 @@
-import { preCheckUrl } from '@/utils/offerUrlFixer';
+import RedirectPopup from '@/components/results/RedirectPopup';
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { getOfferUrl } from '@/utils/offerUrls';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -79,28 +80,28 @@ export default function OfferDetail() {
     fetchOffer();
   }, [id, navigate, toast]);
 
-  const handleActivate = async () => {
-    if (!offer?.redirect_url) {
-      toast({
-        title: "Link non disponibile",
-        description: "Il link all'offerta non è disponibile.",
-        variant: "destructive",
-      });
-      return;
-    }
+    const handleActivate = async () => {
+    if (!offer) return;
+
+    // Use reliable homepage URL
+    const providerUrl = getOfferUrl(offer.provider, offer.plan_name);
 
     // Track the click
     supabase.from('leads').insert({
-      upload_id: crypto.randomUUID(), // temporary placeholder
+      upload_id: crypto.randomUUID(),
       provider: offer.provider,
       offer_id: offer.id,
-      redirect_url: offer.redirect_url,
+      redirect_url: providerUrl,
       offer_annual_cost_eur: annualCost,
     });
 
-    // Validate URL before redirecting
-    const validatedUrl = await preCheckUrl(offer.redirect_url, offer.provider, offer.plan_name);
-    window.location.href = validatedUrl;
+    // Show popup
+    setRedirectData({
+      provider: offer.provider,
+      offerName: offer.plan_name,
+      url: providerUrl
+    });
+    setShowRedirectPopup(true);
   };
 
   if (loading) {

@@ -1,161 +1,124 @@
-import React from 'react';
-import { fixOfferUrlCommodity } from '@/utils/offerUrlFixer';
-import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { TrendingDown, Euro, Zap, ExternalLink, Loader2 } from 'lucide-react';
+import { ArrowRight, Check, Info } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { getOfferUrl } from '@/utils/offerUrls';
+import { useState } from 'react';
+import RedirectPopup from './RedirectPopup';
 
 interface SavingsCardProps {
+  bestOffer: any;
   currentCost: number;
-  bestOffer: {
-    provider: string;
-    plan: string;
-    annualCost: number;
-    unitPrice: number;
-    id?: string;
-    redirectUrl?: string;
-    termsUrl?: string;
-    pricingType?: string;
-  };
-  annualSaving: number;
-  copyMessage?: string;
+  billType: 'luce' | 'gas' | 'combo';
   uploadId?: string;
 }
 
-const SavingsCard: React.FC<SavingsCardProps> = ({
-  currentCost,
-  bestOffer,
-  annualSaving,
-  copyMessage,
-  uploadId
-}) => {
-  const [isLoading, setIsLoading] = useState(false);
+export const SavingsCard = ({ bestOffer, currentCost, billType, uploadId }: SavingsCardProps) => {
   const { toast } = useToast();
-  const savingPercentage = ((annualSaving / currentCost) * 100).toFixed(1);
+  const [showRedirectPopup, setShowRedirectPopup] = useState(false);
+  const [redirectData, setRedirectData] = useState<{provider: string; offerName: string; url: string} | null>(null);
+
+  const annualSaving = currentCost - bestOffer.simulated_cost;
+  const isPositiveSaving = annualSaving > 0;
 
   const handleActivateOffer = async () => {
-    if (!uploadId) {
-      toast({
-        title: "Errore",
-        description: "Dati di sessione mancanti. Riprova caricando nuovamente la bolletta.",
-        variant: "destructive"
-      });
-      return;
-    }
+    // Always use provider homepage for stability
+    const providerUrl = getOfferUrl(bestOffer.provider, bestOffer.plan);
 
-    setIsLoading(true);
-    
-    try {
-      // Detect device type
-      const userAgent = navigator.userAgent.toLowerCase();
-      let device = 'web';
-      if (userAgent.includes('mobile') || userAgent.includes('android')) device = 'mobile';
-      if (userAgent.includes('iphone') || userAgent.includes('ipad')) device = 'ios';
+    const leadPayload = {
+      upload_id: uploadId,
+      provider: bestOffer.provider,
+      offer_id: bestOffer.id,
+      redirect_url: providerUrl,
+      offer_annual_cost_eur: bestOffer.simulated_cost,
+      annual_saving_eur: annualSaving,
+      current_annual_cost_eur: currentCost
+    };
 
-      // Extract UTM parameters from URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const utmSource = urlParams.get('utm_source') || undefined;
-      const utmMedium = urlParams.get('utm_medium') || undefined;
-      const utmCampaign = urlParams.get('utm_campaign') || undefined;
+    console.log('Sending lead payload:', leadPayload);
 
-      // Use real redirect URL from offer or construct affiliate URL
-      const redirectUrl = bestOffer.redirectUrl || 
-        `https://fornitore.example/landing?affid=billsnap&provider=${encodeURIComponent(bestOffer.provider)}&plan=${encodeURIComponent(bestOffer.plan)}`;
+    // Save lead (fire and forget)
+    const { data, error } = await supabase.functions.invoke('save-lead', {
+      body: leadPayload
+    });
 
-      const leadPayload = {
-        upload_id: uploadId,
-        offer_id: bestOffer.id || `${bestOffer.provider}-${bestOffer.plan}`.replace(/\s+/g, '-').toLowerCase(),
-        provider: bestOffer.provider,
-        annual_saving_eur: annualSaving,
-        current_annual_cost_eur: currentCost,
-        offer_annual_cost_eur: bestOffer.annualCost,
-        utm_source: utmSource,
-        utm_medium: utmMedium,
-        utm_campaign: utmCampaign,
-        device: device,
-        redirect_url: redirectUrl
-      };
-
-      console.log('Sending lead payload:', leadPayload);
-
-      const { data, error } = await supabase.functions.invoke('save-lead', {
-        body: leadPayload
-      });
-
-      if (error) {
-        console.error('Error saving lead:', error);
-        toast({
-          title: "Errore temporaneo",
-          description: "Non riesco ad aprire la pagina del fornitore, riprova",
-          variant: "destructive"
-        });
-        return;
-      }
-
+    if (error) {
+      console.error('Error saving lead:', error);
+      // We continue anyway, don't block user for tracking error
+    } else {
       console.log('Lead saved successfully:', data);
-      
-      // Redirect to provider
-      if (data.redirect_url) {
-        const fixedUrl = fixOfferUrlCommodity(data.redirect_url, billType) || data.redirect_url;
-        window.location.href = fixedUrl;
-      } else {
-        toast({
-          title: "Errore",
-          description: "URL di redirect non disponibile",
-          variant: "destructive"
-        });
-      }
-
-    } catch (error) {
-      console.error('Error in handleActivateOffer:', error);
-      toast({
-        title: "Errore temporaneo",
-        description: "Non riesco ad aprire la pagina del fornitore, riprova",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
     }
+    
+    // Show popup
+    setRedirectData({
+      provider: bestOffer.provider,
+      offerName: bestOffer.plan,
+      url: providerUrl
+    });
+    setShowRedirectPopup(true);
   };
 
-  const handleClick = () => {
-    // Track CTA click analytics
-    if (typeof gtag !== 'undefined') {
-      gtag('event', 'cta_clicked', {
-        'event_category': 'conversion',
-        'value': annualSaving
-      });
-    }
-    handleActivateOffer();
-  };
+  const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(n);
 
   return (
-    <div className="text-center space-y-4">
-      <Button 
-        size="lg" 
-        className="w-full md:w-auto min-h-[44px] text-lg font-semibold px-8"
-        onClick={handleClick}
-        disabled={isLoading || !uploadId}
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Reindirizzamento...
-          </>
-        ) : (
-          <>
-            <ExternalLink className="w-5 h-5" />
-            Attiva subito e risparmia
-          </>
-        )}
-      </Button>
-      <p className="text-sm text-muted-foreground">
-        Verrai reindirizzato al sito del fornitore per completare il cambio
-      </p>
-    </div>
+    <>
+      <Card className="w-full bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 shadow-md">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl font-bold text-green-900">
+              {bestOffer.provider} - {bestOffer.plan}
+            </CardTitle>
+            {isPositiveSaving && (
+              <Badge className="bg-green-600 hover:bg-green-700 text-base px-3 py-1">
+                Risparmi {fmt(annualSaving)}/anno
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm mt-3">
+              <div className="space-y-1">
+                <span className="text-gray-500">Costo attuale stinato</span>
+                <p className="font-semibold text-gray-700 line-through decoration-red-500/50">
+                  {fmt(currentCost)}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-gray-500">Nuovo costo stimato</span>
+                <p className="font-bold text-2xl text-green-700">
+                  {fmt(bestOffer.simulated_cost)}
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-4 flex gap-3">
+              <Button 
+                onClick={handleActivateOffer}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold h-12 shadow-md transition-all hover:scale-[1.02]"
+              >
+                Attiva Offerta Online
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <RedirectPopup
+        isOpen={showRedirectPopup}
+        provider={redirectData?.provider || ''}
+        offerName={redirectData?.offerName || ''}
+        providerUrl={redirectData?.url || ''}
+        onClose={() => setShowRedirectPopup(false)}
+      />
+    </>
   );
 };
-
-export default SavingsCard;
