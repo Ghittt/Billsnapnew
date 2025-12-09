@@ -21,9 +21,9 @@ export function fixOfferUrlCommodity(
   try {
     const urlObj = new URL(url);
     
-    // VALIDATION: Check for suspicious patterns that often break
+    // VALIDATION: Check for suspicious patterns that often break    // VALIDATION: Check for suspicious patterns that often break
     const suspiciousPatterns = [
-      'stepSimulazione=simulazioneSubscribe', // Sorgenia's broken parameter
+      // 'stepSimulazione=simulazioneSubscribe', // removed as it's a valid parameter
       'contracteletype.html', // Old Sorgenia path
       '/residential/home.html?productType', // Complex Sorgenia path
     ];
@@ -67,5 +67,27 @@ export function fixOfferUrlCommodity(
     }
     
     return url; // Last resort: return original
+  }
+}
+
+/**
+ * Perform a lightweight pre‑check to see if the URL is reachable.
+ * Returns the original URL if the request succeeds (status 200‑299),
+ * otherwise returns the fallback URL (provider homepage) generated via getOfferUrl.
+ */
+export async function preCheckUrl(
+  url: string | null | undefined,
+  provider: string,
+  planName: string
+): Promise<string> {
+  if (!url) return getOfferUrl(provider, planName);
+  try {
+    const response = await fetch(url, { method: 'HEAD', redirect: 'manual' });
+    if (response.ok) return url;
+    console.warn('[URL PRE‑CHECK] Unreachable URL, falling back to provider homepage', url);
+    return getOfferUrl(provider, planName);
+  } catch (e) {
+    console.error('[URL PRE‑CHECK] Error checking URL', e);
+    return getOfferUrl(provider, planName);
   }
 }
