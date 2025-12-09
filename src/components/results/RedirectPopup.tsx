@@ -16,12 +16,12 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
   providerUrl,
   onClose
 }) => {
-  const [countdown, setCountdown] = useState(7);
+  const [countdown, setCountdown] = useState(10);
   const hasRedirected = useRef(false);
 
   useEffect(() => {
     if (!isOpen) {
-      setCountdown(7);
+      setCountdown(10);
       hasRedirected.current = false;
       return;
     }
@@ -33,8 +33,9 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
           // Perform redirect
           if (!hasRedirected.current) {
             hasRedirected.current = true;
-            window.open(providerUrl, '_blank');
-            onClose();
+            // Use window.location.href for auto-redirect to avoid popup blockers
+            // This navigates in the same tab, which is reliable
+            window.location.href = providerUrl;
           }
           return 0;
         }
@@ -43,11 +44,12 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen, providerUrl, onClose]);
+  }, [isOpen, providerUrl]); // Removed onClose from dependencies to prevent closure staleness issues
 
   const handleGoNow = () => {
     if (!hasRedirected.current) {
       hasRedirected.current = true;
+      // Button click can reliably open new tab
       window.open(providerUrl, '_blank');
       onClose();
     }
@@ -109,7 +111,7 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
         <div className="mt-4 h-1 bg-gray-200 rounded-full overflow-hidden">
           <div 
             className="h-full bg-purple-600 transition-all duration-1000 ease-linear"
-            style={{ width: `${(countdown / 7) * 100}%` }}
+            style={{ width: `${(countdown / 10) * 100}%` }}
           />
         </div>
       </div>
