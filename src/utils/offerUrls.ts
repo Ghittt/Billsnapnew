@@ -1,10 +1,23 @@
 // Utility function to generate offer URLs based on provider name
-// Updated December 2025 with verified working links
+// Updated December 2025 - FIXED matching order to prevent false positives
 export function getOfferUrl(provider: string, planName: string): string {
-  const p = (provider || '').toLowerCase();
+  const p = (provider || '').toLowerCase().trim();
   const plan = (planName || '').toLowerCase();
   
-  // Pulsee - direct to homepage as specific offer pages change frequently
+  // IMPORTANT: Check more specific names FIRST to avoid false matches
+  // e.g., "Sorgenia" contains "eni" so we must check Sorgenia before Eni
+  
+  // Sorgenia - MUST be before Eni check (contains "eni" in name)
+  if (p.includes('sorgenia')) {
+    return 'https://www.sorgenia.it/offerte';
+  }
+  
+  // Eni Plenitude - check after Sorgenia
+  if (p === 'eni' || p === 'plenitude' || p === 'eni plenitude' || p.includes('plenitude')) {
+    return 'https://eniplenitude.com/offerte-luce-e-gas';
+  }
+  
+  // Pulsee
   if (p.includes('pulsee')) {
     return 'https://www.pulsee.it/';
   }
@@ -12,11 +25,6 @@ export function getOfferUrl(provider: string, planName: string): string {
   // Enel Energia
   if (p.includes('enel')) {
     return 'https://www.enel.it/it/luce-gas/offerte';
-  }
-  
-  // Eni Plenitude
-  if (p.includes('eni') || p.includes('plenitude')) {
-    return 'https://eniplenitude.com/it/offerte-luce-gas';
   }
   
   // A2A Energia
@@ -27,11 +35,6 @@ export function getOfferUrl(provider: string, planName: string): string {
   // Edison Energia
   if (p.includes('edison')) {
     return 'https://www.edison.it/offerte';
-  }
-  
-  // Sorgenia
-  if (p.includes('sorgenia')) {
-    return 'https://www.sorgenia.it/offerte';
   }
   
   // Illumia
@@ -80,7 +83,7 @@ export function getOfferUrl(provider: string, planName: string): string {
   }
   
   // E.ON Energia
-  if (p.includes('e.on') || p.includes('eon')) {
+  if (p.includes('e.on') || p === 'eon') {
     return 'https://www.eon-energia.com/offerte.html';
   }
   
@@ -94,8 +97,8 @@ export function getOfferUrl(provider: string, planName: string): string {
     return 'https://www.dufercoenergia.com/';
   }
   
-  // E-Distribuzione / Servizio Elettrico Nazionale
-  if (p.includes('servizio elettrico') || p.includes('sen')) {
+  // Servizio Elettrico Nazionale
+  if (p.includes('servizio elettrico') || p === 'sen') {
     return 'https://www.servizioelettriconazionale.it/';
   }
   
@@ -120,7 +123,7 @@ export function getOfferUrl(provider: string, planName: string): string {
   }
   
   // NeN
-  if (p.includes('nen')) {
+  if (p === 'nen' || p.includes('nen energia')) {
     return 'https://nen.it/';
   }
 
@@ -129,7 +132,7 @@ export function getOfferUrl(provider: string, planName: string): string {
     return 'https://octopusenergy.it/';
   }
   
-  // Fallback: Google search for the specific offer with Italian market context
+  // Fallback: Google search for the specific offer
   const searchQuery = `${provider} ${planName} offerta luce gas attiva`;
   return `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
 }
