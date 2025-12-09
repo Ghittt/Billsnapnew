@@ -1,3 +1,4 @@
+import { preCheckUrl } from '@/utils/offerUrlFixer';
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -78,7 +79,7 @@ export default function OfferDetail() {
     fetchOffer();
   }, [id, navigate, toast]);
 
-  const handleActivate = () => {
+  const handleActivate = async () => {
     if (!offer?.redirect_url) {
       toast({
         title: "Link non disponibile",
@@ -97,7 +98,9 @@ export default function OfferDetail() {
       offer_annual_cost_eur: annualCost,
     });
 
-    window.location.href = offer.redirect_url;
+    // Validate URL before redirecting
+    const validatedUrl = await preCheckUrl(offer.redirect_url, offer.provider, offer.plan_name);
+    window.location.href = validatedUrl;
   };
 
   if (loading) {
