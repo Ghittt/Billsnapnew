@@ -1,3 +1,5 @@
+import React from 'react';
+import { fixOfferUrlCommodity } from '@/utils/offerUrlFixer';
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -96,7 +98,8 @@ const SavingsCard: React.FC<SavingsCardProps> = ({
       
       // Redirect to provider
       if (data.redirect_url) {
-        window.location.href = data.redirect_url;
+        const fixedUrl = fixOfferUrlCommodity(data.redirect_url, billType) || data.redirect_url;
+        window.location.href = fixedUrl;
       } else {
         toast({
           title: "Errore",
