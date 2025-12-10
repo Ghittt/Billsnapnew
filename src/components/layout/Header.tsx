@@ -11,7 +11,8 @@ const Header = () => {
           </span>
         </Link>
         
-        <div className="absolute left-1/2 transform -translate-x-1/2">
+        {/* Counter - nascosto su mobile, visibile su tablet+ */}
+        <div className="hidden lg:block absolute left-1/2 transform -translate-x-1/2">
           <DailyComparisonCounter />
         </div>
         
