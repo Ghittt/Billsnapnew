@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Header from '@/components/layout/Header';
+import { DailyBillCounter } from "@/components/DailyBillCounter";
 import UploadZone from '@/components/upload/UploadZone';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -62,6 +63,7 @@ const Index = () => {
                   <span className="whitespace-nowrap">50+ Offerte</span>
                 </div>
               </div>
+              <DailyBillCounter />
             </div>
           </div>
         </div>
