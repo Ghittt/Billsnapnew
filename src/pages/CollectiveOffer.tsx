@@ -51,6 +51,15 @@ export default function CollectiveOffer() {
 
       if (error) throw error;
 
+      // Invia email di benvenuto
+      await supabase.functions.invoke("send-welcome-email", {
+        body: { email }
+      }).catch(err => {
+        console.error("Failed to send welcome email:", err);
+        // Non bloccare l'iscrizione se l'email fallisce
+      });
+
+
       setHasJoined(true);
       toast({
         title: "Benvenuto nel gruppo!",
