@@ -51,12 +51,6 @@ export default function CollectiveOffer() {
 
       if (error) throw error;
 
-      // Invia email di benvenuto (non bloccante)
-      supabase.functions.invoke("send-welcome-email", {
-        body: { email }
-      }).catch(err => {
-        console.error("Email non inviata (non critico):", err);
-      });
 
 
 
