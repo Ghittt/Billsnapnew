@@ -56,6 +56,9 @@ serve(async (req) => {
                     <!-- Header -->
                     <tr>
                       <td style="background: linear-gradient(135deg, #A855F7 0%, #9333EA 100%); padding: 40px; text-align: center; border-radius: 16px 16px 0 0;">
+                        <div style="margin-bottom: 20px;">
+                          <span style="font-size: 32px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">BillSnap</span>
+                        </div>
                         <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">Benvenuto nel Gruppo! 🎉</h1>
                       </td>
                     </tr>
