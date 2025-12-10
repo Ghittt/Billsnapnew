@@ -26,6 +26,11 @@ const Index = () => {
           <div className="max-w-5xl mx-auto text-center space-y-4 sm:space-y-6 md:space-y-8">
             {/* Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 backdrop-blur-sm border border-primary/10">
+            {/* Counter mobile - sopra Powered by SnapAI */}
+            <div className="md:hidden mb-3">
+              <DailyComparisonCounter />
+            </div>
+
               <Sparkles className="w-4 h-4 text-primary" />
               <span className="text-sm font-medium text-foreground">Powered by SnapAi™</span>
             </div>
