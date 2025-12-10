@@ -11,7 +11,9 @@ const Header = () => {
           </span>
         </Link>
         
-        <DailyComparisonCounter />
+        <div className="absolute left-1/2 transform -translate-x-1/2">
+          <DailyComparisonCounter />
+        </div>
         
         <nav className="flex items-center gap-6">
           <Link 
