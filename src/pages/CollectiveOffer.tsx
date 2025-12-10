@@ -20,20 +20,20 @@ export default function CollectiveOffer() {
   const [stats, setStats] = useState({ current: 847, target: 2000 });
 
   const handleJoinCollective = async () => {
-    if (!email || !email.includes('@')) {
+    if (!email || !email.includes("@")) {
       toast({
-        title: 'Email non valida',
-        description: 'Inserisci un indirizzo email valido',
-        variant: 'destructive'
+        title: "Email non valida",
+        description: "Inserisci un indirizzo email valido",
+        variant: "destructive"
       });
       return;
     }
 
     if (!acceptTerms) {
       toast({
-        title: 'Accetta i termini',
-        description: 'Devi accettare i termini per partecipare',
-        variant: 'destructive'
+        title: "Accetta i termini",
+        description: "Devi accettare i termini per partecipare",
+        variant: "destructive"
       });
       return;
     }
@@ -41,33 +41,36 @@ export default function CollectiveOffer() {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.functions.invoke('collective-join', {
-        body: { email, commodity, source: 'collective_page' }
-      });
+      const { error } = await supabase
+        .from("group_buying_subscribers")
+        .insert([{
+          email,
+          interested_in: commodity === "energy" ? "luce" : commodity === "gas" ? "gas" : "dual",
+          utm_source: "collective_page"
+        }]);
 
       if (error) throw error;
 
       setHasJoined(true);
       toast({
-        title: 'Benvenuto nel gruppo!',
-        description: 'Ti avviseremo quando raggiungeremo il target e attiveremo l\'offerta esclusiva.'
+        title: "Benvenuto nel gruppo!",
+        description: "Ti avviseremo quando raggiungeremo il target e attiveremo l'offerta esclusiva."
       });
 
-      // Refresh stats
-      const { data: statsData } = await supabase.functions.invoke('collective-stats');
-      if (statsData) {
-        setStats({ current: statsData.current_count || 847, target: statsData.target || 2000 });
-      }
-    } catch (error) {
-      console.error('Error joining collective:', error);
+      setStats(prev => ({ ...prev, current: prev.current + 1 }));
+    } catch (error: any) {
+      console.error("Error joining collective:", error);
       toast({
-        title: 'Errore',
-        description: 'Impossibile completare l\'iscrizione. Riprova.',
-        variant: 'destructive'
+        title: "Errore",
+        description: error.message.includes("duplicate") 
+          ? "Questa email è già registrata!" 
+          : "Impossibile completare l'iscrizione. Riprova.",
+        variant: "destructive"
       });
     } finally {
       setIsSubmitting(false);
     }
+  };
   };
 
   const progressPercentage = Math.min((stats.current / stats.target) * 100, 100);
