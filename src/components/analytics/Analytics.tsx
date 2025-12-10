@@ -9,7 +9,7 @@ const Analytics: React.FC = () => {
   useEffect(() => {
     // Track page view when route changes
     if (typeof gtag !== 'undefined') {
-      gtag('config', 'GA_MEASUREMENT_ID', {
+      gtag('config', 'G-55L0E69TKD', {
         page_path: location.pathname,
       });
     }
