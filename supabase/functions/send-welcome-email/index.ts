@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
+const RESEND_API_KEY = Deno.env.get('BILLSNAP_RESEND_KEY')
 
 serve(async (req) => {
   try {
@@ -10,6 +10,13 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Email is required' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!RESEND_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: 'BILLSNAP_RESEND_KEY not configured' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
       )
     }
 
