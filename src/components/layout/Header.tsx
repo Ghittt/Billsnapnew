@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { DailyComparisonCounter } from "@/components/DailyComparisonCounter";
 
 const Header = () => {
   return (
@@ -9,6 +10,8 @@ const Header = () => {
             BillSnap
           </span>
         </Link>
+        
+        <DailyComparisonCounter />
         
         <nav className="flex items-center gap-6">
           <Link 
