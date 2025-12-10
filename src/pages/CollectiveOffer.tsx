@@ -51,6 +51,14 @@ export default function CollectiveOffer() {
 
       if (error) throw error;
 
+      // Invia email di benvenuto tramite Resend
+      supabase.functions.invoke("send-welcome-email", {
+        body: { email }
+      }).catch(err => {
+        console.error("Email non inviata:", err);
+      });
+
+
 
 
 
