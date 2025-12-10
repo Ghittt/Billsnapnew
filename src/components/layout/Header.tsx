@@ -11,8 +11,7 @@ const Header = () => {
           </span>
         </Link>
         
-        {/* Counter nascosto su mobile, visibile solo su desktop */}
-        <div className="hidden md:block absolute left-1/2 transform -translate-x-1/2">
+        <div className="absolute left-1/2 transform -translate-x-1/2">
           <DailyComparisonCounter />
         </div>
         
