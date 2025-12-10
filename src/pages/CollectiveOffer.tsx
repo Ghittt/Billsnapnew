@@ -52,19 +52,6 @@ export default function CollectiveOffer() {
       if (error) throw error;
 
 
-      // Invia email di benvenuto
-      const emailResult = await supabase.functions.invoke("send-welcome-email", {
-        body: { email }
-      });
-      
-      if (emailResult.error) {
-        console.error("❌ Email error:", emailResult.error);
-        alert("Email non inviata: " + JSON.stringify(emailResult.error));
-      } else {
-        console.log("✅ Email sent successfully:", emailResult.data);
-      }
-
-
 
       setHasJoined(true);
       toast({
