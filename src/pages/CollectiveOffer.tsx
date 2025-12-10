@@ -71,7 +71,6 @@ export default function CollectiveOffer() {
       setIsSubmitting(false);
     }
   };
-  };
 
   const progressPercentage = Math.min((stats.current / stats.target) * 100, 100);
 
