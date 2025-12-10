@@ -26,7 +26,7 @@ const Index = () => {
         
         <div className="relative container mx-auto px-4 py-8 sm:py-12 md:py-16 lg:py-20">
             {/* Counter mobile - solo su schermi piccoli */}
-            <div className="lg:hidden mb-3">
+            <div className="lg:hidden mb-3 flex justify-center">
               <DailyComparisonCounter />
             </div>
 
