@@ -28,8 +28,9 @@ serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`
       },
       body: JSON.stringify({
-        from: 'BillSnap <gruppoacquisto@billsnap.it>',
+        from: 'BillSnap Gruppo Acquisto <onboarding@resend.dev>',
         to: [email],
+        reply_to: 'gruppoacquisto@billsnap.it',
         subject: '✅ Benvenuto nel Gruppo di Acquisto BillSnap!',
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto;">
