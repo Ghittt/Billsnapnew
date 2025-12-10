@@ -200,7 +200,7 @@ const FeedbackPage = () => {
             </CardHeader>
             <CardContent className="space-y-3 text-foreground">
               <p>
-                <strong className="text-primary">Email:</strong> <a href="mailto:feedback@billsnap.app" className="text-primary underline font-medium">feedback@billsnap.app</a>
+                <strong className="text-primary">Email:</strong> <a href="mailto:support@billsnap.it" className="text-primary underline font-medium">support@billsnap.it</a>
               </p>
               <p>
                 <strong className="text-primary">Telegram Tester:</strong> <a href="https://t.me/billsnap_tester" className="text-primary underline font-medium">@billsnap_tester</a>
