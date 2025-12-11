@@ -26,7 +26,7 @@ const reviews: Review[] = [
     name: "Giorgio A.",
     location: "Milano",
     text: "Ottimo servizio, veloce e preciso. L'analisi è arrivata in pochi istanti.",
-    avatar: "/reviews/giorgio.png",
+    avatar: "/reviews/giorgio_real.png",
     stars: 5,
   },
   {
