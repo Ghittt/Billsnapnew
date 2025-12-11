@@ -56,11 +56,27 @@ function extractBirthDateFromCF(cf: string): string | null {
 }
 
 /**
- * Parses DDMMYYYY input and returns formatted date string
+ * Parses date input and auto-formats with slashes (DD/MM/YYYY)
  */
 function formatDateInput(input: string): string {
-  // Only allow digits
-  return input.replace(/\D/g, '').slice(0, 8);
+  // Remove all non-digits
+  const digitsOnly = input.replace(/\D/g, '');
+  
+  // Auto-format with slashes as user types
+  if (digitsOnly.length <= 2) {
+    return digitsOnly; // DD
+  } else if (digitsOnly.length <= 4) {
+    return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2)}`; // DD/MM
+  } else {
+    return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2, 4)}/${digitsOnly.slice(4, 8)}`; // DD/MM/YYYY
+  }
+}
+
+/**
+ * Strips slashes from formatted date to get DDMMYYYY
+ */
+function stripSlashes(input: string): string {
+  return input.replace(/\//g, '');
 }
 
 /**
@@ -77,14 +93,16 @@ function formatForDisplay(input: string): string {
 }
 
 /**
- * Validates DDMMYYYY date format
+ * Validates date format (accepts both DDMMYYYY and DD/MM/YYYY)
  */
 function isValidDate(date: string): boolean {
-  if (date.length !== 8) return false;
+  // Strip slashes for validation
+  const cleanDate = date.replace(/\//g, '');
+  if (cleanDate.length !== 8) return false;
   
-  const day = parseInt(date.substring(0, 2), 10);
-  const month = parseInt(date.substring(2, 4), 10);
-  const year = parseInt(date.substring(4, 8), 10);
+  const day = parseInt(cleanDate.substring(0, 2), 10);
+  const month = parseInt(cleanDate.substring(2, 4), 10);
+  const year = parseInt(cleanDate.substring(4, 8), 10);
   
   if (day < 1 || day > 31) return false;
   if (month < 1 || month > 12) return false;
@@ -101,16 +119,18 @@ export function ProfilePopupStep1({ open, codiceFiscale, onNext }: ProfilePopupS
     if (codiceFiscale) {
       const extracted = extractBirthDateFromCF(codiceFiscale);
       if (extracted) {
-        setDataNascita(extracted);
+        // Format with slashes for display
+        setDataNascita(formatForDisplay(extracted));
         setIsPreFilled(true);
       }
     }
   }, [codiceFiscale]);
 
   const handleSubmit = () => {
-    if (isValidDate(dataNascita)) {
+    const cleanDate = stripSlashes(dataNascita);
+    if (isValidDate(cleanDate)) {
       // Convert to DD/MM/YYYY for downstream processing
-      onNext(formatForDisplay(dataNascita));
+      onNext(formatForDisplay(cleanDate));
     }
   };
 
@@ -138,16 +158,16 @@ export function ProfilePopupStep1({ open, codiceFiscale, onNext }: ProfilePopupS
             <Label htmlFor="dataNascita">Confermi la tua data di nascita?</Label>
             <Input
               id="dataNascita"
-              placeholder="GGMMAAAA (es. 19031981)"
+              placeholder="GG/MM/AAAA (es. 19/03/1981)"
               value={dataNascita}
               onChange={handleInputChange}
-              maxLength={8}
+              maxLength={10}
               inputMode="numeric"
               className={isPreFilled ? "bg-primary/5 border-primary/30" : ""}
             />
-            {dataNascita.length === 8 && isValidDate(dataNascita) && (
-              <p className="text-xs text-muted-foreground">
-                Data: {formatForDisplay(dataNascita)}
+            {dataNascita.replace(/\//g, '').length === 8 && isValidDate(dataNascita) && (
+              <p className="text-xs text-green-600 font-medium">
+                ✓ Data valida: {dataNascita}
               </p>
             )}
             {isPreFilled && (
