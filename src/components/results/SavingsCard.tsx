@@ -24,8 +24,10 @@ export const SavingsCard = ({ bestOffer, currentCost, billType, uploadId }: Savi
   const isPositiveSaving = annualSaving > 0;
 
   const handleActivateOffer = async () => {
-    // Always use provider homepage for stability
-    const providerUrl = getOfferUrl(bestOffer.provider, bestOffer.plan);
+    // Use specific offer URL if available, otherwise fallback to provider homepage
+    const providerUrl = bestOffer.redirect_url && bestOffer.redirect_url.length > 5
+      ? bestOffer.redirect_url
+      : getOfferUrl(bestOffer.provider, bestOffer.plan);
 
     const leadPayload = {
       upload_id: uploadId,

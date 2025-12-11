@@ -53,7 +53,7 @@ serve(async (req) => {
       throw new Error('uploadId is required');
     }
 
-    console.log(`[COMPARE] Starting analysis for upload: ${uploadId}`);
+    console.log('[COMPARE] Starting analysis for upload: ' + uploadId);
 
     // 1. Fetch Upload & OCR Data
     const { data: uploadData } = await supabase
@@ -109,31 +109,31 @@ serve(async (req) => {
     // 2b. Fallback to offers_scraped if no live offers
     if (allOffers.length === 0) {
       console.log('[COMPARE] No live offers, checking offers_scraped...');
-      const fortyFiveDaysAgo = new Date();
-      fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
+      
+      // STRICT RULE: Only offers from last 10 days
+      const tenDaysAgo = new Date();
+      tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+      console.log(`[COMPARE] Fetching scraped offers newer than: ${tenDaysAgo.toISOString()}`);
 
-      let { data: scrapedOffers } = await supabase
+      const { data: scrapedOffers } = await supabase
         .from('offers_scraped')
         .select('*')
-        .gt('updated_at', fortyFiveDaysAgo.toISOString());
-
-      if (!scrapedOffers || scrapedOffers.length === 0) {
-        const { data: fallbackOffers } = await supabase
-          .from('offers_scraped')
-          .select('*')
-          .limit(20)
-          .order('updated_at', { ascending: false });
-        scrapedOffers = fallbackOffers;
-      }
+        .gt('updated_at', tenDaysAgo.toISOString());
 
       if (scrapedOffers && scrapedOffers.length > 0) {
-        console.log(`[COMPARE] Found ${scrapedOffers.length} scraped offers`);
+        console.log(`[COMPARE] Found ${scrapedOffers.length} scraped offers (fresh < 10 days)`);
         allOffers = scrapedOffers.map(o => ({ ...o, source: 'offers_scraped' }));
+      } else {
+        // FAIL HARD if no fresh offers - do not return old garbage
+        console.warn('[COMPARE] No fresh offers found (<10 days). Strict mode active.');
       }
     }
 
+    // BLOCKLIST FILTER REMOVED AS REQUESTED BY USER
+    // We trust that 10-day freshness + live validation is enough.
+
     if (allOffers.length === 0) {
-      throw new Error('No offers available in database. Run sync-offers first.');
+      throw new Error('No valid offers available (filtered by date).');
     }
 
     console.log(`[COMPARE] Total offers for analysis: ${allOffers.length}`);

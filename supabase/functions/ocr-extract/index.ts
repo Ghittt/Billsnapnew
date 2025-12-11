@@ -1,10 +1,12 @@
 // @ts-nocheck
 /**
- * OCR Extract Edge Function v4.1 - Universal (Luce/Gas/Dual) + Smart Fallback
- * 
- * 1. Google Vision API: Extracts raw text.
- * 2. Google Gemini: Parses text into nested JSON for Bill Analyzer.
- * 3. Smart Fallback: Calculates annual consumption if missing.
+ * OCR Extract Edge Function v5.7 - Gemini 2.0 Flash Experimental (Multi-File)
+ *
+ * FIX: Reverting to gemini-2.0-flash-exp as per user request/performance.
+ * Supports single file (legacy) or multiple files (batch).
+ * Converts all inputs into Gemini inline_data parts.
+ *
+ * INTEGRATION NOTE: Uses GEMINI_API_KEY from Supabase Secrets.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -12,6 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+// Fallback logic for keys
 const geminiApiKey = Deno.env.get("GEMINI_API_KEY_2") || Deno.env.get("GEMINI_API_KEY");
 
 if (!supabaseUrl || !serviceRoleKey) {
@@ -27,13 +30,13 @@ const corsHeaders = {
 };
 
 /**
- * UNIVERSAL PROMPT for Gemini
- * Supports Luce, Gas, and Dual Fuel in a nested structure.
+ * MULTIMODAL PROMPT for Gemini
+ * Directly instructs the model to look at the image/pdf.
  */
-const UNIVERSAL_PROMPT = `Sei un esperto analista di bollette energetiche.
-Ti fornisco il testo grezzo di una bolletta (OCR).
+const MULTIMODAL_PROMPT = `Sei un esperto analista di bollette energetiche.
+Analizza VISIVAMENTE i documenti forniti (PDF o Immagini della bolletta - Fronte/Retro o pagine multiple).
 
-Analizza il testo e restituisci un JSON STRICT che segua QUESTA STRUTTURA ESATTA.
+Estrai i dati e restituisci un JSON STRICT che segua QUESTA STRUTTURA ESATTA.
 Non inventare dati. Se mancano, usa null.
 
 STRUTTURA JSON RICHIESTA:
@@ -81,63 +84,11 @@ REGOLE CRITICHE:
 3. Se è DUAL (entrambi): entrambi true e tipo_fornitura = "luce+gas".
 4. "consumo_annuo" è il dato più importante. Se non c'è scritto esplicitamente "Annuo", stimalo: (consumo_periodo / mesi_periodo) * 12.
 5. NON ARROTONDARE GLI IMPORTI.
-
-TESTO OCR:
-"""
-{{OCR_TEXT}}
-"""
+6. Ignora pubblicità o dati non pertinenti alla fornitura.
 `;
 
-async function performGoogleVisionOCR(base64Data, mimeType) {
-  const isPdf = mimeType === "application/pdf";
-  const url = isPdf 
-    ? "https://vision.googleapis.com/v1/files:annotate?key=" + geminiApiKey
-    : "https://vision.googleapis.com/v1/images:annotate?key=" + geminiApiKey;
-
-  const requestBody = {
-    requests: [
-      {
-        features: [{ type: "DOCUMENT_TEXT_DETECTION" }],
-        [isPdf ? "inputConfig" : "image"]: isPdf 
-          ? { content: base64Data, mimeType: mimeType }
-          : { content: base64Data }
-      }
-    ]
-  };
-
-  if (isPdf) {
-    requestBody.requests[0].pages = [1, 2]; 
-  }
-
-  console.log(`[OCR] Requesting Google Vision API (${isPdf ? 'PDF Mode' : 'Image Mode'})...`);
-  
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(requestBody),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Vision API Failed: ${response.status} - ${errText}`);
-  }
-
-  const data = await response.json();
-  let fullText = "";
-  
-  if (isPdf) {
-    const fileResponses = data.responses?.[0]?.responses || [];
-    fullText = fileResponses
-      .map((page) => page.fullTextAnnotation?.text || "")
-      .join("\n\n--- PAGE BREAK ---\n\n");
-  } else {
-    fullText = data.responses?.[0]?.fullTextAnnotation?.text || "";
-  }
-
-  return fullText.trim();
-}
-
 serve(async (req) => {
+  // CORS Preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -145,49 +96,82 @@ serve(async (req) => {
   try {
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    const { fileBase64, fileName, fileType, uploadId } = await req.json();
-    if (!fileBase64 || !uploadId) throw new Error("Missing fileBase64 or uploadId");
-
-    console.log(`[OCR] Processing: ${fileName} (ID: ${uploadId})`);
+    const { fileBase64, fileName, fileType, uploadId, files } = await req.json();
     
-    // 1. Vision OCR
-    let extractedText = "";
-    try {
-      extractedText = await performGoogleVisionOCR(fileBase64, fileType || "application/pdf");
-      if (!extractedText) throw new Error("Vision returned empty text");
-    } catch (e) {
-      console.error("[OCR] Vision error:", e);
-      return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers: corsHeaders });
+    // Validate imput: support either single file (legacy) or multiple files (new)
+    if (!uploadId) throw new Error("Missing uploadId");
+    
+    let parts = [{ text: MULTIMODAL_PROMPT }];
+
+    if (files && Array.isArray(files) && files.length > 0) {
+        console.log(`[OCR] Processing BATCH of ${files.length} files (ID: ${uploadId})`);
+        
+        // Add each file as an inline_data part
+        files.forEach((f, idx) => {
+            parts.push({
+                inline_data: {
+                    mime_type: f.mimeType || "application/pdf",
+                    data: f.data
+                }
+            });
+        });
+    } else if (fileBase64) {
+        console.log(`[OCR] Processing SINGLE file: ${fileName} (ID: ${uploadId})`);
+        const mimeType = fileType || "application/pdf";
+        parts.push({
+            inline_data: {
+                mime_type: mimeType,
+                data: fileBase64
+            }
+        });
+    } else {
+        throw new Error("Missing file data (fileBase64 or files array)");
     }
 
-    // 2. Gemini Parse
+    // Use Gemini 2.0 Flash Experimental (Proven compatibility)
     const geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=" + geminiApiKey;
-    const promptWithText = UNIVERSAL_PROMPT.replace("{{OCR_TEXT}}", extractedText);
+    
+    const requestBody = {
+      contents: [{ parts: parts }],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json"
+      }
+    };
+
+    console.log(`[OCR] Sending ${parts.length - 1} images/files to Gemini 2.0 Flash Exp...`);
 
     const geminiResponse = await fetch(geminiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: promptWithText }] }],
-        generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!geminiResponse.ok) {
-      throw new Error(`Gemini Error: ${geminiResponse.status}`);
+      const errText = await geminiResponse.text();
+      throw new Error(`Gemini Multimodal Error: ${geminiResponse.status} - ${errText}`);
     }
 
     const geminiData = await geminiResponse.json();
     const resultText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!resultText) throw new Error("Gemini returned no text");
+    
+    if (!resultText) {
+      console.error("Gemini Response Dump:", JSON.stringify(geminiData));
+      throw new Error("Gemini returned no text/candidates");
+    }
 
-    let extractedData = JSON.parse(resultText);
+    let extractedData;
+    try {
+        extractedData = JSON.parse(resultText);
+    } catch (e) {
+        console.error("JSON Parse Error:", resultText);
+        throw new Error("Gemini returned invalid JSON");
+    }
+
     console.log("[OCR] Parsed Data:", JSON.stringify(extractedData, null, 2));
 
-    // --- INTELLIGENT FALLBACKS (The "Vision non performa" fix) ---
-    // If Gemini/Vision missed the annual consumption, we calculate it from the period.
-    
-    // 1. Luce Fallback
+    // --- INTELLIGENT FALLBACKS ---
+    // 1. Luce Fallback: Estimate Annual kWh if missing
     if (extractedData.bolletta_luce?.presente) {
         if (!extractedData.bolletta_luce.consumo_annuo_kwh && 
              extractedData.bolletta_luce.consumo_periodo_kwh > 0 && 
@@ -199,7 +183,7 @@ serve(async (req) => {
         }
     }
 
-    // 2. Gas Fallback
+    // 2. Gas Fallback: Estimate Annual Smc if missing
     if (extractedData.bolletta_gas?.presente) {
         if (!extractedData.bolletta_gas.consumo_annuo_smc && 
              extractedData.bolletta_gas.consumo_periodo_smc > 0 && 
@@ -213,7 +197,7 @@ serve(async (req) => {
     // -------------------------------------------------------------
 
     // Determine main values for DB columns:
-    let annualKwh = null, totalCost = null, provider = extractedData.provider, gasSmc = null, annualSmc = null;
+    let annualKwh = null, totalCost = null, provider = extractedData.provider, annualSmc = null;
     
     if (extractedData.bolletta_luce?.presente) {
         annualKwh = extractedData.bolletta_luce.consumo_annuo_kwh;
@@ -230,30 +214,43 @@ serve(async (req) => {
         }
     }
 
+    // Insert into DB
     const { error: dbError } = await supabase.from("ocr_results").insert({
       upload_id: uploadId,
       provider: provider,
       total_cost_eur: totalCost,
       annual_kwh: annualKwh,
-      consumo_annuo_smc: annualSmc, // Ensure this column exists in DB or is ignored
-      gas_smc: annualSmc, // Legacy column support
+      consumo_annuo_smc: annualSmc, 
+      gas_smc: annualSmc, // Legacy 
       raw_json: extractedData, 
-      quality_score: 0.99
+      quality_score: 1.0 // High confidence
     });
 
     if (dbError) {
         console.error("DB Insert Error:", dbError);
-        // Do not fail the request if DB logging fails, just log it.
     }
 
     return new Response(JSON.stringify({ ok: true, data: extractedData }), { headers: { ...corsHeaders, "content-type": "application/json" } });
 
   } catch (error) {
-    console.error("[OCR] Error:", error);
+    console.error("[OCR] Fatal Error:", error);
+    
+    // Update upload status to failed if possible
     try {
         const { uploadId } = await req.json().catch(() => ({}));
-        if(uploadId) supabase.from("uploads").update({ ocr_status: "failed", ocr_error: error.message }).eq("id", uploadId);
+        if(uploadId) {
+             await supabase.from("uploads")
+                .update({ ocr_status: "failed", ocr_error: error.message })
+                .eq("id", uploadId);
+        }
     } catch {}
-    return new Response(JSON.stringify({ ok: false, error: error.message }), { status: 500, headers: corsHeaders });
+
+    // Uniform error response as requested
+    return new Response(JSON.stringify({ 
+        ok: false, 
+        error: "Errore da Gemini", 
+        details: error.message, 
+        quality_score: 0 
+    }), { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } });
   }
 });

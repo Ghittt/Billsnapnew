@@ -10,7 +10,7 @@ import { ProfilePopupStep1 } from "@/components/upload/ProfilePopupStep1";
 import { ProfilePopupStep2 } from "@/components/upload/ProfilePopupStep2";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Clock, Upload, Shield, Zap, Loader2 } from "lucide-react";
+import { CheckCircle, Clock, Upload, Shield, Zap, Loader2, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { logError, updateUploadStatus } from "@/lib/errorLogger";
 import "@/types/analytics";
@@ -122,39 +122,35 @@ const UploadPage = () => {
     if (typeof gtag !== "undefined") {
       gtag("event", "upload_started", {
         event_category: "engagement",
-        event_label: files[0]?.type || "unknown",
+        event_label: "multi_file", // Updated label
         files_count: files.length,
       });
     }
 
     try {
-      const file = files[0];
-
-      // 1) validazione peso
-      if (file.size > 20 * 1024 * 1024) {
-        await logError({
-          type: "validation",
-          message: "File troppo grande",
-          errorCode: "FILE_TOO_LARGE",
-          payload: { fileSize: file.size, fileName: file.name },
-        });
-        throw new Error("File troppo grande. Massimo 20MB consentiti.");
+      // 1) Validation: Check total size or individual size
+      let totalSize = 0;
+      for (const f of files) {
+          if (f.size > 10 * 1024 * 1024) throw new Error(`File ${f.name} troppo grande (max 10MB)`);
+          totalSize += f.size;
       }
+      // Enforce 15MB total limit for safety
+      if (totalSize > 15 * 1024 * 1024) throw new Error("Dimensione totale file troppo grande (max 15MB)");
 
-      // 2) creo record in uploads PRIMA dell’OCR
+      const primaryFile = files[0];
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) {
         console.warn("No auth user (anon upload)", authError.message);
       }
-
       const user = authData?.user ?? null;
 
+      // 2) Create upload record (One record for the batch associated with primary file metadata)
       const { data: uploadData, error: uploadError } = await supabase
         .from("uploads")
         .insert({
-          file_url: `bills/${Date.now()}-${file.name}`,
-          file_type: file.type,
-          file_size: file.size,
+          file_url: `bills/${Date.now()}_batch_${files.length}_files`, // New naming
+          file_type: "batch/" + files.length,
+          file_size: totalSize,
           user_id: user?.id || null,
           ocr_status: "pending",
         })
@@ -168,73 +164,53 @@ const UploadPage = () => {
           errorCode: uploadError?.code || "DB_ERROR",
           payload: { error: uploadError?.message },
         });
-        // MODIFIED: Show specific DB error
         throw new Error(`Errore DB: ${uploadError?.message || "Dati mancanti"} (Code: ${uploadError?.code})`);
       }
 
       const uploadId = uploadData.id as string;
       setPendingUploadId(uploadId);
 
-      if (typeof gtag !== "undefined") {
-        gtag("event", "upload_succeeded", {
-          event_category: "engagement",
-        });
-      }
-
-      // 3) aggiorno stato a processing
+      // 3) Update status
       setCurrentStep("ocr");
       await supabase
         .from("uploads")
-        .update({
-          ocr_status: "processing",
-          ocr_started_at: new Date().toISOString(),
-        })
+        .update({ ocr_status: "processing", ocr_started_at: new Date().toISOString() })
         .eq("id", uploadId);
 
-      // 4) warning dopo 30 secondi
+      // Warning timeout
       const timeoutWarning = setTimeout(() => {
-        const elapsed = (Date.now() - startTime) / 1000;
-        if (elapsed > 30) {
-          setOcrTimeoutWarning(true);
-        }
+         if ((Date.now() - startTime) / 1000 > 30) setOcrTimeoutWarning(true);
       }, 30000);
 
-      // 5) chiamata edge function OCR (convert file to base64 for invoke)
-      console.log("Calling OCR function via supabase.functions.invoke...");
-      
-      // Convert File to baseURL reader to get clean base64
-      const fileBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = (reader.result as string).split(',')[1]; // Remove data:...;base64, prefix
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      // 4) Convert ALL files to Base64
+      console.log(`[Upload] Converting ${files.length} files to base64...`);
+      const filesPayload = await Promise.all(files.map(async (file) => {
+        return new Promise<{ mimeType: string, data: string }>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const base64 = (reader.result as string).split(',')[1];
+                resolve({ mimeType: file.type, data: base64 });
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+      }));
 
-      console.log(`[Upload] File converted to base64, size: ${fileBase64.length} chars`);
-
+      // 5) Call OCR Edge Function
+      console.log(`[Upload] Sending ${filesPayload.length} images to OCR...`);
       const { data: ocrData, error: ocrError } = await supabase.functions.invoke("ocr-extract", {
         body: {
-          fileBase64: fileBase64,
-          fileName: file.name,
-          fileType: file.type,
+          files: filesPayload, // NEW: Send array
           uploadId: uploadId,
         },
       });
-      clearTimeout(timeoutWarning);
+
       clearTimeout(timeoutWarning);
       setOcrTimeoutWarning(false);
 
       if (ocrError) {
-        console.error("=== OCR INVOKE ERROR START ===");
-        console.error("Full error object:", JSON.stringify(ocrError, null, 2));
-        console.error("Error message:", ocrError.message);
-        console.error("Error name:", ocrError.name);
-        console.error("Error context:", ocrError.context);
-        console.error("=== OCR INVOKE ERROR END ===");
-        
+        console.error("OCR Error:", ocrError);
+        // Important: Log error in DB so we know what happened
         await supabase
           .from("uploads")
           .update({
@@ -244,85 +220,42 @@ const UploadPage = () => {
           })
           .eq("id", uploadId);
 
-        await logError({
-          type: "ocr",
-          message: "OCR invoke failed",
-          uploadId,
-          errorCode: "INVOKE_ERROR",
-          payload: { 
-            error: ocrError,
-            errorString: JSON.stringify(ocrError),
-            fileName: file.name,
-            fileSize: file.size,
-          },
-        });
-
-        throw new Error(`Errore OCR: ${ocrError.message || "Errore di connessione"}. Controlla la console per dettagli.`);
+        throw new Error(`Errore OCR: ${ocrError.message || "Errore di connessione"}`);
       }
 
-      console.log("=== OCR SUCCESS ===");
-      console.log("Response data:", ocrData);
+      const ocrResponseData = ocrData;
+      console.log("=== OCR SUCCESS ===", ocrResponseData);
 
-      const ocrResponseData = ocrData; // Rename for clarity
-
-      await supabase
-        .from("uploads")
-        .update({
-          ocr_status: "success",
-          ocr_completed_at: new Date().toISOString(),
-        })
-        .eq("id", uploadId);
-
-      console.log("OCR response:", ocrResponseData);
-
-      // Backend returns the data directly, or { error: ... } on failure
       if (ocrResponseData.error) {
         await supabase
           .from("uploads")
           .update({
             ocr_status: "failed",
-            ocr_error: ocrResponseData.error || "Unknown OCR error",
+            ocr_error: ocrResponseData.error,
             ocr_completed_at: new Date().toISOString(),
           })
           .eq("id", uploadId);
-
-        await logError({
-          type: "ocr",
-          message: "OCR returned error",
-          uploadId,
-          payload: { response: ocrResponseData },
-        });
-
-        throw new Error(ocrResponseData.error || "Errore durante la lettura della bolletta.");
+         throw new Error(ocrResponseData.error || "Errore durante la lettura della bolletta.");
       }
+
+      await supabase
+        .from("uploads")
+        .update({ ocr_status: "success", ocr_completed_at: new Date().toISOString() })
+        .eq("id", uploadId);
 
       if (typeof gtag !== "undefined") {
-        gtag("event", "ocr_completed", {
-          event_category: "engagement",
-        });
+        gtag("event", "ocr_completed", { event_category: "engagement" });
       }
 
-      // Call compare-offers to analyze and save offer recommendations
-      console.log("Calling compare-offers for upload:", uploadId);
-      const { data: compareData, error: compareError } = await supabase.functions.invoke("compare-offers", {
-        body: { uploadId },
-      });
-
-      if (compareError) {
-        console.error("Compare offers error:", compareError);
-        await logError({
-          type: "network",
-          message: "Compare offers failed",
-          uploadId,
-          payload: { error: compareError },
-        });
-      } else {
-        console.log("Offers compared successfully:", compareData);
-      }
-
+      // 6) Compare Offers
+      console.log("Calling compare-offers...");
+      const { error: compareError } = await supabase.functions.invoke("compare-offers", { body: { uploadId } });
+      
+      if(compareError) console.error("Compare error:", compareError);
 
       setCurrentStep("complete");
       setUploadedFiles(files);
+      setStagedFiles([]); // Clear staging
 
       if (typeof gtag !== "undefined") {
         gtag("event", "result_shown", {
@@ -333,22 +266,27 @@ const UploadPage = () => {
       setTimeout(() => {
         navigate(`/results?uploadId=${uploadId}`);
       }, 1000);
-    } catch (error) {
-      console.error("Upload error:", error);
 
-      const errorMessage =
-        error instanceof Error ? error.message : "Errore durante la lettura della bolletta. Riprova più tardi.";
+    } catch (error) {
+      console.error("Upload process error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Errore generico upload";
+      
+      if (pendingUploadId) {
+          await supabase.from("uploads").update({ 
+              ocr_status: "failed", 
+              ocr_error: errorMessage 
+          }).eq("id", pendingUploadId);
+      }
 
       await logError({
         type: "ocr",
         message: errorMessage,
         uploadId: pendingUploadId || undefined,
         stackTrace: error instanceof Error ? error.stack : undefined,
-        payload: { step: currentStep },
       });
 
       toast({
-        title: "Errore durante la lettura della bolletta",
+        title: "Errore Upload",
         description: errorMessage,
         variant: "destructive",
       });
@@ -512,10 +450,10 @@ const UploadPage = () => {
                     <div className="space-y-2">
                       {stagedFiles.map((file, idx) => (
                         <div key={idx} className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <Upload className="w-4 h-4 text-muted-foreground" />
-                            <div>
-                              <p className="text-sm font-medium">{file.name}</p>
+                          <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
+                            <Upload className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{file.name}</p>
                               <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                             </div>
                           </div>
@@ -523,6 +461,7 @@ const UploadPage = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => setStagedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                            className="flex-shrink-0"
                           >
                             Rimuovi
                           </Button>
@@ -530,17 +469,37 @@ const UploadPage = () => {
                       ))}
                     </div>
 
-                    <div className="flex gap-3">
-                      <Button onClick={handleAnalyzeFiles} className="flex-1" size="lg">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <Button onClick={handleAnalyzeFiles} className="flex-1 w-full" size="lg">
                         <Zap className="w-4 h-4 mr-2" />
-                        Analizza bolletta
+                        Analizza bolletta ({stagedFiles.length})
                       </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => document.querySelector<HTMLInputElement>('input[type="file"]')?.click()}
-                      >
-                        Aggiungi altro
-                      </Button>
+                      <div className="relative w-full sm:w-auto">
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          id="add-more-input"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              handleFileStaging(Array.from(e.target.files));
+                            }
+                            // Reset val so same file can be selected again if needed
+                            e.target.value = '';
+                          }}
+                        />
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          onClick={() => document.getElementById("add-more-input")?.click()}
+                          title="Aggiungi altre pagine"
+                          className="w-full sm:w-auto"
+                        >
+                          <Plus className="w-5 h-5 mr-2" />
+                          Aggiungi altro
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -628,4 +587,3 @@ const UploadPage = () => {
 };
 
 export default UploadPage;
-// Force rebuild Fri Dec  5 11:14:54 CET 2025

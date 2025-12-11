@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import { DailyComparisonCounter } from "@/components/DailyComparisonCounter";
+import { ReviewsCarousel } from "@/components/ReviewsCarousel";
 
 import UploadZone from '@/components/upload/UploadZone';
 import { Card, CardContent } from '@/components/ui/card';
@@ -227,6 +228,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+            {/* Reviews Section */}
+      <ReviewsCarousel />
 
       {/* CTA Section */}
       <section className="py-20 relative overflow-hidden">

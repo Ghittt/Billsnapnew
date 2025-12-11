@@ -326,8 +326,10 @@ const ResultsPage = () => {
   };
 
   const handleActivateOffer = async (offer: Offer) => {
-    // Always use provider homepage for stability
-    const providerUrl = getOfferUrl(offer.provider, offer.plan_name);
+    // Use specific offer URL if available, otherwise fallback to provider homepage
+    const providerUrl = offer.redirect_url && offer.redirect_url.length > 5 
+      ? offer.redirect_url 
+      : getOfferUrl(offer.provider, offer.plan_name);
     
     const annualSaving = currentCost - offer.simulated_cost;
 

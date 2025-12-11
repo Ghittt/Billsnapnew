@@ -43,15 +43,17 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
     if (isOpen && countdown === 0 && !hasRedirected.current) {
       hasRedirected.current = true;
       console.log('Redirecting to:', providerUrl);
-      // Force redirect in same tab - reliable and bypasses popup blockers
-      window.location.href = providerUrl;
+      // Open in new tab as requested
+      const newWindow = window.open(providerUrl, '_blank');
+      if (newWindow) newWindow.focus();
+      onClose(); // Close popup after opening new tab
     }
-  }, [countdown, isOpen, providerUrl]);
+  }, [countdown, isOpen, providerUrl, onClose]);
 
   const handleGoNow = () => {
     if (!hasRedirected.current) {
       hasRedirected.current = true;
-      // Button click can reliably open new tab
+      // Button click reliably opens new tab
       window.open(providerUrl, '_blank');
       onClose();
     }
@@ -80,7 +82,7 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
             <div>
               <p className="font-medium text-purple-900 mb-1">Come procedere:</p>
               <ol className="text-sm text-purple-800 space-y-1">
-                <li>1. Cerca l'offerta "<strong>{offerName}</strong>"</li>
+                <li>1. Cerca l'offerta "<strong><span className="truncate inline-block align-bottom max-w-[200px]">{offerName}</span></strong>"</li>
                 <li>2. Verifica i dettagli e le condizioni</li>
                 <li>3. Procedi con l'attivazione online</li>
               </ol>
@@ -90,7 +92,7 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
 
         {/* Offer reminder */}
         <div className="bg-green-50 border border-green-100 rounded-xl p-3 mb-4">
-          <p className="text-sm text-green-800">
+          <p className="text-sm text-green-800 truncate">
             💡 <strong>Ricorda:</strong> L'offerta che hai scelto è "{offerName}" di {provider}
           </p>
         </div>
