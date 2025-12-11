@@ -84,7 +84,7 @@ serve(async (req) => {
     }
 
     // Send email via Resend (if API key is set)
-    const resendApiKey = Deno.env.get('RESEND_API_KEY')
+    const resendApiKey = Deno.env.get('BILLSNAP_RESEND_KEY')
     
     if (resendApiKey) {
       try {
@@ -126,7 +126,7 @@ serve(async (req) => {
         // In development, the code is still in the database
       }
     } else {
-      console.log('RESEND_API_KEY not set. OTP code:', code, 'for email:', email)
+      console.log('BILLSNAP_RESEND_KEY not set. OTP code:', code, 'for email:', email)
     }
 
     return new Response(
