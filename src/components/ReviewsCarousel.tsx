@@ -61,7 +61,7 @@ const fallbackReviews: Review[] = [
     name: "Francesco",
     location: "Firenze",
     text: "Utile e intuitivo. La lettura della bolletta funziona benissimo anche con foto non perfette.",
-    avatar: "/reviews/coffee.png",
+    avatar: "/reviews/poetry.png",
     stars: 5,
   },
   {
@@ -69,7 +69,7 @@ const fallbackReviews: Review[] = [
     name: "Alessandro",
     location: "Lacchiarella (MI)",
     text: "Analisi bolletta super dettagliata. Mai visto un servizio così completo.",
-    avatar: "/reviews/books.png",
+    avatar: "/reviews/couple.png",
     stars: 5,
   },
   {
