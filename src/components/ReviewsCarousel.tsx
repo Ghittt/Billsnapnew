@@ -116,7 +116,7 @@ export const ReviewsCarousel = () => {
           <CarouselContent>
             {reviews.map((review) => (
               <CarouselItem key={review.id} className="md:basis-1/2 lg:basis-1/3">
-                <div className="p-1">
+                <div className="p-1 h-full">
                   <Card className="h-full border-primary/20 bg-background/50 backdrop-blur">
                     <CardContent className="flex flex-col items-center p-6 text-center space-y-4 h-full">
                       <Avatar className="w-16 h-16 border-2 border-primary">
@@ -132,7 +132,7 @@ export const ReviewsCarousel = () => {
                           <Star key={i} className="w-4 h-4 fill-primary text-primary" />
                         ))}
                       </div>
-                      <p className="text-sm text-foreground/80 italic">"{review.text}"</p>
+                      <p className="text-sm text-foreground/80 italic flex-1">"{review.text}"</p>
                     </CardContent>
                   </Card>
                 </div>
