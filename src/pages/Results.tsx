@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { IntelligentAnalysis } from '@/components/results/IntelligentAnalysis';
 import { MethodSection } from '@/components/results/MethodSection';
+import { ReferralCard } from '@/components/results/ReferralCard';
 import RedirectPopup from '@/components/results/RedirectPopup';
 import { getOfferUrl } from '@/utils/offerUrls';
 import { fixOfferUrlCommodity } from '@/utils/offerUrlFixer';
@@ -487,6 +488,8 @@ const ResultsPage = () => {
               bestOfferPromo={bestOffer.promo_text}
             />
           )}
+
+          <ReferralCard savingAmount={annualSaving} />
 
           {allOffers.length > 0 && (
             <MethodSection
