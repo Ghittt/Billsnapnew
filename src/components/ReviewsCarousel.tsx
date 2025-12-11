@@ -18,7 +18,7 @@ const reviews: Review[] = [
     name: "Giuseppe",
     location: "Palermo",
     text: "Finalmente ho capito quanto spendo! Grazie a BillSnap ho chiarezza sulle mie bollette.",
-    avatar: "/reviews/giuseppe.png",
+    avatar: "/reviews/motorcycle.png",
     stars: 5,
   },
   {
@@ -57,8 +57,8 @@ const reviews: Review[] = [
     id: 6,
     name: "Francesco",
     location: "Firenze",
-    text: "Utile e intuitivo. L'OCR funziona benissimo anche con foto non perfette.",
-    avatar: "/reviews/francesco.png",
+    text: "Utile e intuitivo. La lettura della bolletta funziona benissimo anche con foto non perfette.",
+    avatar: "/reviews/coffee.png",
     stars: 5,
   },
   {
@@ -66,7 +66,7 @@ const reviews: Review[] = [
     name: "Alessandro",
     location: "Lacchiarella (MI)",
     text: "Analisi bolletta super dettagliata. Mai visto un servizio così completo.",
-    avatar: "/reviews/alessandro.png",
+    avatar: "/reviews/books.png",
     stars: 5,
   },
   {
@@ -82,7 +82,7 @@ const reviews: Review[] = [
     name: "Sofia",
     location: "Cassina de' Pecchi",
     text: "Risparmiati 150€ l'anno! Non ci credevo finché non ho visto la prima bolletta.",
-    avatar: "/reviews/sofia.png",
+    avatar: "/reviews/sunset.png",
     stars: 5,
   },
   {
