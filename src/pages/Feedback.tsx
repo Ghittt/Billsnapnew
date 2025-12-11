@@ -207,7 +207,7 @@ const FeedbackPage = () => {
                 <strong className="text-primary">Email:</strong> <a href="mailto:support@billsnap.it" className="text-primary underline font-medium">support@billsnap.it</a>
               </p>
               <p>
-                <strong className="text-primary">Telegram Tester:</strong> <a href="https://t.me/billsnap_tester" className="text-primary underline font-medium">@billsnap_tester</a>
+
               </p>
               <p className="text-sm text-foreground/70">
                 Cicli di iterazione: ogni 7 giorni. Feedback prioritari vengono implementati entro 48h.
