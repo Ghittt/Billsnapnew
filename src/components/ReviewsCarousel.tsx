@@ -1,7 +1,7 @@
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Star } from "lucide-react";
+import { Star, ShieldCheck } from "lucide-react";
 
 interface Review {
   id: number;
@@ -99,7 +99,13 @@ export const ReviewsCarousel = () => {
   return (
     <div className="w-full py-12 bg-secondary/10">
       <div className="container mx-auto px-4">
-        <h2 className="text-3xl font-bold text-center mb-8 text-primary">Cosa dicono di noi</h2>
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-primary mb-3">Cosa dicono di noi</h2>
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            <p>Recensioni reali da utenti verificati con Instagram</p>
+          </div>
+        </div>
         <Carousel
           opts={{
             align: "start",
