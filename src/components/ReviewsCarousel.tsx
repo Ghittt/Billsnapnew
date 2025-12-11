@@ -34,7 +34,7 @@ const reviews: Review[] = [
     name: "Marco",
     location: "Milano",
     text: "Consigliatissimo per risparmiare. Ho trovato un'offerta molto più conveniente.",
-    avatar: "/reviews/marco.png",
+    avatar: "/reviews/sea.png",
     stars: 5,
   },
   {
@@ -50,7 +50,7 @@ const reviews: Review[] = [
     name: "Elena",
     location: "Milano",
     text: "Grazie a BillSnap ho cambiato fornitore in un attimo. Procedura semplicissima.",
-    avatar: "/reviews/elena.png",
+    avatar: "/reviews/mountain.png",
     stars: 5,
   },
   {
@@ -74,7 +74,7 @@ const reviews: Review[] = [
     name: "Roberto",
     location: "Spiazzi di Gromo",
     text: "Pensavo fosse complicato invece è semplicissimo. Anche per chi non è esperto.",
-    avatar: "/reviews/roberto.png",
+    avatar: "/reviews/city.png",
     stars: 5,
   },
   {
