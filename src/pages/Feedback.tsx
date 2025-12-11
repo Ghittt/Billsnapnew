@@ -84,10 +84,10 @@ const FeedbackPage = () => {
             </h1>
             <p className="text-foreground">
               Aiutaci a migliorare BillSnap. Il tuo feedback è prezioso per le iterazioni rapide.
-              003cbr /003e
-              003cspan className="text-sm text-muted-foreground mt-2 inline-block"003e
+              <br />
+              <span className="text-sm text-muted-foreground mt-2 inline-block">
                 💡 Prossimamente: login con Instagram per recensioni verificate
-              003c/span003e
+              </span>
             </p>
           </div>
 
