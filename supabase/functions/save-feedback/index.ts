@@ -17,7 +17,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
     )
 
+    const body = await req.json()
+    
     const { 
+      // Old feedback fields
       email, 
       category, 
       rating, 
@@ -25,18 +28,42 @@ serve(async (req) => {
       device, 
       version, 
       timestamp, 
-      user_agent 
-    } = await req.json()
+      user_agent,
+      // New review fields
+      review_name,
+      review_location,
+      review_text,
+      review_stars,
+      instagram_username,
+      facebook_username,
+      profile_photo_url,
+      uploaded_photo_url
+    } = body
+
+    // Determine if this is a review or feedback
+    const isReview = review_name && review_text && review_stars
 
     // Validate required fields
-    if (!category || !rating || !message) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: category, rating, message' }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+    if (isReview) {
+      if (!review_name || !review_text || !review_stars) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required review fields: name, text, stars' }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+    } else {
+      if (!category || !rating || !message) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required feedback fields: category, rating, message' }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
     }
 
     // Get client IP for basic deduplication
@@ -44,69 +71,55 @@ serve(async (req) => {
                     req.headers.get('x-real-ip') || 
                     'unknown'
 
-    // Generate a basic hash for deduplication (IP + category + day)
+    // Generate a basic hash for deduplication
     const today = new Date().toISOString().split('T')[0]
-    const hashInput = `${clientIP}-${category}-${today}`
+    const hashInput = `${clientIP}-${isReview ? 'review' : category}-${today}`
     const ipHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(hashInput))
       .then(buffer => Array.from(new Uint8Array(buffer))
         .map(b => b.toString(16).padStart(2, '0'))
         .join('')
       )
 
-    // Check for duplicate feedback in the last 24 hours
-    const { data: existingFeedback } = await supabaseClient
-      .from('feedback')
-      .select('id')
-      .eq('ip_hash', ipHash)
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      .limit(1)
-
-    if (existingFeedback && existingFeedback.length > 0) {
-      return new Response(
-        JSON.stringify({ 
-          message: 'Feedback already received today',
-          feedback_id: existingFeedback[0].id 
-        }),
-        { 
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    // Insert feedback
+    // Insert feedback/review
     const { data, error } = await supabaseClient
       .from('feedback')
       .insert({
-        email: email || null,
-        category,
-        rating: parseInt(rating),
-        message,
-        device: device || null,
-        version: version || '0.1.0',
+        // Common fields
+        created_at: timestamp || new Date().toISOString(),
         ip_hash: ipHash,
         user_agent: user_agent || null,
-        created_at: timestamp || new Date().toISOString()
+        // Old feedback fields
+        email: email || null,
+        category: category || null,
+        rating: rating ? parseInt(rating) : null,
+        message: message || null,
+        device: device || null,
+        version: version || '0.1.0',
+        // New review fields
+        review_name: review_name || null,
+        review_location: review_location || null,
+        review_text: review_text || null,
+        review_stars: review_stars || null,
+        instagram_username: instagram_username || null,
+        facebook_username: facebook_username || null,
+        profile_photo_url: profile_photo_url || null,
+        uploaded_photo_url: uploaded_photo_url || null,
+        is_approved: false,
+        show_in_carousel: false
       })
       .select()
       .single()
 
     if (error) {
       console.error('Database error:', error)
-      return new Response(
-        JSON.stringify({ error: 'Failed to save feedback' }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+      throw error
     }
 
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        feedback_id: data.id,
-        message: 'Feedback saved successfully'
+        success: true,
+        message: isReview ? 'Review submitted successfully' : 'Feedback submitted successfully',
+        data 
       }),
       { 
         status: 200,
@@ -115,9 +128,9 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Function error:', error)
+    console.error('Error in save-feedback:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
