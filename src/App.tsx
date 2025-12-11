@@ -35,6 +35,7 @@ const Contracts = lazy(() => import("./pages/Contracts"));
 const ScrapingTest = lazy(() => import("./pages/ScrapingTest"));
 const CookiePolicy = lazy(() => import("./pages/CookiePolicy"));
 const Disclaimer = lazy(() => import("./pages/Disclaimer"));
+const ReviewsAdmin = lazy(() => import("./pages/ReviewsAdmin"));
 const SubmitReview = lazy(() => import("./pages/SubmitReview"));
 
 const queryClient = new QueryClient();
@@ -74,6 +75,7 @@ const App = () => (
               <Route path="/data-deletion" element={<DataDeletion />} />
               <Route path="/feedback" element={<Feedback />} />
               <Route path="/recensioni" element={<SubmitReview />} />
+              <Route path="/admin/recensioni" element={<ReviewsAdmin />} />
               <Route path="/cookie-policy" element={<CookiePolicy />} />
               <Route path="/disclaimer" element={<Disclaimer />} />
               <Route path="/debug" element={<Debug />} />
