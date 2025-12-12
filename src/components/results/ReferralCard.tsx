@@ -43,7 +43,7 @@ export const ReferralCard = ({ savingAmount }: ReferralCardProps) => {
               Consiglia BillSnap ad un amico
             </h3>
             <p className="text-muted-foreground">
-              Aiuta parenti e amici a risparmiare sulla bolletta. Ti ringrazieranno! 💚
+              Aiuta parenti e amici a risparmiare sulla bolletta. Ti ringrazieranno!
             </p>
           </div>
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Shield } from 'lucide-react';
+import { Shield, ExternalLink } from 'lucide-react';
 
 interface MethodSectionProps {
   offersCount: number;
@@ -8,49 +8,48 @@ interface MethodSectionProps {
   providers: string[];
 }
 
-// Lista completa dei fornitori che analizziamo (50+)
+// Lista completa dei fornitori con link alle homepage
 const ALL_PROVIDERS = [
   // Big players
-  'Enel Energia',
-  'Eni Plenitude',
-  'Edison',
-  'A2A',
-  'Hera',
-  'Iren',
-  'Acea',
+  { name: 'Enel Energia', url: 'https://www.enel.it' },
+  { name: 'Eni Plenitude', url: 'https://eniplenitude.com' },
+  { name: 'Edison', url: 'https://www.edison.it' },
+  { name: 'A2A', url: 'https://www.a2a.it' },
+  { name: 'Hera', url: 'https://www.gruppohera.it' },
+  { name: 'Iren', url: 'https://www.iren.it' },
+  { name: 'Acea', url: 'https://www.acea.it' },
   // Digital / Innovative
-  'Sorgenia',
-  'Octopus Energy',
-  'NeN',
-  'Wekiwi',
-  'Illumia',
-  'Pulsee',
-  'Tate',
+  { name: 'Sorgenia', url: 'https://www.sorgenia.it' },
+  { name: 'Octopus Energy', url: 'https://octopusenergy.it' },
+  { name: 'NeN', url: 'https://www.nen.it' },
+  { name: 'Wekiwi', url: 'https://www.wekiwi.it' },
+  { name: 'Illumia', url: 'https://www.illumia.it' },
+  { name: 'Pulsee', url: 'https://www.pulsee.it' },
+  { name: 'Tate', url: 'https://www.tateenergia.it' },
   // Multinazionali / Grandi
-  'E.ON',
-  'Engie',
-  'Axpo',
-  'Alperia',
-  'Dolomiti Energia',
+  { name: 'E.ON', url: 'https://www.eon-energia.com' },
+  { name: 'Engie', url: 'https://www.engie.it' },
+  { name: 'Axpo', url: 'https://www.axpo.com/it' },
+  { name: 'Alperia', url: 'https://www.alperia.eu' },
+  { name: 'Dolomiti Energia', url: 'https://www.dolomitienergia.it' },
   // Regionali / Multiutility
-  'AGSM AIM',
-  'Estra',
-  'Duferco',
-  'Bluenergy',
-  'Repower',
-  'Green Network',
-  'Optima',
-  'Vivigas',
-  'Gelsia',
-  'CVA',
-  'Metamer',
-  'Sinergy',
-  'Ubroker',
-  'Energit',
-  'Heracomm',
-  'Italgas',
-  'Enne Energia',
-  'E-Light'
+  { name: 'AGSM AIM', url: 'https://www.agsmaim.it' },
+  { name: 'Estra', url: 'https://www.estra.it' },
+  { name: 'Duferco', url: 'https://www.dufercoenergia.com' },
+  { name: 'Bluenergy', url: 'https://www.bluenergygroup.it' },
+  { name: 'Repower', url: 'https://www.repower.com/it' },
+  { name: 'Green Network', url: 'https://www.greennetworkenergy.it' },
+  { name: 'Optima', url: 'https://www.optimaitalia.com' },
+  { name: 'Vivigas', url: 'https://www.vivigas.it' },
+  { name: 'Gelsia', url: 'https://www.gelsia.it' },
+  { name: 'CVA', url: 'https://www.cva.it' },
+  { name: 'Metamer', url: 'https://www.metamer.it' },
+  { name: 'Sinergy', url: 'https://www.sinergyluce.it' },
+  { name: 'Ubroker', url: 'https://www.ubroker.it' },
+  { name: 'Energit', url: 'https://www.energit.it' },
+  { name: 'Italgas', url: 'https://www.italgas.it' },
+  { name: 'Enne Energia', url: 'https://www.enneenergia.it' },
+  { name: 'E-Light', url: 'https://www.e-light.it' },
 ];
 
 export const MethodSection: React.FC<MethodSectionProps> = () => {
@@ -89,12 +88,16 @@ export const MethodSection: React.FC<MethodSectionProps> = () => {
 
           <div className='flex flex-wrap gap-2'>
             {ALL_PROVIDERS.map((provider, idx) => (
-              <span 
-                key={idx} 
-                className='inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700 border border-gray-200'
+              <a 
+                key={idx}
+                href={provider.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className='inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 hover:text-gray-900 transition-colors'
               >
-                {provider}
-              </span>
+                {provider.name}
+                <ExternalLink className='w-3 h-3 opacity-50' />
+              </a>
             ))}
           </div>
         </div>
