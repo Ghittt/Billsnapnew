@@ -18,6 +18,7 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
 }) => {
     const [countdown, setCountdown] = useState(10);
     const hasRedirected = useRef(false);
+    const linkRef = useRef<HTMLAnchorElement>(null);
 
     // Reset state when popup opens
     useEffect(() => {
@@ -38,21 +39,14 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
         return () => clearInterval(timer);
     }, [isOpen, countdown]);
 
-    // Trigger redirect when countdown hits 0
+    // Trigger redirect when countdown hits 0 - ALWAYS new tab via link click
     useEffect(() => {
         if (isOpen && countdown === 0 && !hasRedirected.current && providerUrl) {
             hasRedirected.current = true;
-            console.log('Auto-redirecting to:', providerUrl);
-            
-            // Open in new tab
-            const newWindow = window.open(providerUrl, '_blank', 'noopener,noreferrer');
-            
-            // If popup was blocked, try location change
-            if (!newWindow) {
-                window.location.href = providerUrl;
+            // Click the hidden link to open in new tab (most reliable)
+            if (linkRef.current) {
+                linkRef.current.click();
             }
-            
-            // Close popup
             setTimeout(onClose, 300);
         }
     }, [countdown, isOpen, providerUrl, onClose]);
@@ -60,9 +54,9 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
     const handleGoNow = () => {
         if (!hasRedirected.current && providerUrl) {
             hasRedirected.current = true;
-            const newWindow = window.open(providerUrl, '_blank', 'noopener,noreferrer');
-            if (!newWindow) {
-                window.location.href = providerUrl;
+            // Click the hidden link to open in new tab
+            if (linkRef.current) {
+                linkRef.current.click();
             }
             onClose();
         }
@@ -72,6 +66,18 @@ const RedirectPopup: React.FC<RedirectPopupProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            {/* Hidden anchor for reliable new tab redirect */}
+            <a
+                ref={linkRef}
+                href={providerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden"
+                aria-hidden="true"
+            >
+                Redirect
+            </a>
+
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-300">
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-4">
