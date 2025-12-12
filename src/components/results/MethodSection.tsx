@@ -1,7 +1,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle2, Shield } from 'lucide-react';
-import { ProviderBadge } from '@/components/results/ProviderLogo';
+import { Shield } from 'lucide-react';
 
 interface MethodSectionProps {
   offersCount: number;
@@ -62,10 +61,14 @@ export const MethodSection: React.FC<MethodSectionProps> = () => {
 
           <div className='flex flex-wrap gap-2'>
             {ALL_PROVIDERS.map((provider, idx) => (
-              <ProviderBadge key={idx} provider={provider} size='sm' />
+              <span 
+                key={idx} 
+                className='inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700 border border-gray-200'
+              >
+                {provider}
+              </span>
             ))}
           </div>
-
         </div>
 
         <p className='text-xs text-muted-foreground pt-4 mt-2 border-t'>
