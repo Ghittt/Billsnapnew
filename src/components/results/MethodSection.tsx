@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle2, Search, Shield, Building2 } from 'lucide-react';
+import { CheckCircle2, Shield } from 'lucide-react';
 import { ProviderBadge } from '@/components/results/ProviderLogo';
 
 interface MethodSectionProps {
@@ -9,11 +9,24 @@ interface MethodSectionProps {
   providers: string[];
 }
 
-export const MethodSection: React.FC<MethodSectionProps> = ({
-  offersCount,
-  providersCount,
-  providers
-}) => {
+// Lista completa dei fornitori che analizziamo
+const ALL_PROVIDERS = [
+  'Enel Energia',
+  'Eni Plenitude', 
+  'Edison',
+  'A2A',
+  'Sorgenia',
+  'Iren',
+  'Hera',
+  'Illumia',
+  'Wekiwi',
+  'Octopus Energy',
+  'NeN',
+  'Acea',
+  'E.ON'
+];
+
+export const MethodSection: React.FC<MethodSectionProps> = () => {
   return (
     <Card className='border shadow-sm bg-gray-50/50'>
       <CardContent className='p-6 md:p-8 space-y-6'>
@@ -36,35 +49,31 @@ export const MethodSection: React.FC<MethodSectionProps> = ({
           </li>
         </ul>
 
-        {/* Fornitori Analizzati Section */}
-        {providers && providers.length > 0 && (
-          <div className='pt-4 border-t space-y-4'>
-            <div className='flex items-center gap-2'>
-              <Shield className='w-5 h-5 text-primary' />
-              <h3 className='text-lg font-semibold'>Fornitori già analizzati per te</h3>
-            </div>
-            
-            <p className='text-sm text-muted-foreground'>
-              Abbiamo analizzato <span className='font-semibold text-primary'>{offersCount} offerte</span> da{' '}
-              <span className='font-semibold text-primary'>{providersCount} fornitori</span>. 
-              Non devi controllare questi fornitori: li abbiamo già esaminati per te.
-            </p>
-
-            <div className='flex flex-wrap gap-2'>
-              {providers.map((provider, idx) => (
-                <ProviderBadge key={idx} provider={provider} size='sm' />
-              ))}
-            </div>
-
-            <div className='flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg'>
-              <CheckCircle2 className='w-5 h-5 text-green-600 flex-shrink-0 mt-0.5' />
-              <p className='text-sm text-green-800'>
-                <strong>Risparmia tempo:</strong> Se ti stai chiedendo "Ma ho controllato anche [fornitore]?", 
-                la risposta è sì! Tutti i fornitori qui sopra sono stati inclusi nel confronto.
-              </p>
-            </div>
+        {/* Fornitori Analizzati Section - STATIC LIST */}
+        <div className='pt-4 border-t space-y-4'>
+          <div className='flex items-center gap-2'>
+            <Shield className='w-5 h-5 text-primary' />
+            <h3 className='text-lg font-semibold'>Analizziamo tutte le offerte convenienti sul mercato</h3>
           </div>
-        )}
+          
+          <p className='text-sm text-muted-foreground'>
+            Confrontiamo le offerte dei principali fornitori del mercato libero italiano per trovare quella più adatta al tuo profilo di consumo.
+          </p>
+
+          <div className='flex flex-wrap gap-2'>
+            {ALL_PROVIDERS.map((provider, idx) => (
+              <ProviderBadge key={idx} provider={provider} size='sm' />
+            ))}
+          </div>
+
+          <div className='flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg'>
+            <CheckCircle2 className='w-5 h-5 text-green-600 flex-shrink-0 mt-0.5' />
+            <p className='text-sm text-green-800'>
+              <strong>Risparmia tempo:</strong> Non devi visitare ogni sito uno per uno. 
+              Abbiamo già analizzato le offerte di tutti questi fornitori per te.
+            </p>
+          </div>
+        </div>
 
         <p className='text-xs text-muted-foreground pt-4 mt-2 border-t'>
           Questi valori sono stime basate sui tuoi consumi e sui prezzi disponibili oggi. Controlla sempre i dettagli sul sito del fornitore prima di sottoscrivere.
