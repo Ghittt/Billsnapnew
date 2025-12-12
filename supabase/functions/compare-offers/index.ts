@@ -79,7 +79,7 @@ serve(async (req) => {
 
     // 2a. Try offers_live (Firecrawl scraped offers - PRIORITY)
     const oneDayAgo = new Date();
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    oneDayAgo.setDate(oneDayAgo.getDate() - 30);
     
     const { data: liveOffers, error: liveError } = await supabase
       .from('offers_live')
@@ -112,7 +112,7 @@ serve(async (req) => {
       
       // STRICT RULE: Only offers from last 10 days
       const tenDaysAgo = new Date();
-      tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+      tenDaysAgo.setDate(tenDaysAgo.getDate() - 60);
       console.log(`[COMPARE] Fetching scraped offers newer than: ${tenDaysAgo.toISOString()}`);
 
       const { data: scrapedOffers } = await supabase
