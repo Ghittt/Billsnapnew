@@ -66,13 +66,6 @@ export const MethodSection: React.FC<MethodSectionProps> = () => {
             ))}
           </div>
 
-          <div className='flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg'>
-            <CheckCircle2 className='w-5 h-5 text-green-600 flex-shrink-0 mt-0.5' />
-            <p className='text-sm text-green-800'>
-              <strong>Risparmia tempo:</strong> Non devi visitare ogni sito uno per uno. 
-              Abbiamo già analizzato le offerte di tutti questi fornitori per te.
-            </p>
-          </div>
         </div>
 
         <p className='text-xs text-muted-foreground pt-4 mt-2 border-t'>
