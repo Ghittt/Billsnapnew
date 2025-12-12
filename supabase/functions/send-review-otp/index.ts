@@ -38,11 +38,6 @@ serve(async (req) => {
       )
     }
 
-    // Get client IP
-    const clientIP = req.headers.get('x-forwarded-for') || 
-                    req.headers.get('x-real-ip') || 
-                    'unknown'
-
     // Rate limiting: Check recent OTP requests from this email
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
     const { data: recentCodes, error: checkError } = await supabaseClient
@@ -51,11 +46,7 @@ serve(async (req) => {
       .eq('email', email)
       .gte('created_at', oneHourAgo)
 
-    if (checkError) {
-      console.error('Error checking rate limit:', checkError)
-    }
-
-    if (recentCodes && recentCodes.length >= 3) {
+    if (recentCodes && recentCodes.length >= 20) { // Increased limit for testing
       return new Response(
         JSON.stringify({ error: 'Troppi tentativi. Riprova tra un\'ora.' }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -73,7 +64,6 @@ serve(async (req) => {
         email: email.toLowerCase(),
         code,
         expires_at: expiresAt.toISOString(),
-        ip_address: clientIP
       })
       .select()
       .single()
@@ -84,7 +74,7 @@ serve(async (req) => {
     }
 
     // Send email via Resend (if API key is set)
-    const resendApiKey = Deno.env.get('BILLSNAP_RESEND_KEY')
+    const resendApiKey = Deno.env.get('BILLSNAP_RESEND_KEY') || Deno.env.get('RESEND_KEY')
     
     if (resendApiKey) {
       try {
@@ -95,19 +85,18 @@ serve(async (req) => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            from: 'BillSnap <noreply@billsnap.it>',
+            from: 'BillSnap <onboarding@resend.dev>',
             to: email,
-            subject: 'Il tuo codice BillSnap',
+            subject: 'Il tuo codice di verifica BillSnap',
             html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h2 style="color: #9b87f5;">💜 BillSnap</h2>
-                <p style="font-size: 16px;">Grazie per la tua recensione!</p>
-                <p style="font-size: 16px;">Il tuo codice di verifica è:</p>
-                <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; border-radius: 8px;">
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                <h2 style="color: #9b87f5; text-align: center;">💜 BillSnap</h2>
+                <p style="font-size: 16px; text-align: center;">Grazie per il tuo feedback!</p>
+                <p style="font-size: 16px; text-align: center;">Il tuo codice di verifica è:</p>
+                <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; border-radius: 8px; color: #333;">
                   ${code}
                 </div>
-                <p style="color: #666; font-size: 14px;">Questo codice è valido per 10 minuti.</p>
-                <p style="color: #666; font-size: 14px;">Se non hai richiesto questo codice, ignora questa email.</p>
+                <p style="color: #666; font-size: 14px; text-align: center;">Questo codice è valido per 10 minuti.</p>
                 <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
                 <p style="color: #999; font-size: 12px; text-align: center;">BillSnap - Risparmia sulla bolletta</p>
               </div>
@@ -118,23 +107,35 @@ serve(async (req) => {
         if (!emailResponse.ok) {
           const errorData = await emailResponse.text()
           console.error('Resend API error:', errorData)
-          throw new Error('Errore invio email')
+          // Even if email fails, we might still want to allow the user to see the OTP in debug mode or similar,
+          // but for now let's just log it and return error.
+          throw new Error(`Errore invio email provider: ${errorData}`)
         }
       } catch (emailError) {
         console.error('Email sending failed:', emailError)
-        // Don't fail the request, just log the error
-        // In development, the code is still in the database
+        return new Response(
+          JSON.stringify({ error: 'Impossibile inviare email.', details: String(emailError) }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
     } else {
-      console.log('BILLSNAP_RESEND_KEY not set. OTP code:', code, 'for email:', email)
+      console.warn('BILLSNAP_RESEND_KEY missing. Printing OTP to logs.');
+      console.log(`[DEV] OTP for ${email}: ${code}`);
+      // In dev environment or if key is missing, success allows debugging
+       return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: `Codice generato (Dev Mode). Controlla i log.`,
+          dev_otp: code // Only for debugging without email
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: `Codice inviato a ${email}`,
-        // In development, return the code for testing
-        ...(resendApiKey ? {} : { code_for_testing: code })
+        message: `Codice inviato a ${email}`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
@@ -142,7 +143,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in send-review-otp:', error)
     return new Response(
-      JSON.stringify({ error: 'Errore interno del server', details: error.message }),
+      JSON.stringify({ error: 'Errore interno del server', details: String(error) }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

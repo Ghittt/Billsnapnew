@@ -468,25 +468,45 @@ const ResultsPage = () => {
           )}
 
           {bestOffer && (
-            <IntelligentAnalysis
-              consumption={consumption}
-              billType={billType}
-              currentMonthly={currentMonthly}
-              currentAnnual={currentCost}
-              currentProvider={ocrData?.provider || 'provider attuale'}
-              currentOfferType={ocrData?.tariff_hint}
-              bestOfferName={bestOffer.plan_name}
-              bestOfferProvider={bestOffer.provider}
-              bestOfferMonthly={newMonthly}
-              bestOfferAnnual={bestOffer.simulated_cost}
-              savingMonthly={monthlySaving}
-              savingAnnual={annualSaving}
-              aiAnalysis={aiAnalysis}
-              isLoading={isAiLoading}
-              error={aiError}
-              onActivate={() => handleActivateOffer(bestOffer)}
-              bestOfferPromo={bestOffer.promo_text}
-            />
+            <div className="mt-8">
+               <IntelligentAnalysis
+                consumption={consumption}
+                billType={billType}
+                currentMonthly={currentMonthly}
+                currentAnnual={currentCost}
+                currentProvider={ocrData?.provider || 'provider attuale'}
+                currentOfferType={ocrData?.tariff_hint}
+                bestOfferName={bestOffer.plan_name}
+                bestOfferProvider={bestOffer.provider}
+                bestOfferMonthly={newMonthly}
+                bestOfferAnnual={bestOffer.simulated_cost}
+                savingMonthly={monthlySaving}
+                savingAnnual={annualSaving}
+                aiAnalysis={aiAnalysis}
+                isLoading={isAiLoading}
+                error={aiError}
+                onActivate={() => handleActivateOffer(bestOffer)}
+                bestOfferPromo={bestOffer.promo_text}
+              />
+              
+              {/* Review CTA */}
+              <div className="mt-8 bg-gradient-to-r from-purple-50 to-white px-6 py-8 rounded-2xl border border-purple-100 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+                <div className="text-center md:text-left space-y-2">
+                  <h3 className="font-bold text-xl text-primary">Ti piace BillSnap?</h3>
+                  <p className="text-muted-foreground max-w-md">
+                    Se ti abbiamo aiutato a risparmiare o a capire meglio la tua bolletta, lasciaci una recensione! 
+                    Ci aiuta a crescere e migliorare.
+                  </p>
+                </div>
+                <Button 
+                  onClick={() => navigate('/feedback')}
+                  variant="outline" 
+                  className="bg-white hover:bg-purple-50 border-purple-200 text-purple-700 font-medium px-8 py-6 h-auto text-lg hover:scale-105 transition-transform"
+                >
+                  Lascia una Recensione ⭐
+                </Button>
+              </div>
+            </div>
           )}
 
           <ReferralCard savingAmount={annualSaving} />

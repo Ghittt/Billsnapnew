@@ -143,8 +143,14 @@ const ReviewsAdmin = () => {
   };
 
   const getRandomLifestylePhoto = () => {
-    const photos = ['motorcycle.png', 'sea.png', 'mountain.png', 'coffee.png', 'books.png', 'city.png', 'sunset.png'];
-    return `/reviews/${photos[Math.floor(Math.random() * photos.length)]}`;
+    const photos = [
+    'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&crop=face',
+    'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=150&h=150&fit=crop&crop=face',
+    'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=150&h=150&fit=crop&crop=face',
+    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop&crop=face',
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face'
+  ];
+    return photos[Math.floor(Math.random() * photos.length)];
   };
 
   if (loading) {

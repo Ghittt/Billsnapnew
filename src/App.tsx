@@ -1,9 +1,9 @@
-import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Suspense, lazy } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import CookieConsent from "@/components/CookieConsent";
 import Analytics from "@/components/analytics/Analytics";
@@ -37,6 +37,7 @@ const CookiePolicy = lazy(() => import("./pages/CookiePolicy"));
 const Disclaimer = lazy(() => import("./pages/Disclaimer"));
 const ReviewsAdmin = lazy(() => import("./pages/ReviewsAdmin"));
 const SubmitReview = lazy(() => import("./pages/SubmitReview"));
+const AdminReviews = lazy(() => import("./pages/AdminReviews"));
 
 const queryClient = new QueryClient();
 
@@ -74,8 +75,10 @@ const App = () => (
               <Route path="/chi-siamo" element={<About />} />
               <Route path="/data-deletion" element={<DataDeletion />} />
               <Route path="/feedback" element={<Feedback />} />
-              <Route path="/recensioni" element={<SubmitReview />} />
+              <Route path="/recensioni" element={<Feedback />} />
+              <Route path="/scrivi-recensione" element={<SubmitReview />} />
               <Route path="/admin/recensioni" element={<ReviewsAdmin />} />
+              <Route path="/admin-reviews" element={<AdminReviews />} />
               <Route path="/cookie-policy" element={<CookiePolicy />} />
               <Route path="/disclaimer" element={<Disclaimer />} />
               <Route path="/debug" element={<Debug />} />

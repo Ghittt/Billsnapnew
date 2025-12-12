@@ -23,18 +23,21 @@ CREATE INDEX IF NOT EXISTS idx_otp_verified ON public.review_otp_codes(verified)
 ALTER TABLE public.review_otp_codes ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Allow public insert for OTP codes" ON public.review_otp_codes;
 CREATE POLICY "Allow public insert for OTP codes"
   ON public.review_otp_codes
   FOR INSERT
   TO anon, authenticated
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public select for verification" ON public.review_otp_codes;
 CREATE POLICY "Allow public select for verification"
   ON public.review_otp_codes
   FOR SELECT
   TO anon, authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Allow public update for verification" ON public.review_otp_codes;
 CREATE POLICY "Allow public update for verification"
   ON public.review_otp_codes
   FOR UPDATE

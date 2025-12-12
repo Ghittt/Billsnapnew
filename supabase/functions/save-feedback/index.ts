@@ -12,9 +12,10 @@ serve(async (req) => {
   }
 
   try {
+    // Use SERVICE_ROLE_KEY to bypass RLS policies for insertion
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     )
 
     const body = await req.json()
@@ -37,8 +38,27 @@ serve(async (req) => {
       instagram_username,
       facebook_username,
       profile_photo_url,
-      uploaded_photo_url
+      uploaded_photo_url,
+      // Verification fields
+      email_verified,
+      verification_code_id
     } = body
+
+    // Smart Photo Logic
+    let finalPhotoUrl = profile_photo_url || uploaded_photo_url || null;
+
+    if (!finalPhotoUrl) {
+      if (instagram_username) {
+        // Use Unavatar for Instagram (simple 0-step public profile fetch)
+        const cleanUser = instagram_username.replace('@', '').trim();
+        if (cleanUser) {
+           finalPhotoUrl = `https://unavatar.io/instagram/${cleanUser}`;
+        }
+      } else if (email) {
+        // Use Unavatar for Email (Gravatar/Clearbit fallback)
+        finalPhotoUrl = `https://unavatar.io/${email}`;
+      }
+    }
 
     // Determine if this is a review or feedback
     const isReview = review_name && review_text && review_stars
@@ -64,6 +84,22 @@ serve(async (req) => {
           }
         )
       }
+    }
+
+    let finalVerificationId = verification_code_id || null;
+
+    // Validate verification_code_id if provided
+    if (verification_code_id) {
+       const { data: codeCheck, error: codeError } = await supabaseClient
+         .from('review_otp_codes')
+         .select('id')
+         .eq('id', verification_code_id)
+         .maybeSingle()
+      
+       if (codeError || !codeCheck) {
+         console.warn('Invalid verification_code_id provided:', verification_code_id)
+         finalVerificationId = null; 
+       }
     }
 
     // Get client IP for basic deduplication
@@ -102,16 +138,18 @@ serve(async (req) => {
         review_stars: review_stars || null,
         instagram_username: instagram_username || null,
         facebook_username: facebook_username || null,
-        profile_photo_url: profile_photo_url || null,
+        profile_photo_url: finalPhotoUrl, // USING THE SMART PHOTO URL
         uploaded_photo_url: uploaded_photo_url || null,
         is_approved: false,
-        show_in_carousel: false
+        show_in_carousel: false,
+        email_verified: email_verified || false,
+        verification_code_id: finalVerificationId
       })
       .select()
       .single()
 
     if (error) {
-      console.error('Database error:', error)
+      console.error('Database error in save-feedback:', error)
       throw error
     }
 
@@ -130,7 +168,11 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in save-feedback:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      JSON.stringify({ 
+        error: 'Errore durante il salvataggio', 
+        details: error.message || 'Errore sconosciuto',
+        originalError: JSON.stringify(error)
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

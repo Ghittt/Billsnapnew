@@ -37,7 +37,7 @@ const Header = () => {
             to="/feedback" 
             className="text-[14px] sm:text-[15px] text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
           >
-            Feedback
+            Recensioni
           </Link>
         </nav>
       </div>

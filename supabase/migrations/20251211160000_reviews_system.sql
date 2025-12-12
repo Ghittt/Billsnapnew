@@ -21,7 +21,8 @@ CREATE INDEX IF NOT EXISTS idx_feedback_approved ON public.feedback(is_approved,
 CREATE INDEX IF NOT EXISTS idx_feedback_created ON public.feedback(created_at DESC);
 
 -- Add RLS policy for admin to manage reviews
-CREATE POLICY IF NOT EXISTS "Allow admin to update reviews"
+DROP POLICY IF EXISTS "Allow admin to update reviews" ON public.feedback;
+CREATE POLICY "Allow admin to update reviews"
   ON public.feedback
   FOR UPDATE
   TO authenticated

@@ -287,7 +287,7 @@ const Index = () => {
                 Cancella i miei dati
               </Link>
               <Link to="/feedback" className="hover:text-foreground transition-colors">
-                Feedback
+                Recensioni
               </Link>
               <Link to="/disclaimer" className="hover:text-foreground transition-colors">
                 Disclaimer
