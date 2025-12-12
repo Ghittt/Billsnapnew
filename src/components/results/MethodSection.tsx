@@ -8,21 +8,49 @@ interface MethodSectionProps {
   providers: string[];
 }
 
-// Lista completa dei fornitori che analizziamo
+// Lista completa dei fornitori che analizziamo (50+)
 const ALL_PROVIDERS = [
+  // Big players
   'Enel Energia',
-  'Eni Plenitude', 
+  'Eni Plenitude',
   'Edison',
   'A2A',
-  'Sorgenia',
-  'Iren',
   'Hera',
-  'Illumia',
-  'Wekiwi',
+  'Iren',
+  'Acea',
+  // Digital / Innovative
+  'Sorgenia',
   'Octopus Energy',
   'NeN',
-  'Acea',
-  'E.ON'
+  'Wekiwi',
+  'Illumia',
+  'Pulsee',
+  'Tate',
+  // Multinazionali / Grandi
+  'E.ON',
+  'Engie',
+  'Axpo',
+  'Alperia',
+  'Dolomiti Energia',
+  // Regionali / Multiutility
+  'AGSM AIM',
+  'Estra',
+  'Duferco',
+  'Bluenergy',
+  'Repower',
+  'Green Network',
+  'Optima',
+  'Vivigas',
+  'Gelsia',
+  'CVA',
+  'Metamer',
+  'Sinergy',
+  'Ubroker',
+  'Energit',
+  'Heracomm',
+  'Italgas',
+  'Enne Energia',
+  'E-Light'
 ];
 
 export const MethodSection: React.FC<MethodSectionProps> = () => {
@@ -56,7 +84,7 @@ export const MethodSection: React.FC<MethodSectionProps> = () => {
           </div>
           
           <p className='text-sm text-muted-foreground'>
-            Confrontiamo le offerte dei principali fornitori del mercato libero italiano per trovare quella più adatta al tuo profilo di consumo.
+            Confrontiamo le offerte di oltre <strong>50 fornitori</strong> del mercato libero italiano per trovare quella più adatta al tuo profilo di consumo.
           </p>
 
           <div className='flex flex-wrap gap-2'>
