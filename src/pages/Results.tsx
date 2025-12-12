@@ -328,7 +328,8 @@ const ResultsPage = () => {
 
   const handleActivateOffer = async (offer: Offer) => {
     // Use specific offer URL if available, otherwise fallback to provider homepage
-    const providerUrl = offer.redirect_url && offer.redirect_url.length > 5 
+    // ALWAYS use homepage - database URLs are often broken
+    const providerUrl = false 
       ? offer.redirect_url 
       : getOfferUrl(offer.provider, offer.plan_name);
     
