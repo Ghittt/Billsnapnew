@@ -191,25 +191,12 @@ const ResultsPage = () => {
           // NOW set the correct cost from bill-analyzer!
           setCurrentCost(Number(targetData.costo_attuale_annuo));
           
-          // CRITICAL: Check if we have ANY better offers
-          const hasBetterOffers = targetData.offerta_fissa_migliore || targetData.offerta_variabile_migliore;
-          
-          if (targetData.stato === 'sei_gia_messo_bene' || !hasBetterOffers) {
-            console.log('[Results] No better offers available - hiding comparison UI');
+          // ONLY hide if bill-analyzer explicitly says "sei_gia_messo_bene"
+          if (targetData.stato === 'sei_gia_messo_bene') {
+            console.log('[Results] Bill-analyzer says user already has best offer');
             setHasGoodOffer(true);
             setIsLoading(false);
             return; // Don't show any offers
-          }
-          
-          // Verify offers are actually cheaper
-          const bestOfferCost = targetData.offerta_fissa_migliore?.costo_mensile || targetData.offerta_variabile_migliore?.costo_mensile;
-          const currentMonthlyCost = targetData.costo_attuale_mensile;
-          
-          if (bestOfferCost && bestOfferCost >= currentMonthlyCost) {
-            console.log(`[Results] Best offer (€${bestOfferCost}/month) is NOT cheaper than current (€${currentMonthlyCost}/month) - hiding comparison`);
-            setHasGoodOffer(true);
-            setIsLoading(false);
-            return;
           }
         } else {
           console.warn('[Results] Bill-analyzer did not return valid analysis, falling back to OCR data');
