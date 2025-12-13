@@ -199,68 +199,71 @@ const ResultsPage = () => {
             return; // Don't show any offers
           }
         } else {
-          console.warn('[Results] Bill-analyzer did not return valid analysis, falling back to OCR data');
+          console.warn('[Results] Bill-analyzer did not return valid analysis');
+          throw new Error('Analisi non disponibile per questa bolletta');
         }
-      }
-
-      // USE ONLY BILL-ANALYZER DATA - NO MORE comparison_results!
-      const targetData = tipo === 'gas' ? analyzerData.gas : analyzerData.luce;
-      
-      if (!targetData || !targetData.analisi_disponibile) {
-        throw new Error('Analisi non disponibile per questa bolletta');
-      }
-      
-      // Build offers from bill-analyzer response
-      const bestFixed = targetData.offerta_fissa_migliore;
-      const bestVar = targetData.offerta_variabile_migliore;
-      
-      if (!bestFixed && !bestVar) {
-        console.log('[Results] No better offers from bill-analyzer');
-        // This is handled by the sei_gia_messo_bene check above
-      }
-      
-      // Create ranked offers list from bill-analyzer data
-      const ranked = [];
-      if (bestFixed) {
-        ranked.push({
-          id: bestFixed.id || 'fixed-1',
-          provider: bestFixed.fornitore,
-          plan_name: bestFixed.nome,
-          simulated_cost: bestFixed.costo_mensile ? bestFixed.costo_mensile * 12 : 0,
-          tipo_prezzo: 'fisso'
-        });
-      }
-      if (bestVar) {
-        ranked.push({
-          id: bestVar.id || 'var-1',
-          provider: bestVar.fornitore,
-          plan_name: bestVar.nome,
-          simulated_cost: bestVar.costo_mensile ? bestVar.costo_mensile * 12 : 0,
-          tipo_prezzo: 'variabile'
-        });
-      }
-      
-      if (ranked.length > 0) {
-        setBestOffer(ranked[0]);
-        setAllOffers(ranked);
-      }
-
-        fetchAiAnalysis(
-          uploadId, 
-          Number(consumo), 
-          Number(costo) / 12, 
-          Number(costo), 
-          ocrResult.provider || 'Fornitore sconosciuto', 
-          ocrResult.tariff_hint,
-          Number(ocrResult.f1_kwh || 0),
-          Number(ocrResult.f2_kwh || 0),
-          Number(ocrResult.f3_kwh || 0),
-          Number(ocrResult.unit_price_eur_kwh || 0),
-          bestFixed,
-          bestVar
-        );
-
+        
+        // Build offers from bill-analyzer response (INSIDE the if block to fix scoping!)
+        const bestFixed = targetData.offerta_fissa_migliore;
+        const bestVar = targetData.offerta_variabile_migliore;
+        
+        console.log('[Results] Fixed offer:', bestFixed);
+        console.log('[Results] Variable offer:', bestVar);
+        
+        // Create ranked offers list from bill-analyzer data
+        const ranked = [];
+        
+        // Only add offers that have POSITIVE savings (risparmio_mensile > 0)
+        if (bestFixed && bestFixed.id && bestFixed.risparmio_mensile > 0) {
+          ranked.push({
+            id: bestFixed.id,
+            provider: bestFixed.fornitore,
+            plan_name: bestFixed.nome,
+            simulated_cost: bestFixed.costo_mensile ? bestFixed.costo_mensile * 12 : 0,
+            tipo_prezzo: 'fisso',
+            risparmio_mensile: bestFixed.risparmio_mensile
+          });
+        }
+        if (bestVar && bestVar.id && bestVar.risparmio_mensile > 0) {
+          ranked.push({
+            id: bestVar.id,
+            provider: bestVar.fornitore,
+            plan_name: bestVar.nome,
+            simulated_cost: bestVar.costo_mensile ? bestVar.costo_mensile * 12 : 0,
+            tipo_prezzo: 'variabile',
+            risparmio_mensile: bestVar.risparmio_mensile
+          });
+        }
+        
+        // Sort by savings (highest first)
+        ranked.sort((a, b) => (b.risparmio_mensile || 0) - (a.risparmio_mensile || 0));
+        
+        if (ranked.length > 0) {
+          setBestOffer(ranked[0]);
+          setAllOffers(ranked);
+          
+          // Call AI analysis with the correct offers
+          fetchAiAnalysis(
+            uploadId, 
+            Number(consumo), 
+            Number(targetData.costo_attuale_mensile), 
+            Number(targetData.costo_attuale_annuo), 
+            ocrResult.provider || 'Fornitore sconosciuto', 
+            ocrResult.tariff_hint,
+            Number(ocrResult.f1_kwh || 0),
+            Number(ocrResult.f2_kwh || 0),
+            Number(ocrResult.f3_kwh || 0),
+            Number(ocrResult.unit_price_eur_kwh || 0),
+            bestFixed,
+            bestVar
+          );
+        } else {
+          // No offers with positive savings found - user has the best deal
+          console.log('[Results] No offers with positive savings, setting hasGoodOffer');
+          setHasGoodOffer(true);
+        }
       } else {
+        console.error('[Results] Bill-analyzer request failed');
         throw new Error('Nessuna offerta disponibile per i tuoi parametri. Riprova più tardi.');
       }
 
