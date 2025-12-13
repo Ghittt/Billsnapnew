@@ -43,6 +43,8 @@ const ResultsPage = () => {
   const [currentCost, setCurrentCost] = useState<number>(0);
   const [consumption, setConsumption] = useState<number>(0);
   const [billType, setBillType] = useState<'luce' | 'gas' | 'combo'>('luce');
+  const [analyzerResult, setAnalyzerResult] = useState<any>(null);
+  const [hasGoodOffer, setHasGoodOffer] = useState(false);
 
   // Manual Input State
   const [showManualInput, setShowManualInput] = useState(false);
@@ -125,6 +127,68 @@ const ResultsPage = () => {
 
       setConsumption(Number(consumo));
       setCurrentCost(Number(costo));
+
+      // Fetch real offers from database
+      const { data: allOffersData } = await supabase
+        .from('energy_offers')
+        .select('*')
+        .eq('is_active', true);
+
+      const offerteLuce = (allOffersData || []).filter(o => 
+        o.commodity === 'luce' || o.commodity === 'electricity' || o.tipo_fornitura === 'luce'
+      );
+      const offerteGas = (allOffersData || []).filter(o => 
+        o.commodity === 'gas' || o.tipo_fornitura === 'gas'
+      );
+
+      // Call bill-analyzer to get proper filtered offers
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      const analyzerResponse = await fetch(
+        'https://jxluygtonamgadqgzgyh.supabase.co/functions/v1/bill-analyzer',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            ocr: ocrResult.raw_json || {
+              tipo_fornitura: tipo,
+              provider: ocrResult.provider,
+              bolletta_luce: tipo === 'luce' ? {
+                presente: true,
+                consumo_annuo_kwh: consumo,
+                totale_periodo_euro: costo,
+                periodo: { mesi: 12 }
+              } : { presente: false },
+              bolletta_gas: tipo === 'gas' ? {
+                presente: true,
+                consumo_annuo_smc: consumo,
+                totale_periodo_euro: costo,
+                periodo: { mesi: 12 }
+              } : { presente: false }
+            },
+            profilo_utente: { eta: 30, isee_range: 'medio' },
+            offerte_luce: offerteLuce,
+            offerte_gas: offerteGas,
+            parametri_business: { soglia_risparmio_significativo_mese: 5 }
+          })
+        }
+      );
+
+      if (analyzerResponse.ok) {
+        const analyzerData = await analyzerResponse.json();
+        setAnalyzerResult(analyzerData);
+        
+        const targetData = tipo === 'gas' ? analyzerData.gas : analyzerData.luce;
+        if (targetData && targetData.stato === 'sei_gia_messo_bene') {
+          setHasGoodOffer(true);
+          setIsLoading(false);
+          return; // Don't show any offers
+        }
+      }
 
       const { data: comparisonData, error: compError } = await supabase
         .from('comparison_results')
@@ -415,7 +479,7 @@ const ResultsPage = () => {
         </div>
 
         <div className='space-y-12'>
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+          <div className={hasGoodOffer ? 'grid grid-cols-1 gap-6' : 'grid grid-cols-1 md:grid-cols-2 gap-6'}>
             <Card className='border-2 shadow-sm'>
               <CardContent className='p-6 md:p-8 text-center space-y-4'>
                 <p className='text-xs font-bold uppercase tracking-widest text-muted-foreground'>SPENDI ORA</p>
@@ -436,7 +500,7 @@ const ResultsPage = () => {
               </CardContent>
             </Card>
 
-            {bestOffer && (
+            {bestOffer && !hasGoodOffer && (
               <Card className='border-2 border-primary/40 shadow-md relative overflow-hidden'>
                 <div className='absolute top-0 left-0 w-full h-1 bg-primary'></div>
                 <CardContent className='p-6 md:p-8 text-center space-y-4'>
@@ -462,13 +526,27 @@ const ResultsPage = () => {
             )}
           </div>
 
-          {bestOffer && (
+          {hasGoodOffer && (
+            <Card className='border-2 border-green-500/40 shadow-md bg-green-50/50'>
+              <CardContent className='p-8 text-center space-y-4'>
+                <h2 className='text-3xl font-bold text-green-700'>🎉 Ottima Notizia!</h2>
+                <p className='text-lg text-green-900'>
+                  Hai già l'offerta migliore sul mercato per il tuo profilo di consumo.
+                </p>
+                <p className='text-muted-foreground'>
+                  Non ha senso cambiare fornitore. Continua così!
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {bestOffer && !hasGoodOffer && (
             <p className='text-center text-muted-foreground text-sm italic'>
               Questa è l'offerta che oggi risulta più conveniente per il tuo profilo di consumo.
             </p>
           )}
 
-          {bestOffer && (
+          {bestOffer && !hasGoodOffer && (
             <div className="mt-8">
                <IntelligentAnalysis
                 consumption={consumption}
