@@ -203,39 +203,47 @@ const ResultsPage = () => {
         }
       }
 
-      const { data: comparisonData, error: compError } = await supabase
-        .from('comparison_results')
-        .select('*')
-        .eq('upload_id', uploadId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (compError || !comparisonData) {
-        console.error('Comparison fetch error:', compError);
-        throw new Error('Nessuna offerta disponibile per i tuoi parametri. Riprova più tardi.');
+      // USE ONLY BILL-ANALYZER DATA - NO MORE comparison_results!
+      const targetData = tipo === 'gas' ? analyzerData.gas : analyzerData.luce;
+      
+      if (!targetData || !targetData.analisi_disponibile) {
+        throw new Error('Analisi non disponibile per questa bolletta');
       }
-
-      if (comparisonData.ranked_offers && Array.isArray(comparisonData.ranked_offers)) {
-        const ranked = comparisonData.ranked_offers as unknown as Offer[];
-        if (ranked.length === 0) {
-          throw new Error('Nessuna offerta disponibile per i tuoi parametri. Riprova più tardi.');
-        }
+      
+      // Build offers from bill-analyzer response
+      const bestFixed = targetData.offerta_fissa_migliore;
+      const bestVar = targetData.offerta_variabile_migliore;
+      
+      if (!bestFixed && !bestVar) {
+        console.log('[Results] No better offers from bill-analyzer');
+        // This is handled by the sei_gia_messo_bene check above
+      }
+      
+      // Create ranked offers list from bill-analyzer data
+      const ranked = [];
+      if (bestFixed) {
+        ranked.push({
+          id: bestFixed.id || 'fixed-1',
+          provider: bestFixed.fornitore,
+          plan_name: bestFixed.nome,
+          simulated_cost: bestFixed.costo_mensile ? bestFixed.costo_mensile * 12 : 0,
+          tipo_prezzo: 'fisso'
+        });
+      }
+      if (bestVar) {
+        ranked.push({
+          id: bestVar.id || 'var-1',
+          provider: bestVar.fornitore,
+          plan_name: bestVar.nome,
+          simulated_cost: bestVar.costo_mensile ? bestVar.costo_mensile * 12 : 0,
+          tipo_prezzo: 'variabile'
+        });
+      }
+      
+      if (ranked.length > 0) {
         setBestOffer(ranked[0]);
         setAllOffers(ranked);
-
-        // Determine best fixed and variable
-        let bestFixed = undefined; 
-        let bestVar = undefined;
-        
-        if (ranked && ranked.length > 0) {
-             bestFixed = ranked.find(o => o.plan_name.toLowerCase().includes('fix') || o.plan_name.toLowerCase().includes('fissa') || (o as any).tipo_prezzo === 'fisso');
-             bestVar = ranked.find(o => !bestFixed || (o.id !== bestFixed.id && ((o as any).tipo_prezzo === 'variabile' || !(o.plan_name.toLowerCase().includes('fix')))));
-             
-             // Fallback if type not found explicitly
-             if (!bestFixed) bestFixed = ranked[0]; 
-             if (!bestVar && ranked.length > 1) bestVar = ranked[1];
-        }
+      }
 
         fetchAiAnalysis(
           uploadId, 
