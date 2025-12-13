@@ -126,7 +126,7 @@ const ResultsPage = () => {
       }
 
       setConsumption(Number(consumo));
-      setCurrentCost(Number(costo));
+      // DON'T setCurrentCost here! Wait for bill-analyzer response
 
       // Fetch real offers from database
       const { data: allOffersData } = await supabase
@@ -188,13 +188,11 @@ const ResultsPage = () => {
         if (targetData && targetData.analisi_disponibile) {
           console.log(`[Results] Using bill-analyzer costs: Monthly €${targetData.costo_attuale_mensile}, Annual €${targetData.costo_attuale_annuo}`);
           
-          // Override OCR cost with bill-analyzer's correct calculation
-          costo = targetData.costo_attuale_annuo;
+          // NOW set the correct cost from bill-analyzer!
+          setCurrentCost(Number(targetData.costo_attuale_annuo));
           
           if (targetData.stato === 'sei_gia_messo_bene') {
             setHasGoodOffer(true);
-            setConsumption(Number(consumo));
-            setCurrentCost(Number(costo));
             setIsLoading(false);
             return; // Don't show any offers
           }
