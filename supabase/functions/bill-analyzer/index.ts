@@ -129,9 +129,28 @@ function calculateSavings(currentAnnual, bestAnnual) {
 
 function generateExpertCopy(data, commodity) {
   const unit = commodity === "GAS" ? "Smc" : "kWh";
-  const identifier = commodity === "GAS" ? "PDR" : "POD";
+  const tipoBolletta = commodity === "GAS" ? "gas" : "luce";
   
-  // Headlines based on decision
+  // Determine consumption level
+  const consumo = commodity === "GAS" 
+    ? data.current?.consumption_annual?.smc || 0
+    : data.current?.consumption_annual?.kwh || 0;
+  
+  let livelloConsumo = "medio";
+  if (commodity === "GAS") {
+    if (consumo < 500) livelloConsumo = "basso";
+    else if (consumo > 1500) livelloConsumo = "alto";
+  } else {
+    if (consumo < 1800) livelloConsumo = "basso";
+    else if (consumo > 3500) livelloConsumo = "alto";
+  }
+  
+  const costoAttuale = data.current?.annual_eur || 0;
+  const costoMigliore = data.best_offer?.annual_eur || 0;
+  const risparmioAnnuo = data.savings?.annual_eur || 0;
+  const risparmioMensile = data.savings?.monthly_eur || 0;
+  const percentuale = data.savings?.percent || 0;
+  
   let headline = "";
   let summaryLines = [];
   let prosStay = [];
@@ -139,56 +158,98 @@ function generateExpertCopy(data, commodity) {
   let nextSteps = [];
   
   if (data.decision.action === "SWITCH") {
-    headline = "Puoi risparmiare passando a " + (data.best_offer?.provider || "un nuovo fornitore");
-    summaryLines = [
-      "Abbiamo analizzato la tua bolletta " + commodity.toLowerCase() + ".",
-      "Risparmio stimato: €" + (data.savings.annual_eur || 0).toFixed(0) + "/anno (" + (data.savings.percent || 0).toFixed(0) + "%).",
-      "L'offerta consigliata è a prezzo " + (data.best_offer?.price_type?.toLowerCase() || "variabile") + "."
+    // SWITCH: Explain why the alternative is better
+    headline = "Ti conviene cambiare: ecco perche";
+    
+    // Build human explanation based on data
+    let spiegazione = "Con un consumo " + livelloConsumo + " di " + consumo + " " + unit + "/anno, ";
+    
+    if (risparmioAnnuo > 100) {
+      spiegazione += "passeresti da €" + costoAttuale.toFixed(0) + " a €" + costoMigliore.toFixed(0) + " all'anno. ";
+      spiegazione += "Sono €" + risparmioAnnuo.toFixed(0) + " in meno (-" + percentuale.toFixed(0) + "%), circa €" + risparmioMensile.toFixed(0) + "/mese. ";
+    } else {
+      spiegazione += "risparmieresti €" + risparmioMensile.toFixed(0) + " al mese, €" + risparmioAnnuo.toFixed(0) + " all'anno. ";
+    }
+    
+    // What drives savings
+    if (livelloConsumo === "alto") {
+      spiegazione += "Nel tuo caso incide molto il prezzo energia: anche pochi centesimi in meno fanno la differenza. ";
+    } else if (livelloConsumo === "basso") {
+      spiegazione += "Con consumi bassi, la quota fissa pesa: l'offerta alternativa ha costi fissi piu bassi. ";
+    } else {
+      spiegazione += "Il risparmio deriva sia dal prezzo energia piu basso sia dalla quota fissa ridotta. ";
+    }
+    
+    // Price type info
+    const tipoPrezzo = data.best_offer?.price_type || "VARIABILE";
+    if (tipoPrezzo === "FISSO") {
+      spiegazione += "Il prezzo e bloccato per 12-24 mesi: nessuna sorpresa in bolletta.";
+    } else {
+      spiegazione += "E un prezzo variabile: oggi e conveniente, ma puo oscillare col mercato.";
+    }
+    
+    summaryLines = [spiegazione];
+    prosSwitch = [
+      "Risparmio di €" + risparmioAnnuo.toFixed(0) + " all'anno",
+      tipoPrezzo === "FISSO" ? "Prezzo bloccato, zero sorprese" : "Prezzo aggressivo, legato al mercato",
+      "Cambio automatico senza interruzioni"
     ];
     prosStay = [
-      "Nessun cambio burocratico",
-      "Conosci già il fornitore"
-    ];
-    prosSwitch = [
-      "Risparmio di €" + (data.savings.annual_eur || 0).toFixed(0) + " all'anno",
-      "Offerta verificata e attiva oggi",
-      data.best_offer?.price_type === "FISSO" ? "Prezzo bloccato per 12-24 mesi" : "Prezzo legato al mercato (può variare)"
+      "Nessuna burocrazia",
+      "Fornitore gia conosciuto"
     ];
     nextSteps = [
-      "Clicca su 'Attiva Offerta Online' per procedere",
-      "Tieni a portata di mano IBAN e dati intestatario",
-      "Il cambio è automatico, senza interruzioni di servizio"
+      "Clicca Attiva Offerta per procedere",
+      "Tieni IBAN e codice fiscale a portata",
+      "Il passaggio e gratuito e senza interruzioni"
     ];
+    
   } else if (data.decision.action === "STAY") {
-    headline = "Sei gia tra i migliori - Resta dove sei";
-    summaryLines = [
-      "Abbiamo confrontato la tua bolletta " + commodity.toLowerCase() + " con le offerte disponibili.",
-      "La tua tariffa attuale è già competitiva.",
-      "Non conviene cambiare fornitore in questo momento."
-    ];
+    // STAY: Explain why alternatives DON'T work
+    headline = "Resta dove sei: le alternative non convengono";
+    
+    let spiegazione = "Con un consumo " + livelloConsumo + " di " + consumo + " " + unit + "/anno, ";
+    spiegazione += "paghi €" + costoAttuale.toFixed(0) + " all'anno. ";
+    
+    // Two concrete reasons why NOT to switch
+    if (livelloConsumo === "basso") {
+      spiegazione += "Motivo 1: con consumi cosi bassi, le offerte concorrenti non riescono a battere la tua quota fissa. ";
+      spiegazione += "Motivo 2: il risparmio sarebbe inferiore a €" + Math.abs(risparmioAnnuo).toFixed(0) + "/anno, non vale la burocrazia. ";
+    } else if (livelloConsumo === "alto") {
+      spiegazione += "Motivo 1: il tuo prezzo energia e gia competitivo rispetto al mercato. ";
+      spiegazione += "Motivo 2: cambiare comporterebbe meno di €" + Math.abs(risparmioAnnuo).toFixed(0) + " di differenza, troppo poco. ";
+    } else {
+      spiegazione += "Motivo 1: la differenza con le migliori offerte e sotto il 2%, non significativa. ";
+      spiegazione += "Motivo 2: il tempo e la burocrazia del cambio non valgono un risparmio cosi piccolo. ";
+    }
+    
+    spiegazione += "Ricontrolla tra 6 mesi: le offerte cambiano spesso.";
+    
+    summaryLines = [spiegazione];
     prosStay = [
-      "Stai già pagando un buon prezzo",
-      "Eviti burocrazia inutile"
+      "Tariffa gia competitiva",
+      "Nessuna burocrazia inutile"
     ];
     prosSwitch = [];
     nextSteps = [
-      "Monitora le offerte periodicamente (ogni 6-12 mesi)",
-      "Controlla eventuali bonus sociali se ne hai diritto",
-      "Ricarica una nuova bolletta quando vuoi ricontrollare"
+      "Monitora le offerte ogni 6 mesi",
+      "Verifica eventuali bonus sociali ISEE",
+      "Ricarica una nuova bolletta quando vuoi"
     ];
+    
   } else {
-    headline = "Dati insufficienti per un'analisi completa";
+    // INSUFFICIENT_DATA or ASK_CLARIFICATION
+    headline = "Dati insufficienti per l'analisi";
     summaryLines = [
-      "Non abbiamo tutti i dati necessari per un confronto.",
-      data.decision.reason,
-      "Prova a caricare una bolletta più completa."
+      "Non abbiamo abbastanza informazioni per confrontare le offerte. " +
+      (data.decision?.reason || "Carica una bolletta piu completa o inserisci i dati manualmente.")
     ];
     prosStay = [];
     prosSwitch = [];
     nextSteps = [
-      "Carica una bolletta con periodo e importo visibili",
-      "Assicurati che sia leggibile (non sfocata)",
-      "Contattaci se hai bisogno di aiuto"
+      "Carica una bolletta con periodo e importo leggibili",
+      "Oppure inserisci i dati manualmente",
+      "Contattaci se hai difficolta"
     ];
   }
   
@@ -202,12 +263,12 @@ function generateExpertCopy(data, commodity) {
     next_steps: nextSteps,
     detailed_comparison_rows: [
       { label: "Fornitore", current: data.current?.provider || "N/A", best: data.best_offer?.provider || "N/A" },
-      { label: "Nome offerta", current: data.current?.offer_name || "N/A", best: data.best_offer?.offer_name || "N/A" },
+      { label: "Nome offerta", current: data.current?.offer_name || "Attuale", best: data.best_offer?.offer_name || "N/A" },
       { label: "Costo mensile", current: data.current?.monthly_eur ? "€" + data.current.monthly_eur.toFixed(2) : "N/A", best: data.best_offer?.monthly_eur ? "€" + data.best_offer.monthly_eur.toFixed(2) : "N/A" },
       { label: "Costo annuo", current: data.current?.annual_eur ? "€" + data.current.annual_eur.toFixed(2) : "N/A", best: data.best_offer?.annual_eur ? "€" + data.best_offer.annual_eur.toFixed(2) : "N/A" },
       { label: "Tipo prezzo", current: "Attuale", best: data.best_offer?.price_type || "N/A" }
     ],
-    disclaimer: "I calcoli sono stime basate sui dati forniti. Il risparmio effettivo può variare in base ai consumi reali e alle condizioni contrattuali."
+    disclaimer: "I calcoli sono stime basate sui dati forniti. Il risparmio effettivo dipende dai consumi reali."
   };
 }
 
