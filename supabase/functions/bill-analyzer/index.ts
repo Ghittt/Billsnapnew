@@ -407,14 +407,15 @@ serve(async (req) => {
       };
       
       const best_offer = best ? {
-        provider: best.provider,
-        offer_name: best.offer_name,
-        price_type: best.price_type || "VARIABILE",
+        provider: best.fornitore || best.provider || "Sconosciuto",
+        offer_name: best.nome_offerta || best.offer_name || best.plan_name || "Offerta",
+        price_type: best.tipo_prezzo || best.price_type || best.pricing_type || "VARIABILE",
         monthly_eur: best.estimated_annual_eur ? Math.round(best.estimated_annual_eur / 12 * 100) / 100 : null,
         annual_eur: best.estimated_annual_eur,
-        link: best.link || null
+        link: best.redirect_url || best.url_offerta || best.link || null
       } : null;
       
+      console.log('[LUCE] best_offer:', JSON.stringify(best_offer));
       const data = { current, best_offer, decision: { action, reason }, savings };
       const expert_copy = generateExpertCopy(data, "LUCE");
       
@@ -453,14 +454,15 @@ serve(async (req) => {
       };
       
       const best_offer = best ? {
-        provider: best.provider,
-        offer_name: best.offer_name,
-        price_type: best.price_type || "VARIABILE",
+        provider: best.fornitore || best.provider || "Sconosciuto",
+        offer_name: best.nome_offerta || best.offer_name || best.plan_name || "Offerta",
+        price_type: best.tipo_prezzo || best.price_type || best.pricing_type || "VARIABILE",
         monthly_eur: best.estimated_annual_eur ? Math.round(best.estimated_annual_eur / 12 * 100) / 100 : null,
         annual_eur: best.estimated_annual_eur,
-        link: best.link || null
+        link: best.redirect_url || best.url_offerta || best.link || null
       } : null;
       
+      console.log('[GAS] best_offer:', JSON.stringify(best_offer));
       const data = { current, best_offer, decision: { action, reason }, savings };
       const expert_copy = generateExpertCopy(data, "GAS");
       
