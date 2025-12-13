@@ -17,6 +17,18 @@ import RedirectPopup from '@/components/results/RedirectPopup';
 import { getOfferUrl } from '@/utils/offerUrls';
 import { fixOfferUrlCommodity } from '@/utils/offerUrlFixer';
 
+// DEBUG MODE: Enable via URL ?debug=1 or env VITE_DEBUG=true
+const DEBUG = (import.meta.env.VITE_DEBUG === "true") || (new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get("debug") === "1");
+
+// Simple hash function for comparison
+const simpleHash = (str) => {
+  if (!str) return "null";
+  const len = str.length;
+  const first80 = str.substring(0, 80);
+  const last80 = str.substring(Math.max(0, len - 80));
+  return `len:${len}|f:${first80}|l:${last80}`;
+};
+
 interface Offer {
   id: string;
   provider: string;
@@ -45,6 +57,25 @@ const ResultsPage = () => {
   const [billType, setBillType] = useState<'luce' | 'gas' | 'combo'>('luce');
   const [analyzerResult, setAnalyzerResult] = useState<any>(null);
   const [hasGoodOffer, setHasGoodOffer] = useState(false);
+
+  // DEBUG STATE
+  const [debugData, setDebugData] = useState<any>({
+    analysisId: null,
+    timestamp: null,
+    commodity: null,
+    decisionAction: null,
+    decisionReason: null,
+    savingsAnnual: null,
+    offerCountTotal: null,
+    offerCountFiltered: null,
+    currentProvider: null,
+    bestOfferProvider: null,
+    payloadHash: null,
+    responseHash: null,
+    rawResponse: null,
+    apiStatus: null,
+    aiCalled: false
+  });
 
   // Manual Input State
   const [showManualInput, setShowManualInput] = useState(false);
@@ -145,7 +176,42 @@ const ResultsPage = () => {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       
-      const analyzerResponse = await fetch(
+      // DEBUG: Log the payload before sending
+        const billPayload = {
+          ocr: ocrResult.raw_json || {
+            tipo_fornitura: tipo,
+            provider: ocrResult.provider,
+            bolletta_luce: tipo === 'luce' ? {
+              presente: true,
+              consumo_annuo_kwh: consumo,
+              totale_periodo_euro: costo,
+              periodo: { mesi: 12 }
+            } : { presente: false },
+            bolletta_gas: tipo === 'gas' ? {
+              presente: true,
+              consumo_annuo_smc: consumo,
+              totale_periodo_euro: costo,
+              periodo: { mesi: 12 }
+            } : { presente: false }
+          },
+          profilo_utente: { eta: 30, isee_range: 'medio' },
+          offerte_luce: offerteLuce,
+          offerte_gas: offerteGas,
+          parametri_business: { soglia_risparmio_significativo_mese: 5 }
+        };
+        
+        const payloadString = JSON.stringify(billPayload);
+        const payloadHash = simpleHash(payloadString);
+        
+        if (DEBUG) {
+          console.log("[DEBUG] INPUT bill tipo:", tipo);
+          console.log("[DEBUG] INPUT consumo:", consumo, "costo:", costo);
+          console.log("[DEBUG] INPUT offers LUCE count:", offerteLuce.length);
+          console.log("[DEBUG] INPUT offers GAS count:", offerteGas.length);
+          console.log("[DEBUG] Payload hash:", payloadHash);
+        }
+        
+        const analyzerResponse = await fetch(
         'https://jxluygtonamgadqgzgyh.supabase.co/functions/v1/bill-analyzer',
         {
           method: 'POST',
@@ -153,33 +219,38 @@ const ResultsPage = () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({
-            ocr: ocrResult.raw_json || {
-              tipo_fornitura: tipo,
-              provider: ocrResult.provider,
-              bolletta_luce: tipo === 'luce' ? {
-                presente: true,
-                consumo_annuo_kwh: consumo,
-                totale_periodo_euro: costo,
-                periodo: { mesi: 12 }
-              } : { presente: false },
-              bolletta_gas: tipo === 'gas' ? {
-                presente: true,
-                consumo_annuo_smc: consumo,
-                totale_periodo_euro: costo,
-                periodo: { mesi: 12 }
-              } : { presente: false }
-            },
-            profilo_utente: { eta: 30, isee_range: 'medio' },
-            offerte_luce: offerteLuce,
-            offerte_gas: offerteGas,
-            parametri_business: { soglia_risparmio_significativo_mese: 5 }
-          })
+          body: payloadString
         }
       );
 
       if (analyzerResponse.ok) {
+        // DEBUG: Log response details
+        const responseStatus = analyzerResponse.status;
         const analyzerData = await analyzerResponse.json();
+        const responseString = JSON.stringify(analyzerData);
+        const responseHash = simpleHash(responseString);
+        
+        if (DEBUG) {
+          console.log("[DEBUG] Response status:", responseStatus);
+          console.log("[DEBUG] Response hash:", responseHash);
+          console.log("[DEBUG] Parsed response:", analyzerData);
+          console.log("[DEBUG] commodity_final:", analyzerData.commodity_final);
+          console.log("[DEBUG] decision.action:", analyzerData.decision?.action || analyzerData.luce?.decision?.action || analyzerData.gas?.decision?.action);
+        }
+        
+        // Update debug state
+        const analysisTimestamp = new Date().toISOString();
+        setDebugData(prev => ({
+          ...prev,
+          analysisId: uploadId + "_" + Date.now(),
+          timestamp: analysisTimestamp,
+          commodity: analyzerData.commodity_final,
+          apiStatus: responseStatus,
+          payloadHash,
+          responseHash,
+          rawResponse: analyzerData,
+          offerCountTotal: (offerteLuce?.length || 0) + (offerteGas?.length || 0)
+        }));
         setAnalyzerResult(analyzerData);
         console.log('[Results] BillSnap Core response:', analyzerData);
         
@@ -221,6 +292,15 @@ const ResultsPage = () => {
         
         switch (action) {
           case "SWITCH": {
+            // DEBUG: Update state
+            setDebugData(prev => ({
+              ...prev,
+              decisionAction: action,
+              decisionReason: targetData?.decision?.reason,
+              savingsAnnual: targetData?.savings?.annual_eur,
+              bestOfferProvider: targetData?.best_offer?.provider,
+              offerCountFiltered: 1
+            }));
             // renderSwitch() - Show offer cards and recommendation
             console.log('[Results] Decision: SWITCH');
             const best = targetData.best_offer;
@@ -246,6 +326,14 @@ const ResultsPage = () => {
           
           case "STAY":
           case "INSUFFICIENT_DATA": {
+            // DEBUG: Update state
+            setDebugData(prev => ({
+              ...prev,
+              decisionAction: action,
+              decisionReason: targetData?.decision?.reason,
+              savingsAnnual: targetData?.savings?.annual_eur,
+              offerCountFiltered: 0
+            }));
             // renderStayExplanation() - Show explanation why NOT to switch
             console.log('[Results] Decision: ' + action + ' - ' + targetData?.decision?.reason);
             setHasGoodOffer(true);
@@ -557,16 +645,62 @@ const ResultsPage = () => {
             )}
           </div>
 
-          {hasGoodOffer && (
+          {hasGoodOffer && analyzerResult && (
             <Card className='border-2 border-green-500/40 shadow-md bg-green-50/50'>
               <CardContent className='p-8 text-center space-y-4'>
-                <h2 className='text-3xl font-bold text-green-700'>🎉 Ottima Notizia!</h2>
+                <h2 className='text-3xl font-bold text-green-700'>
+                  {(analyzerResult.decision?.action === "STAY" || 
+                    analyzerResult.luce?.decision?.action === "STAY" || 
+                    analyzerResult.gas?.decision?.action === "STAY") 
+                    ? "🎉 Resta dove sei" 
+                    : (analyzerResult.decision?.action === "INSUFFICIENT_DATA"
+                    ? "⚠️ Dati insufficienti" 
+                    : "❓ Servono più informazioni")}
+                </h2>
                 <p className='text-lg text-green-900'>
-                  Hai già l'offerta migliore sul mercato per il tuo profilo di consumo.
+                  {analyzerResult.decision?.reason || 
+                   analyzerResult.luce?.decision?.reason || 
+                   analyzerResult.gas?.decision?.reason ||
+                   analyzerResult.expert_copy?.headline ||
+                   analyzerResult.luce?.expert_copy?.headline ||
+                   analyzerResult.gas?.expert_copy?.headline ||
+                   "La tua offerta attuale è già competitiva."}
                 </p>
                 <p className='text-muted-foreground'>
-                  Non ha senso cambiare fornitore. Continua così!
+                  {analyzerResult.expert_copy?.summary_3_lines?.[0] ||
+                   analyzerResult.luce?.expert_copy?.summary_3_lines?.[0] ||
+                   analyzerResult.gas?.expert_copy?.summary_3_lines?.[0] ||
+                   "Non conviene cambiare fornitore in questo momento."}
                 </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* DEBUG PANEL - Only visible when DEBUG=true */}
+          {DEBUG && (
+            <Card className='border-2 border-yellow-500 bg-yellow-50'>
+              <CardContent className='p-4'>
+                <h3 className='font-bold text-lg mb-2'>🔧 DEBUG PANEL</h3>
+                <div className='grid grid-cols-2 gap-2 text-sm font-mono'>
+                  <div>Analysis ID:</div><div>{debugData.analysisId || 'N/A'}</div>
+                  <div>Timestamp:</div><div>{debugData.timestamp || 'N/A'}</div>
+                  <div>Commodity:</div><div>{debugData.commodity || 'N/A'}</div>
+                  <div>Decision:</div><div className='font-bold'>{debugData.decisionAction || analyzerResult?.decision?.action || analyzerResult?.luce?.decision?.action || analyzerResult?.gas?.decision?.action || 'N/A'}</div>
+                  <div>Reason:</div><div>{debugData.decisionReason || analyzerResult?.decision?.reason?.substring(0, 100) || 'N/A'}</div>
+                  <div>Savings Annual:</div><div>{debugData.savingsAnnual || analyzerResult?.savings?.annual_eur || analyzerResult?.luce?.savings?.annual_eur || analyzerResult?.gas?.savings?.annual_eur || 'N/A'}</div>
+                  <div>Offers Total:</div><div>{debugData.offerCountTotal || 'N/A'}</div>
+                  <div>API Status:</div><div>{debugData.apiStatus || 'N/A'}</div>
+                  <div>Payload Hash:</div><div className='text-xs break-all'>{debugData.payloadHash || 'N/A'}</div>
+                  <div>Response Hash:</div><div className='text-xs break-all'>{debugData.responseHash || 'N/A'}</div>
+                  <div>Current Provider:</div><div>{ocrData?.provider || 'N/A'}</div>
+                  <div>Best Offer:</div><div>{bestOffer?.provider || 'None'} - {bestOffer?.plan_name || 'N/A'}</div>
+                </div>
+                <details className='mt-4'>
+                  <summary className='cursor-pointer font-bold'>Raw JSON Response</summary>
+                  <pre className='text-xs bg-gray-100 p-2 mt-2 overflow-auto max-h-64'>
+                    {JSON.stringify(debugData.rawResponse || analyzerResult, null, 2)}
+                  </pre>
+                </details>
               </CardContent>
             </Card>
           )}
