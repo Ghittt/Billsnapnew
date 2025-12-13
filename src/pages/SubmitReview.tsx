@@ -329,89 +329,101 @@ const SubmitReview = () => {
                                     />
                                 </div>
 
-                                {/* Instagram Photo Option - IMPROVED UX */}
-                                <div className="space-y-4 p-4 bg-gradient-to-br from-pink-50 to-purple-50 rounded-xl border border-purple-100">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-lg transition-colors ${useInstagram ? 'bg-gradient-to-br from-pink-500 to-purple-600' : 'bg-gray-100'}`}>
-                                                <Instagram className={`w-5 h-5 ${useInstagram ? 'text-white' : 'text-gray-400'}`} />
-                                            </div>
-                                            <div>
-                                                <Label className="font-medium cursor-pointer" onClick={() => setUseInstagram(!useInstagram)}>
-                                                    Aggiungi foto Instagram
-                                                </Label>
-                                                <p className="text-xs text-muted-foreground">Facoltativo</p>
-                                            </div>
-                                        </div>
-
-                                        {/* Info Tooltip */}
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <button type="button" className="p-1.5 hover:bg-white/50 rounded-full transition-colors">
-                                                    <Info className="w-4 h-4 text-purple-400" />
-                                                </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="left" className="max-w-xs text-sm">
-                                                <p className="font-medium mb-1">🔒 Privacy Garantita</p>
-                                                <p>Utilizziamo solo la tua <strong>foto profilo pubblica</strong> per mostrare il tuo avatar nella recensione. Non accediamo ai tuoi contenuti, follower o altre informazioni.</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </div>
-
-                                    {/* Toggle Switch styled as button */}
-                                    <button
-                                        type="button"
-                                        onClick={() => setUseInstagram(!useInstagram)}
-                                        className={`w-full py-3 px-4 rounded-lg border-2 transition-all font-medium text-sm flex items-center justify-center gap-2 ${useInstagram
-                                                ? 'bg-white border-purple-300 text-purple-700 shadow-sm'
-                                                : 'bg-transparent border-dashed border-gray-200 text-gray-500 hover:border-purple-200 hover:text-purple-600'
-                                            }`}
+                                {/* Photo Selection - Radio Button Design */}
+                                <div className="space-y-4 p-5 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+                                    <Label className="text-base font-semibold text-gray-800">Foto del profilo</Label>
+                                    
+                                    {/* Radio Option 1: Instagram */}
+                                    <div 
+                                        onClick={() => setUseInstagram(true)}
+                                        className={`cursor-pointer p-4 rounded-xl border-2 transition-all ${
+                                            useInstagram 
+                                                ? 'border-purple-500 bg-white shadow-md' 
+                                                : 'border-gray-200 bg-white/50 hover:border-purple-200'
+                                        }`}
                                     >
-                                        {useInstagram ? (
-                                            <>
-                                                <CheckCircle2 className="w-4 h-4" />
-                                                Foto Instagram attiva
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Sparkles className="w-4 h-4" />
-                                                Usa avatar random
-                                            </>
-                                        )}
-                                    </button>
-
-                                    {/* Instagram Username Input - Only shown when toggle is ON */}
-                                    {useInstagram && (
-                                        <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            <Input
-                                                placeholder="@il_tuo_username"
-                                                value={instagramUsername}
-                                                onChange={(e) => setInstagramUsername(e.target.value)}
-                                                className="bg-white"
-                                            />
-
-                                            {/* Live Preview */}
-                                            {previewUrl && (
-                                                <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm">
-                                                    <Avatar className="w-10 h-10 border-2 border-purple-200">
-                                                        <AvatarImage src={previewUrl} />
-                                                        <AvatarFallback><User className="w-4 h-4" /></AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium text-gray-900 truncate">{name || 'Il tuo nome'}</p>
-                                                        <p className="text-xs text-muted-foreground">Anteprima della tua recensione</p>
-                                                    </div>
-                                                    <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                                                </div>
-                                            )}
-
-                                            {/* Privacy note inline */}
-                                            <p className="text-xs text-purple-600/70 flex items-center gap-1">
-                                                <ShieldCheck className="w-3 h-3" />
-                                                Solo la foto profilo pubblica verrà utilizzata
-                                            </p>
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                                                useInstagram ? 'border-purple-500' : 'border-gray-300'
+                                            }`}>
+                                                {useInstagram && <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />}
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-gradient-to-br from-pink-500 to-purple-600">
+                                                <Instagram className="w-4 h-4 text-white" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-medium text-gray-900">Usa foto Instagram</p>
+                                                <p className="text-xs text-gray-500">Mostreremo la tua foto profilo pubblica</p>
+                                            </div>
                                         </div>
-                                    )}
+                                        
+                                        {/* Instagram Username Input - Only shown when Instagram is selected */}
+                                        {useInstagram && (
+                                            <div className="mt-4 pl-8 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
+                                                    <Input
+                                                        placeholder="il_tuo_username"
+                                                        value={instagramUsername}
+                                                        onChange={(e) => setInstagramUsername(e.target.value.replace('@', ''))}
+                                                        className="pl-8 bg-white border-purple-200 focus:border-purple-400"
+                                                    />
+                                                </div>
+                                                
+                                                {/* Live Preview */}
+                                                {instagramUsername.trim() && (
+                                                    <div className="flex items-center gap-3 p-3 bg-purple-50/50 rounded-lg border border-purple-100">
+                                                        <Avatar className="w-12 h-12 border-2 border-white shadow-sm">
+                                                            <AvatarImage src={previewUrl} />
+                                                            <AvatarFallback><User className="w-5 h-5" /></AvatarFallback>
+                                                        </Avatar>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-gray-900 truncate">{name || 'Il tuo nome'}</p>
+                                                            <p className="text-xs text-gray-500">@{instagramUsername.replace('@', '')}</p>
+                                                        </div>
+                                                        <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Radio Option 2: Avatar */}
+                                    <div 
+                                        onClick={() => setUseInstagram(false)}
+                                        className={`cursor-pointer p-4 rounded-xl border-2 transition-all ${
+                                            !useInstagram 
+                                                ? 'border-purple-500 bg-white shadow-md' 
+                                                : 'border-gray-200 bg-white/50 hover:border-purple-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                                                !useInstagram ? 'border-purple-500' : 'border-gray-300'
+                                            }`}>
+                                                {!useInstagram && <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />}
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-gray-100">
+                                                <Sparkles className="w-4 h-4 text-gray-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-medium text-gray-900">Usa avatar generato</p>
+                                                <p className="text-xs text-gray-500">Creeremo un avatar unico per te</p>
+                                            </div>
+                                            {!useInstagram && name && (
+                                                <Avatar className="w-8 h-8 border border-gray-200">
+                                                    <AvatarImage src={getRandomAvatar(name)} />
+                                                    <AvatarFallback><User className="w-3 h-3" /></AvatarFallback>
+                                                </Avatar>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Privacy note */}
+                                    <p className="text-xs text-center text-gray-500 flex items-center justify-center gap-1 pt-1">
+                                        <ShieldCheck className="w-3 h-3" />
+                                        La tua privacy è sempre garantita
+                                    </p>
                                 </div>
 
                                 {/* Submit */}
