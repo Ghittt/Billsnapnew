@@ -77,10 +77,16 @@ serve(async (req) => {
     // 2. SINGLE SOURCE: energy_offers only (consolidated)
     console.log('[COMPARE] Fetching offers from energy_offers (single source)...');
     
+    // Note: Not filtering by is_active - fetch all offers and let commodity filter handle it
     const { data: allOffersRaw, error: offersError } = await supabase
       .from('energy_offers')
-      .select('*')
-      .eq('is_active', true);
+      .select('*');
+    
+    // Log column names of first row to debug
+    if (allOffersRaw && allOffersRaw.length > 0) {
+      console.log('[COMPARE] energy_offers columns:', Object.keys(allOffersRaw[0]));
+      console.log('[COMPARE] First offer sample:', JSON.stringify(allOffersRaw[0]).substring(0, 500));
+    }
 
     if (offersError) {
       console.error('[COMPARE] Error fetching energy_offers:', offersError);
