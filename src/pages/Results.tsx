@@ -160,17 +160,29 @@ const ResultsPage = () => {
       // DON'T setCurrentCost here! Wait for bill-analyzer response
 
       // Fetch real offers from database
-      const { data: allOffersData } = await supabase
+      // Fetch ALL offers from energy_offers (single source of truth)
+      const { data: allOffersData, error: offersError } = await supabase
         .from('energy_offers')
-        .select('*')
-        .eq('is_active', true);
+        .select('*');
+      
+      if (DEBUG) {
+        console.log('[DEBUG] energy_offers fetched:', allOffersData?.length, 'error:', offersError);
+        if (allOffersData && allOffersData.length > 0) {
+          console.log('[DEBUG] First offer:', JSON.stringify(allOffersData[0]));
+        }
+      }
 
-      const offerteLuce = (allOffersData || []).filter(o => 
-        o.commodity === 'luce' || o.commodity === 'electricity' || o.tipo_fornitura === 'luce'
-      );
-      const offerteGas = (allOffersData || []).filter(o => 
-        o.commodity === 'gas' || o.tipo_fornitura === 'gas'
-      );
+      // Case-insensitive commodity filtering
+      const offerteLuce = (allOffersData || []).filter(o => {
+        const comm = (o.commodity || o.tipo_fornitura || '').toLowerCase();
+        return comm === 'luce' || comm === 'electricity';
+      });
+      if (DEBUG) console.log('[DEBUG] Filtered LUCE offers:', offerteLuce.length);
+      const offerteGas = (allOffersData || []).filter(o => {
+        const comm = (o.commodity || o.tipo_fornitura || '').toLowerCase();
+        return comm === 'gas';
+      });
+      if (DEBUG) console.log('[DEBUG] Filtered GAS offers:', offerteGas.length);
 
       // Call bill-analyzer to get proper filtered offers
       const { data: { session } } = await supabase.auth.getSession();
