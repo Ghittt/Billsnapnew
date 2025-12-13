@@ -206,6 +206,9 @@ const SubmitReview = () => {
     if (step === 'success') {
         return (
             <div className="min-h-screen bg-gradient-to-br from-[#9b87f5] to-[#7E69AB] flex flex-col items-center justify-center p-6 text-white text-center">
+                {/* BillSnap Logo */}
+                <h2 className="text-3xl font-bold text-white mb-8 tracking-tight">BillSnap</h2>
+                
                 <div className="bg-white/10 backdrop-blur-xl p-12 rounded-3xl shadow-2xl max-w-lg w-full border border-white/20">
                     <div className="bg-white rounded-full p-6 mb-8 mx-auto w-fit shadow-xl">
                         <CheckCircle2 className="w-16 h-16 text-[#9b87f5]" />
