@@ -19,6 +19,13 @@ interface Review {
     profile_photo_url?: string;
 }
 
+
+// Generate random avatar fallback
+const getRandomAvatar = (name: string) => {
+    const seed = name?.toLowerCase().replace(/\s+/g, '') || 'user';
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+};
+
 const timeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -130,7 +137,7 @@ const FeedbackPage = () => {
                                     <div className="flex items-center gap-4 mb-4">
                                         <Avatar className="w-12 h-12 border-2 border-primary/20">
                                             <AvatarImage
-                                                src={review.profile_photo_url || (review.instagram_username ? `https://unavatar.io/instagram/${review.instagram_username}` : '')}
+                                                src={review.profile_photo_url || (review.instagram_username ? `https://unavatar.io/instagram/${review.instagram_username}` : getRandomAvatar(review.review_name))}
                                             />
                                             <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-bold">
                                                 {(review.review_name || 'U').charAt(0).toUpperCase()}

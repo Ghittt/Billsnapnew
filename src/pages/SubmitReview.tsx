@@ -14,6 +14,13 @@ import { Star, Instagram, Sparkles, Loader2, Mail, Clock, Home, CheckCircle2, Sh
 import { supabase } from '@/integrations/supabase/client';
 import { OTPInput } from '@/components/OTPInput';
 
+
+// Generate random avatar for users without Instagram
+const getRandomAvatar = (name: string) => {
+    const seed = name.toLowerCase().replace(/\s+/g, '');
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+};
+
 const SubmitReview = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -34,13 +41,14 @@ const SubmitReview = () => {
 
     const { toast } = useToast();
 
-    // Generate preview URL based on IG username
+    // Generate preview URL based on IG username or random avatar
     const getPreviewUrl = () => {
         if (useInstagram && instagramUsername.trim()) {
             const clean = instagramUsername.replace('@', '').trim();
             return `https://unavatar.io/instagram/${clean}`;
         }
-        return '';
+        // Random avatar for users without Instagram
+        return getRandomAvatar(name || 'user');
     };
 
     const handleReviewSubmit = async (e: React.FormEvent) => {
@@ -139,7 +147,7 @@ const SubmitReview = () => {
                 : null;
             const profilePhotoUrl = cleanIgUsername
                 ? `https://unavatar.io/instagram/${cleanIgUsername}`
-                : null;
+                : getRandomAvatar(name);
 
             const { error } = await supabase.functions.invoke('save-feedback', {
                 body: {

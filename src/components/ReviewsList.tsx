@@ -50,6 +50,13 @@ const getCategoryLabel = (category: string) => {
   return map[category] || 'Recensione';
 };
 
+
+// Generate random avatar fallback
+const getRandomAvatar = (name: string) => {
+    const seed = name?.toLowerCase().replace(/\s+/g, '') || 'user';
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+};
+
 export const ReviewsList = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +113,7 @@ export const ReviewsList = () => {
              <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
                    <Avatar className="w-10 h-10 border-2 border-white shadow-sm ring-1 ring-gray-100">
-                      <AvatarImage src={review.instagram_username ? `https://unavatar.io/instagram/${review.instagram_username}` : ''} />
+                      <AvatarImage src={review.instagram_username ? `https://unavatar.io/instagram/${review.instagram_username}` : getRandomAvatar(review.review_name || 'user')} />
                       <AvatarFallback className="bg-gradient-to-br from-primary/10 to-primary/5 text-primary"><User className="w-5 h-5" /></AvatarFallback>
                    </Avatar>
                    <div>

@@ -43,29 +43,7 @@ export default function About() {
                 <strong className="text-primary">Siamo una tecnologia che fa una cosa sola: ridurre la tua bolletta al minimo possibile.</strong>
               </p>
 
-              <h2 className="text-2xl font-bold mt-8 mb-4 text-primary">Utilizziamo:</h2>
-              <ul className="text-foreground space-y-2">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  <span>OCR avanzato per leggere le bollette</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Firecrawl + AI per analizzare le offerte reali</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Normalizzazione intelligente dei dati</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Stima del risparmio mensile, non solo annuale</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Avvisi automatici quando appare un'offerta migliore</span>
-                </li>
-              </ul>
+
 
               <h2 className="text-2xl font-bold mt-8 mb-4 text-primary">La nostra promessa</h2>
               <p className="text-foreground">
