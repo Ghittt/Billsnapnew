@@ -20,6 +20,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+// Generate fallback avatar URL from name
+const getAvatarUrl = (name: string, photoUrl?: string | null) => {
+  if (photoUrl && photoUrl.trim() !== '') return photoUrl;
+  // Use UI Avatars as fallback with purple BillSnap color
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=7c3aed&color=fff&size=128`;
+};
+
 interface ReviewDisplay {
   id: string;
   review_name: string;
@@ -161,7 +168,7 @@ const AdminReviews = () => {
                   <div className="flex items-start gap-4 min-w-[200px]">
                     <div className="relative">
                        <Avatar className="w-16 h-16 border-2 border-white shadow-sm">
-                        <AvatarImage src={review.profile_photo_url} className="object-cover" />
+                        <AvatarImage src={getAvatarUrl(review.review_name, review.profile_photo_url)} className="object-cover" />
                         <AvatarFallback><User className="w-8 h-8" /></AvatarFallback>
                       </Avatar>
                       {review.is_approved && (
