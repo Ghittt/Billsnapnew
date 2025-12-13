@@ -142,9 +142,10 @@ serve(async (req) => {
     console.log('[COMPARE] commodity_final:', commodityFinal);
     console.log('[COMPARE] offers BEFORE commodity filter:', allOffers.length);
     
-    const relevantOffers = allOffers.filter(o => 
-      o.commodity === commodityFinal || o.commodity === 'DUAL'
-    );
+    const relevantOffers = allOffers.filter(o => {
+      const offerCommodity = (o.commodity || '').toUpperCase();
+      return offerCommodity === commodityFinal || offerCommodity === 'DUAL';
+    });
     
     console.log('[COMPARE] offers AFTER commodity filter:', relevantOffers.length);
     
