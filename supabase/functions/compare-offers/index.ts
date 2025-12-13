@@ -74,69 +74,43 @@ serve(async (req) => {
       console.warn('[COMPARE] No OCR data found, using defaults');
     }
 
-    // 2. Fetch offers from MULTIPLE SOURCES
-    let allOffers: any[] = [];
-
-    // 2a. Try offers_live (Firecrawl scraped offers - PRIORITY)
-    const oneDayAgo = new Date();
-    oneDayAgo.setDate(oneDayAgo.getDate() - 30);
+    // 2. SINGLE SOURCE: energy_offers only (consolidated)
+    console.log('[COMPARE] Fetching offers from energy_offers (single source)...');
     
-    const { data: liveOffers, error: liveError } = await supabase
-      .from('offers_live')
+    const { data: allOffersRaw, error: offersError } = await supabase
+      .from('energy_offers')
       .select('*')
-      .gt('scraped_at', oneDayAgo.toISOString());
+      .eq('is_active', true);
 
-    if (!liveError && liveOffers && liveOffers.length > 0) {
-      console.log(`[COMPARE] Found ${liveOffers.length} live offers from Firecrawl`);
-      // Transform to unified format
-      allOffers = liveOffers.map(o => ({
-        id: o.id,
-        provider: o.fornitore,
-        plan_name: o.nome_offerta,
-        commodity: o.tipo,
-        price_kwh: o.prezzo_energia_euro_kwh,
-        unit_price_eur_smc: o.prezzo_energia_euro_smc,
-        fixed_fee_eur_mo: o.quota_fissa_mensile_euro || 0,
-        pricing_type: o.tipo_prezzo,
-        is_green: false,
-        redirect_url: o.url_offerta,
-        promo_active: o.promozione_attiva,
-        promo_text: o.sconto_promozione,
-        source: 'firecrawl'
-      }));
+    if (offersError) {
+      console.error('[COMPARE] Error fetching energy_offers:', offersError);
+      throw new Error('Database error fetching offers.');
     }
 
-    // 2b. Fallback to offers_scraped if no live offers
-    if (allOffers.length === 0) {
-      console.log('[COMPARE] No live offers, checking offers_scraped...');
-      
-      // STRICT RULE: Only offers from last 10 days
-      const tenDaysAgo = new Date();
-      tenDaysAgo.setDate(tenDaysAgo.getDate() - 60);
-      console.log(`[COMPARE] Fetching scraped offers newer than: ${tenDaysAgo.toISOString()}`);
+    console.log(`[COMPARE] Total offers from energy_offers: ${allOffersRaw?.length || 0}`);
 
-      const { data: scrapedOffers } = await supabase
-        .from('offers_scraped')
-        .select('*')
-        .gt('updated_at', tenDaysAgo.toISOString());
-
-      if (scrapedOffers && scrapedOffers.length > 0) {
-        console.log(`[COMPARE] Found ${scrapedOffers.length} scraped offers (fresh < 10 days)`);
-        allOffers = scrapedOffers.map(o => ({ ...o, source: 'offers_scraped' }));
-      } else {
-        // FAIL HARD if no fresh offers - do not return old garbage
-        console.warn('[COMPARE] No fresh offers found (<10 days). Strict mode active.');
-      }
+    if (!allOffersRaw || allOffersRaw.length === 0) {
+      throw new Error('No active offers in energy_offers table.');
     }
 
-    // BLOCKLIST FILTER REMOVED AS REQUESTED BY USER
-    // We trust that 10-day freshness + live validation is enough.
+    // Transform to unified format
+    const allOffers = allOffersRaw.map(o => ({
+      id: o.id,
+      provider: o.fornitore || o.provider,
+      plan_name: o.nome_offerta || o.offer_name,
+      commodity: (o.commodity || o.tipo_fornitura || '').toUpperCase(),
+      price_kwh: o.prezzo_energia_euro_kwh,
+      unit_price_eur_smc: o.prezzo_energia_euro_smc,
+      fixed_fee_eur_mo: o.quota_fissa_mensile_euro || 0,
+      pricing_type: o.tipo_prezzo,
+      is_green: o.is_green || false,
+      redirect_url: o.redirect_url || o.url_offerta,
+      promo_active: o.promo_active,
+      promo_text: o.promo_text,
+      source: 'energy_offers'
+    }));
 
-    if (allOffers.length === 0) {
-      throw new Error('No valid offers available (filtered by date).');
-    }
-
-    console.log(`[COMPARE] Total offers for analysis: ${allOffers.length}`);
+    console.log(`[COMPARE] Transformed offers: ${allOffers.length}`);
 
     // 3. Determine user consumption
     let annualConsumption = billType === 'gas' ? ocrData?.consumo_annuo_smc : ocrData?.annual_kwh;
@@ -157,10 +131,20 @@ serve(async (req) => {
 
     const currentAnnualCost = billType === 'gas' ? ocrData?.costo_annuo_gas : ocrData?.total_cost_eur;
 
-    // 4. Calculate costs for all relevant offers
+    // 4. STRICT commodity filter (GAS ≠ LUCE)
+    const commodityFinal = billType === 'gas' ? 'GAS' : 'LUCE';
+    console.log('[COMPARE] commodity_final:', commodityFinal);
+    console.log('[COMPARE] offers BEFORE commodity filter:', allOffers.length);
+    
     const relevantOffers = allOffers.filter(o => 
-      o.commodity === billType || o.commodity === 'dual' || o.commodity === 'luce'
+      o.commodity === commodityFinal || o.commodity === 'DUAL'
     );
+    
+    console.log('[COMPARE] offers AFTER commodity filter:', relevantOffers.length);
+    
+    if (relevantOffers.length === 0) {
+      throw new Error(`No ${commodityFinal} offers available in energy_offers. Check commodity column.`);
+    }
 
     const calculatedOffers = relevantOffers
       .map(offer => {
