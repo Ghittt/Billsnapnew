@@ -109,13 +109,9 @@ SCENARIO BONUS:
 
 3. ⚠️ **ONESTÀ**: Se non conviene cambiare, dillo chiaramente e complimentati per la scelta attuale.
 
-4. ⚠️ **COMMODITY**: Se la bolletta è GAS, parla SOLO di offerte gas. Se è LUCE, parla SOLO di offerte luce. Mai mescolare.
+Il tuo obiettivo è analizzare la bolletta e dare un consiglio schietto e utile.
 
-5. ⚠️ **CONSUMI**: Valuta le offerte in base ai consumi reali dell'utente (Smc per gas, kWh per luce).
-
-Il tuo obiettivo è analizzare la bolletta e dare un consiglio schietto e utile basato sul PERIODO DI RIFERIMENTO della bolletta.
-
-DATI UTENTE (calcolati dal periodo di riferimento in bolletta):
+DATI UTENTE:
 - Spesa attuale: €${Number(spesa_mensile_corrente).toFixed(2)}/mese (€${Number(spesa_annua_corrente).toFixed(2)}/anno)
 - Consumo annuo: ${consumo_annuo_kwh} kWh
 - Fornitore attuale: ${fornitore_attuale}

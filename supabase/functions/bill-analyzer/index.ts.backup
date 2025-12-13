@@ -1,17 +1,6 @@
 // @ts-nocheck
 /**
- * Bill Analyzer Edge Function v6 - Period-Based Calculation
- * 
- * KEY LOGIC:
- * 1. Period-based cost calculation: costo_mensile = totale_periodo_euro / mesi
- *    - "Ottobre" (mesi=1): €27 / 1 = €27/mese
- *    - "Ottobre-Novembre" (mesi=2): €54 / 2 = €27/mese
- * 
- * 2. Commodity filtering: Gas bills → only gas offers, Luce bills → only luce offers
- * 
- * 3. Consumption-based evaluation: Offers evaluated on actual consumption (Smc for gas, kWh for luce)
- * 
- * 4. Positive savings only: NEVER recommend offers more expensive than current
+ * Bill Analyzer Edge Function v5
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -42,17 +31,7 @@ function calcCostoAnnuo(consumo, prezzo, quotaFissa) {
 function selectBestOffers(offerte, consumo, costoAttuale, soglia, tipo) {
   const pk = tipo === "luce" ? "prezzo_energia_euro_kwh" : "prezzo_energia_euro_smc";
   
-  // CRITICAL: Filter by commodity type to prevent gas/luce mix-ups
-  const offerteFiltered = offerte.filter(o => {
-    if (tipo === "luce") {
-      return o.commodity === "luce" || o.commodity === "electricity" || o.tipo_fornitura === "luce";
-    } else if (tipo === "gas") {
-      return o.commodity === "gas" || o.tipo_fornitura === "gas";
-    }
-    return true; // fallback if commodity not specified
-  });
-  
-  const valutate = offerteFiltered
+  const valutate = offerte
     .filter(o => o[pk] != null)
     .map(o => {
       const costo = calcCostoAnnuo(consumo, o[pk], o.quota_fissa_mensile_euro);
@@ -61,15 +40,8 @@ function selectBestOffers(offerte, consumo, costoAttuale, soglia, tipo) {
                       (o.nome_offerta?.toLowerCase().includes("fix") || o.nome_offerta?.toLowerCase().includes("fisso"));
       return { o, costo, risparmio, isFisso };
     })
-    // CRITICAL RULE: ONLY recommend offers with POSITIVE savings (cheaper than current)
-    .filter(x => x.risparmio !== null && x.risparmio > 0)
+    .filter(x => x.risparmio !== null && x.risparmio / 12 >= soglia)
     .sort((a, b) => (b.risparmio || 0) - (a.risparmio || 0));
-
-  console.log(`[selectBestOffers] ${tipo.toUpperCase()}: Found ${valutate.length} better offers (from ${offerteFiltered.length} ${tipo} offers, ${offerte.length} total in DB)`);
-  
-  if (valutate.length === 0 && offerteFiltered.length > 0) {
-    console.log(`[selectBestOffers] ${tipo.toUpperCase()}: All ${offerteFiltered.length} offers are MORE EXPENSIVE than current (€${costoAttuale}/year)`);
-  }
 
   return {
     fissa: valutate.find(x => x.isFisso) || null,
@@ -151,7 +123,7 @@ serve(async (req) => {
               luce.messaggio_utente = `Potresti risparmiare circa €${best.risparmio_mensile?.toFixed(0) || '?'} al mese passando a ${best.nome || 'una nuova offerta'}.`;
             } else {
               luce.stato = "sei_gia_messo_bene";
-              luce.messaggio_utente = "Ottima notizia! La tua tariffa luce attuale è già tra le migliori sul mercato. Non ha senso cambiare fornitore.";
+              luce.messaggio_utente = "La tua tariffa attuale è già tra le migliori sul mercato.";
             }
           } else { luce.messaggio_utente = "Non siamo riusciti a determinare il tuo consumo annuo."; }
         } else { luce.messaggio_utente = "Non siamo riusciti a determinare il periodo di fatturazione."; }
@@ -188,7 +160,7 @@ serve(async (req) => {
               gas.messaggio_utente = `Potresti risparmiare circa €${best.risparmio_mensile?.toFixed(0) || '?'} al mese passando a ${best.nome || 'una nuova offerta'}.`;
             } else {
               gas.stato = "sei_gia_messo_bene";
-              gas.messaggio_utente = "Ottima notizia! La tua tariffa gas attuale è già tra le migliori sul mercato. Non ha senso cambiare fornitore.";
+              gas.messaggio_utente = "La tua tariffa gas attuale è già competitiva.";
             }
           }
         }

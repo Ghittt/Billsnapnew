@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * Sync Offers Edge Function v6 - Gas Providers Added
+ * Sync Offers Edge Function v5.1 - Pipeline Overhaul
  * 
  * Logic:
  * 1. API Check (Placeholder)
@@ -27,24 +27,11 @@ const corsHeaders = {
 };
 
 const PROVIDER_URLS = [
-  // LUCE (Electricity) Providers
   { provider: "Pulsee", tipo: "luce", url: "https://www.pulsee.it/offerte/luce-per-te" },
   { provider: "Enel", tipo: "luce", url: "https://www.enel.it/it/luce-e-gas/offerte-luce" },
   { provider: "Eni Plenitude", tipo: "luce", url: "https://www.eni.com/it-IT/luce-gas/offerte.html" },
   { provider: "NeN", tipo: "luce", url: "https://nen.it/luce-gas" },
   { provider: "Iren", tipo: "luce", url: "https://www.irenlucegas.it/casa/offerte-luce" },
-  
-  // GAS Providers - NEWLY ADDED (Dec 2025)
-  { provider: "Pulsee", tipo: "gas", url: "https://www.pulsee.it/offerte/gas-per-te" },
-  { provider: "NeN", tipo: "gas", url: "https://nen.it/luce-gas" },
-  { provider: "Argos", tipo: "gas", url: "https://www.argos.it/offerte-gas" },
-  { provider: "Edison", tipo: "gas", url: "https://www.edison.it/offerte/gas" },
-  { provider: "Acea", tipo: "gas", url: "https://www.aceaservizienergetici.it/offerte-gas" },
-  { provider: "A2A", tipo: "gas", url: "https://www.a2aenergia.eu/casa/gas" },
-  { provider: "Enel", tipo: "gas", url: "https://www.enel.it/it/luce-e-gas/offerte-gas" },
-  { provider: "Eni Plenitude", tipo: "gas", url: "https://www.eni.com/it-IT/luce-gas/offerte-gas.html" },
-  { provider: "Iren", tipo: "gas", url: "https://www.irenlucegas.it/casa/offerte-gas" },
-  { provider: "Sorgenia", tipo: "gas", url: "https://www.sorgenia.it/offerte/gas" },
 ];
 
 const EXTRACT_PROMPT = `Analizza il contenuto Markdown di questa pagina web di un fornitore di energia.

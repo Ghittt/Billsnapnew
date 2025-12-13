@@ -80,42 +80,12 @@ SCENARIO BONUS:
 - Risparmio con bonus: €${scenario_con_bonus.risparmio_annuo_con_bonus?.toFixed(2) || 'N/A'}`;
     }
 
-    // CRITICAL: Pre-validate before calling AI
-    // If NO better offers exist, return immediately without AI
-    if ((!offerta_fissa || !offerta_fissa.costo_annuo || fixedSavings.annual <= 0) &&
-        (!offerta_variabile || !offerta_variabile.costo_annuo || variableSavings.annual <= 0)) {
-      
-      console.log("[Energy Coach] No better offers found. Returning positive message.");
-      
-      return new Response(
-        JSON.stringify({ 
-          ok: true, 
-          analysis: `#### Ottima notizia! ��\n\nHai già l'offerta migliore sul mercato per il tuo profilo di consumo.\n\n**La tua situazione attuale:**\n- Spendi circa €${Number(spesa_mensile_corrente).toFixed(0)} al mese\n- Consumo annuo: ${consumo_annuo_kwh} kWh\n- Fornitore: ${fornitore_attuale}\n\n**Il nostro consiglio:**\nNon cambiare fornitore. Stai già pagando un prezzo competitivo e cambiare comporterebbe solo burocrazia senza vantaggi economici.\n\nContinua così! 👍`,
-          model_used: "hardcoded-no-better-offers"
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Determine Logic prior to prompt to guide AI
     
     const systemPrompt = `Sei l'Energy Coach di BillSnap: un amico esperto, professionale ma informale (dai del tu).
+Il tuo obiettivo è analizzare la bolletta e dare un consiglio schietto e utile.
 
-**REGOLE CRITICHE - LEGGI PRIMA DI TUTTO:**
-
-1. ⚠️ **MAI RACCOMANDARE OFFERTE PIÙ CARE**: Se ENTRAMBE le offerte costano PIÙ dell'attuale, devi dire CHIARAMENTE che l'utente ha GIÀ la migliore offerta e NON deve cambiare. NON inventare vantaggi se il risparmio è negativo.
-
-2. ⚠️ **RISPARMIO MINIMO**: Se il risparmio annuo è < €20, consiglia di NON cambiare (non vale la burocrazia).
-
-3. ⚠️ **ONESTÀ**: Se non conviene cambiare, dillo chiaramente e complimentati per la scelta attuale.
-
-4. ⚠️ **COMMODITY**: Se la bolletta è GAS, parla SOLO di offerte gas. Se è LUCE, parla SOLO di offerte luce. Mai mescolare.
-
-5. ⚠️ **CONSUMI**: Valuta le offerte in base ai consumi reali dell'utente (Smc per gas, kWh per luce).
-
-Il tuo obiettivo è analizzare la bolletta e dare un consiglio schietto e utile basato sul PERIODO DI RIFERIMENTO della bolletta.
-
-DATI UTENTE (calcolati dal periodo di riferimento in bolletta):
+DATI UTENTE:
 - Spesa attuale: €${Number(spesa_mensile_corrente).toFixed(2)}/mese (€${Number(spesa_annua_corrente).toFixed(2)}/anno)
 - Consumo annuo: ${consumo_annuo_kwh} kWh
 - Fornitore attuale: ${fornitore_attuale}
