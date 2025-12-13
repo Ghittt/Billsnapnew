@@ -76,7 +76,7 @@ function filterOffersByCommodity(offers, commodity) {
   }).filter(o => o.estimated_annual_eur && o.estimated_annual_eur > 0);
 }
 
-function selectBestOffer(offers, currentAnnual, tolerance = 0.01) {
+function selectBestOffer(offers, currentAnnual, tolerance = 0.02) {
   if (!offers || offers.length === 0) {
     return { offer: null, action: "INSUFFICIENT_DATA", reason: "Nessuna offerta comparabile disponibile." };
   }
@@ -92,11 +92,15 @@ function selectBestOffer(offers, currentAnnual, tolerance = 0.01) {
   
   const savingsPercent = (currentAnnual - best.estimated_annual_eur) / currentAnnual;
   
-  if (savingsPercent < tolerance) {
+  // CRITICAL RULE: If savings ≤ 0 or < 2%, action = STAY with explanation
+  if (savingsPercent <= 0 || savingsPercent < tolerance) {
+    const reasonText = savingsPercent <= 0 
+      ? "La tua offerta attuale è già la più conveniente sul mercato. Non ci sono offerte migliori disponibili."
+      : "La differenza è inferiore al " + Math.round(tolerance * 100) + "% (" + Math.round(savingsPercent * 100) + "% effettivo). Non vale la burocrazia del cambio.";
     return { 
       offer: best, 
       action: "STAY", 
-      reason: "Sei già tra i migliori: la differenza è inferiore al " + Math.round(tolerance * 100) + "%. Restare conviene." 
+      reason: reasonText
     };
   }
   
