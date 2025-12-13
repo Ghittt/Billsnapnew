@@ -199,58 +199,74 @@ const ResultsPage = () => {
           setCurrentCost(Number(targetData.current.annual_eur));
         }
         
-        // Check decision action
+        // Handle decision.action with switch statement
         const action = targetData?.decision?.action;
+        const copy = targetData?.expert_copy;
         
-        if (action === "STAY" || action === "ASK_CLARIFICATION" || action === "INSUFFICIENT_DATA") {
-          console.log('[Results] Decision: ' + action + ' - ' + targetData?.decision?.reason);
-          setHasGoodOffer(action === "STAY");
-          
-          // Still show AI analysis for context
-          if (targetData?.expert_copy) {
-            const copy = targetData.expert_copy;
-            const aiText = "#### " + copy.headline + "\n\n" + copy.summary_3_lines.join("\n\n") + "\n\n**Prossimi passi:**\n" + copy.next_steps.map((s, i) => (i+1) + ". " + s).join("\n");
-            setAiAnalysis(aiText);
+        // Helper: Generate AI text from expert_copy
+        const generateAiText = (expertCopy, includeProsCons = false) => {
+          if (!expertCopy) return "";
+          let text = "#### " + expertCopy.headline + "\n\n";
+          text += expertCopy.summary_3_lines?.join("\n\n") + "\n\n";
+          if (includeProsCons && expertCopy.pros_cons?.switch?.length > 0) {
+            text += "**Vantaggi del cambio:**\n" + expertCopy.pros_cons.switch.map(p => "- " + p).join("\n") + "\n\n";
+          }
+          if (includeProsCons && expertCopy.pros_cons?.stay?.length > 0) {
+            text += "**Se resti dove sei:**\n" + expertCopy.pros_cons.stay.map(p => "- " + p).join("\n") + "\n\n";
+          }
+          text += "**Prossimi passi:**\n" + (expertCopy.next_steps || []).map((s, i) => (i+1) + ". " + s).join("\n");
+          if (expertCopy.disclaimer) text += "\n\n*" + expertCopy.disclaimer + "*";
+          return text;
+        };
+        
+        switch (action) {
+          case "SWITCH": {
+            // renderSwitch() - Show offer cards and recommendation
+            console.log('[Results] Decision: SWITCH');
+            const best = targetData.best_offer;
+            const savings = targetData.savings;
+            
+            if (best) {
+              const ranked = [{
+                id: best.offer_name || 'best-1',
+                provider: best.provider,
+                plan_name: best.offer_name,
+                simulated_cost: best.annual_eur || 0,
+                tipo_prezzo: best.price_type?.toLowerCase() || 'variabile',
+                risparmio_mensile: savings?.monthly_eur || 0,
+                link: best.link
+              }];
+              
+              setBestOffer(ranked[0]);
+              setAllOffers(ranked);
+            }
+            setAiAnalysis(generateAiText(copy, true));
+            break;
           }
           
-          setIsLoading(false);
-          return;
-        }
-        
-        // Action is SWITCH - we have a better offer
-        if (action === "SWITCH" && targetData?.best_offer) {
-          const best = targetData.best_offer;
-          const savings = targetData.savings;
+          case "STAY":
+          case "INSUFFICIENT_DATA": {
+            // renderStayExplanation() - Show explanation why NOT to switch
+            console.log('[Results] Decision: ' + action + ' - ' + targetData?.decision?.reason);
+            setHasGoodOffer(true);
+            setAiAnalysis(generateAiText(copy, false));
+            setIsLoading(false);
+            return; // Exit early, no offers to show
+          }
           
-          const ranked = [{
-            id: best.offer_name || 'best-1',
-            provider: best.provider,
-            plan_name: best.offer_name,
-            simulated_cost: best.annual_eur || 0,
-            tipo_prezzo: best.price_type?.toLowerCase() || 'variabile',
-            risparmio_mensile: savings?.monthly_eur || 0,
-            link: best.link
-          }];
+          case "ASK_CLARIFICATION": {
+            // renderQuestion() - Ask user for more info
+            console.log('[Results] Decision: ASK_CLARIFICATION - ' + targetData?.decision?.reason);
+            setHasGoodOffer(false);
+            const questionText = "#### Abbiamo bisogno di più informazioni\n\n" + (targetData?.decision?.reason || "Per favore carica una bolletta più completa.");
+            setAiAnalysis(questionText);
+            setIsLoading(false);
+            return; // Exit early
+          }
           
-          setBestOffer(ranked[0]);
-          setAllOffers(ranked);
-          
-          // Generate AI text from expert_copy
-          if (targetData?.expert_copy) {
-            const copy = targetData.expert_copy;
-            let aiText = "#### " + copy.headline + "\n\n";
-            aiText += copy.summary_3_lines.join("\n\n") + "\n\n";
-            
-            if (copy.pros_cons?.switch?.length > 0) {
-              aiText += "**Vantaggi del cambio:**\n" + copy.pros_cons.switch.map(p => "- " + p).join("\n") + "\n\n";
-            }
-            if (copy.pros_cons?.stay?.length > 0) {
-              aiText += "**Se resti dove sei:**\n" + copy.pros_cons.stay.map(p => "- " + p).join("\n") + "\n\n";
-            }
-            aiText += "**Prossimi passi:**\n" + copy.next_steps.map((s, i) => (i+1) + ". " + s).join("\n");
-            aiText += "\n\n*" + copy.disclaimer + "*";
-            
-            setAiAnalysis(aiText);
+          default: {
+            console.warn('[Results] Unknown action:', action);
+            setAiAnalysis("#### Analisi non disponibile\n\nNon siamo riusciti a elaborare la tua bolletta. Riprova.");
           }
         }
       } else {
