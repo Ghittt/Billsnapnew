@@ -56,8 +56,13 @@ function calculateMonthsEquivalent(period) {
   return 1;
 }
 
-function filterOffersByCommodity(offers, commodity) {
-  if (!offers || !Array.isArray(offers)) return [];
+function filterOffersByCommodity(offers, commodity, consumption = null) {
+  if (!offers || !Array.isArray(offers)) {
+    console.log('[FILTER] No offers or not array:', offers);
+    return [];
+  }
+  
+  console.log('[FILTER] Processing', offers.length, 'offers for commodity:', commodity);
   
   return offers.filter(o => {
     const offerCommodity = (o.commodity || "").toUpperCase();
@@ -68,12 +73,45 @@ function filterOffersByCommodity(offers, commodity) {
     }
     return false;
   }).map(o => {
-    // Ensure annual_eur exists
-    if (!o.estimated_annual_eur && o.estimated_monthly_eur) {
-      o.estimated_annual_eur = o.estimated_monthly_eur * 12;
+    // Try to get or calculate estimated_annual_eur
+    // Priority: estimated_annual_eur > costo_annuo_stimato > calculate from price * consumption
+    
+    if (o.estimated_annual_eur && o.estimated_annual_eur > 0) {
+      return o; // Already has annual cost
     }
+    
+    if (o.costo_annuo_stimato && o.costo_annuo_stimato > 0) {
+      o.estimated_annual_eur = o.costo_annuo_stimato;
+      return o;
+    }
+    
+    // Calculate from unit price + fixed fee
+    const unitPrice = commodity === "GAS" 
+      ? (o.prezzo_energia_euro_smc || o.unit_price_smc || 0)
+      : (o.prezzo_energia_euro_kwh || o.price_kwh || 0);
+    const fixedFee = o.quota_fissa_mensile_euro || o.fixed_fee_monthly || 0;
+    
+    // Use default consumption if not provided
+    const cons = consumption || (commodity === "GAS" ? 1200 : 2700);
+    
+    if (unitPrice > 0) {
+      // Calculate: (price * consumption) + (fixed * 12) + system charges + VAT
+      const energyCost = unitPrice * cons + (fixedFee * 12);
+      const systemCharges = commodity === "GAS" ? (cons * 0.25) + 70 : (cons * 0.06) + 35;
+      o.estimated_annual_eur = Math.round((energyCost + systemCharges) * 1.10);
+      console.log('[FILTER] Calculated annual cost for', o.nome_offerta || o.fornitore, ':', o.estimated_annual_eur);
+    } else {
+      console.log('[FILTER] No unit price for offer:', o.nome_offerta || o.fornitore, 'price:', unitPrice);
+    }
+    
     return o;
-  }).filter(o => o.estimated_annual_eur && o.estimated_annual_eur > 0);
+  }).filter(o => {
+    const hasAnnual = o.estimated_annual_eur && o.estimated_annual_eur > 0;
+    if (!hasAnnual) {
+      console.log('[FILTER] Filtered out offer (no annual cost):', o.nome_offerta || o.fornitore);
+    }
+    return hasAnnual;
+  });
 }
 
 function selectBestOffer(offers, currentAnnual, tolerance = 0.02) {
