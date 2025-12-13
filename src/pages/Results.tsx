@@ -183,10 +183,23 @@ const ResultsPage = () => {
         setAnalyzerResult(analyzerData);
         
         const targetData = tipo === 'gas' ? analyzerData.gas : analyzerData.luce;
-        if (targetData && targetData.stato === 'sei_gia_messo_bene') {
-          setHasGoodOffer(true);
-          setIsLoading(false);
-          return; // Don't show any offers
+        
+        // CRITICAL: Use bill-analyzer's calculated costs, NOT OCR data!
+        if (targetData && targetData.analisi_disponibile) {
+          console.log(`[Results] Using bill-analyzer costs: Monthly €${targetData.costo_attuale_mensile}, Annual €${targetData.costo_attuale_annuo}`);
+          
+          // Override OCR cost with bill-analyzer's correct calculation
+          costo = targetData.costo_attuale_annuo;
+          
+          if (targetData.stato === 'sei_gia_messo_bene') {
+            setHasGoodOffer(true);
+            setConsumption(Number(consumo));
+            setCurrentCost(Number(costo));
+            setIsLoading(false);
+            return; // Don't show any offers
+          }
+        } else {
+          console.warn('[Results] Bill-analyzer did not return valid analysis, falling back to OCR data');
         }
       }
 
