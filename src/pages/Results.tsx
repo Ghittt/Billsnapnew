@@ -181,86 +181,77 @@ const ResultsPage = () => {
       if (analyzerResponse.ok) {
         const analyzerData = await analyzerResponse.json();
         setAnalyzerResult(analyzerData);
+        console.log('[Results] BillSnap Core response:', analyzerData);
         
-        const targetData = tipo === 'gas' ? analyzerData.gas : analyzerData.luce;
+        // New BillSnap Core structure
+        // For DUAL: { commodity_final: "DUAL", luce: {...}, gas: {...} }
+        // For single: { commodity_final: "LUCE"|"GAS", current: {...}, best_offer: {...}, decision: {...}, savings: {...}, expert_copy: {...} }
         
-        // CRITICAL: Use bill-analyzer's calculated costs, NOT OCR data!
-        if (targetData && targetData.analisi_disponibile) {
-          console.log(`[Results] Using bill-analyzer costs: Monthly €${targetData.costo_attuale_mensile}, Annual €${targetData.costo_attuale_annuo}`);
+        let targetData = analyzerData;
+        
+        // Handle DUAL case
+        if (analyzerData.commodity_final === "DUAL") {
+          targetData = tipo === 'gas' ? analyzerData.gas : analyzerData.luce;
+        }
+        
+        // Set current cost from Core response
+        if (targetData?.current?.annual_eur) {
+          setCurrentCost(Number(targetData.current.annual_eur));
+        }
+        
+        // Check decision action
+        const action = targetData?.decision?.action;
+        
+        if (action === "STAY" || action === "ASK_CLARIFICATION" || action === "INSUFFICIENT_DATA") {
+          console.log('[Results] Decision: ' + action + ' - ' + targetData?.decision?.reason);
+          setHasGoodOffer(action === "STAY");
           
-          // NOW set the correct cost from bill-analyzer!
-          setCurrentCost(Number(targetData.costo_attuale_annuo));
-          
-          // ONLY hide if bill-analyzer explicitly says "sei_gia_messo_bene"
-          if (targetData.stato === 'sei_gia_messo_bene') {
-            console.log('[Results] Bill-analyzer says user already has best offer');
-            setHasGoodOffer(true);
-            setIsLoading(false);
-            return; // Don't show any offers
+          // Still show AI analysis for context
+          if (targetData?.expert_copy) {
+            const copy = targetData.expert_copy;
+            const aiText = "#### " + copy.headline + "\n\n" + copy.summary_3_lines.join("\n\n") + "\n\n**Prossimi passi:**\n" + copy.next_steps.map((s, i) => (i+1) + ". " + s).join("\n");
+            setAiAnalysis(aiText);
           }
-        } else {
-          console.warn('[Results] Bill-analyzer did not return valid analysis');
-          throw new Error('Analisi non disponibile per questa bolletta');
+          
+          setIsLoading(false);
+          return;
         }
         
-        // Build offers from bill-analyzer response (INSIDE the if block to fix scoping!)
-        const bestFixed = targetData.offerta_fissa_migliore;
-        const bestVar = targetData.offerta_variabile_migliore;
-        
-        console.log('[Results] Fixed offer:', bestFixed);
-        console.log('[Results] Variable offer:', bestVar);
-        
-        // Create ranked offers list from bill-analyzer data
-        const ranked = [];
-        
-        // Only add offers that have POSITIVE savings (risparmio_mensile > 0)
-        if (bestFixed && bestFixed.id && bestFixed.risparmio_mensile > 0) {
-          ranked.push({
-            id: bestFixed.id,
-            provider: bestFixed.fornitore,
-            plan_name: bestFixed.nome,
-            simulated_cost: bestFixed.costo_mensile ? bestFixed.costo_mensile * 12 : 0,
-            tipo_prezzo: 'fisso',
-            risparmio_mensile: bestFixed.risparmio_mensile
-          });
-        }
-        if (bestVar && bestVar.id && bestVar.risparmio_mensile > 0) {
-          ranked.push({
-            id: bestVar.id,
-            provider: bestVar.fornitore,
-            plan_name: bestVar.nome,
-            simulated_cost: bestVar.costo_mensile ? bestVar.costo_mensile * 12 : 0,
-            tipo_prezzo: 'variabile',
-            risparmio_mensile: bestVar.risparmio_mensile
-          });
-        }
-        
-        // Sort by savings (highest first)
-        ranked.sort((a, b) => (b.risparmio_mensile || 0) - (a.risparmio_mensile || 0));
-        
-        if (ranked.length > 0) {
+        // Action is SWITCH - we have a better offer
+        if (action === "SWITCH" && targetData?.best_offer) {
+          const best = targetData.best_offer;
+          const savings = targetData.savings;
+          
+          const ranked = [{
+            id: best.offer_name || 'best-1',
+            provider: best.provider,
+            plan_name: best.offer_name,
+            simulated_cost: best.annual_eur || 0,
+            tipo_prezzo: best.price_type?.toLowerCase() || 'variabile',
+            risparmio_mensile: savings?.monthly_eur || 0,
+            link: best.link
+          }];
+          
           setBestOffer(ranked[0]);
           setAllOffers(ranked);
           
-          // Call AI analysis with the correct offers
-          fetchAiAnalysis(
-            uploadId, 
-            Number(consumo), 
-            Number(targetData.costo_attuale_mensile), 
-            Number(targetData.costo_attuale_annuo), 
-            ocrResult.provider || 'Fornitore sconosciuto', 
-            ocrResult.tariff_hint,
-            Number(ocrResult.f1_kwh || 0),
-            Number(ocrResult.f2_kwh || 0),
-            Number(ocrResult.f3_kwh || 0),
-            Number(ocrResult.unit_price_eur_kwh || 0),
-            bestFixed,
-            bestVar
-          );
-        } else {
-          // No offers with positive savings found - user has the best deal
-          console.log('[Results] No offers with positive savings, setting hasGoodOffer');
-          setHasGoodOffer(true);
+          // Generate AI text from expert_copy
+          if (targetData?.expert_copy) {
+            const copy = targetData.expert_copy;
+            let aiText = "#### " + copy.headline + "\n\n";
+            aiText += copy.summary_3_lines.join("\n\n") + "\n\n";
+            
+            if (copy.pros_cons?.switch?.length > 0) {
+              aiText += "**Vantaggi del cambio:**\n" + copy.pros_cons.switch.map(p => "- " + p).join("\n") + "\n\n";
+            }
+            if (copy.pros_cons?.stay?.length > 0) {
+              aiText += "**Se resti dove sei:**\n" + copy.pros_cons.stay.map(p => "- " + p).join("\n") + "\n\n";
+            }
+            aiText += "**Prossimi passi:**\n" + copy.next_steps.map((s, i) => (i+1) + ". " + s).join("\n");
+            aiText += "\n\n*" + copy.disclaimer + "*";
+            
+            setAiAnalysis(aiText);
+          }
         }
       } else {
         console.error('[Results] Bill-analyzer request failed');

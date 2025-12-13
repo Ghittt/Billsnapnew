@@ -1,17 +1,13 @@
 // @ts-nocheck
 /**
- * Bill Analyzer Edge Function v6 - Period-Based Calculation
+ * BillSnap Core Engine v1.0
  * 
- * KEY LOGIC:
- * 1. Period-based cost calculation: costo_mensile = totale_periodo_euro / mesi
- *    - "Ottobre" (mesi=1): €27 / 1 = €27/mese
- *    - "Ottobre-Novembre" (mesi=2): €54 / 2 = €27/mese
- * 
- * 2. Commodity filtering: Gas bills → only gas offers, Luce bills → only luce offers
- * 
- * 3. Consumption-based evaluation: Offers evaluated on actual consumption (Smc for gas, kWh for luce)
- * 
- * 4. Positive savings only: NEVER recommend offers more expensive than current
+ * A stable, correct, and coherent bill analysis engine.
+ * RULES:
+ * 1. Never confuse GAS and LUCE
+ * 2. Never recommend more expensive offers
+ * 3. Always validate savings calculations
+ * 4. Return structured JSON with embedded expert_copy
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -21,198 +17,386 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function estimateMesi(dataInizio, dataFine) {
-  if (!dataInizio || !dataFine) return null;
-  try {
-    const diffDays = Math.ceil(Math.abs(new Date(dataFine) - new Date(dataInizio)) / (1000 * 60 * 60 * 24));
-    return Math.max(1, Math.round(diffDays / 30));
-  } catch { return null; }
-}
+// ==================== HELPER FUNCTIONS ====================
 
-function calcConsumoAnnuo(consumoPeriodo, mesi) {
-  if (!consumoPeriodo || !mesi || mesi <= 0) return null;
-  return Math.round(consumoPeriodo * (12 / mesi));
-}
-
-function calcCostoAnnuo(consumo, prezzo, quotaFissa) {
-  if (prezzo === null || prezzo === undefined) return null;
-  return Math.round((consumo * prezzo + (quotaFissa || 0) * 12) * 100) / 100;
-}
-
-function selectBestOffers(offerte, consumo, costoAttuale, soglia, tipo) {
-  const pk = tipo === "luce" ? "prezzo_energia_euro_kwh" : "prezzo_energia_euro_smc";
+function determineCommodity(bill) {
+  const hasPDR = bill.identifiers?.PDR || false;
+  const hasPOD = bill.identifiers?.POD || false;
+  const hasSmc = (bill.consumption?.smc || 0) > 0;
+  const hasKwh = (bill.consumption?.kwh || 0) > 0;
   
-  // CRITICAL: Filter by commodity type to prevent gas/luce mix-ups
-  const offerteFiltered = offerte.filter(o => {
-    if (tipo === "luce") {
-      return o.commodity === "luce" || o.commodity === "electricity" || o.tipo_fornitura === "luce";
-    } else if (tipo === "gas") {
-      return o.commodity === "gas" || o.tipo_fornitura === "gas";
+  const isGas = hasPDR || hasSmc;
+  const isLuce = hasPOD || hasKwh;
+  
+  if (isGas && isLuce) return "DUAL";
+  if (isGas) return "GAS";
+  if (isLuce) return "LUCE";
+  
+  // Fallback to hint
+  if (bill.commodity_hint) return bill.commodity_hint;
+  
+  return "ASK_CLARIFICATION";
+}
+
+function calculateMonthsEquivalent(period) {
+  if (period?.start && period?.end) {
+    const start = new Date(period.start);
+    const end = new Date(period.end);
+    const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    return Math.max(1, diffDays / 30.4375);
+  }
+  
+  // Use label if available
+  const labelMap = { "mensile": 1, "bimestrale": 2, "trimestrale": 3, "semestrale": 6, "annuale": 12 };
+  if (period?.label && labelMap[period.label.toLowerCase()]) {
+    return labelMap[period.label.toLowerCase()];
+  }
+  
+  // Default prudent estimate
+  return 1;
+}
+
+function filterOffersByCommodity(offers, commodity) {
+  if (!offers || !Array.isArray(offers)) return [];
+  
+  return offers.filter(o => {
+    const offerCommodity = (o.commodity || "").toUpperCase();
+    if (commodity === "GAS") {
+      return offerCommodity === "GAS";
+    } else if (commodity === "LUCE") {
+      return offerCommodity === "LUCE" || offerCommodity === "ELECTRICITY";
     }
-    return true; // fallback if commodity not specified
-  });
-  
-  const valutate = offerteFiltered
-    .filter(o => o[pk] != null)
-    .map(o => {
-      const costo = calcCostoAnnuo(consumo, o[pk], o.quota_fissa_mensile_euro);
-      const risparmio = costo !== null ? costoAttuale - costo : null;
-      const isFisso = o.tipo_prezzo === "fisso" || o.is_fixed_price || 
-                      (o.nome_offerta?.toLowerCase().includes("fix") || o.nome_offerta?.toLowerCase().includes("fisso"));
-      return { o, costo, risparmio, isFisso };
-    })
-    // CRITICAL RULE: ONLY recommend offers with POSITIVE savings (cheaper than current)
-    .filter(x => x.risparmio !== null && x.risparmio > 0)
-    // SORT BY LOWEST COST (most economical offer first)
-    .sort((a, b) => (a.costo || Infinity) - (b.costo || Infinity));
+    return false;
+  }).map(o => {
+    // Ensure annual_eur exists
+    if (!o.estimated_annual_eur && o.estimated_monthly_eur) {
+      o.estimated_annual_eur = o.estimated_monthly_eur * 12;
+    }
+    return o;
+  }).filter(o => o.estimated_annual_eur && o.estimated_annual_eur > 0);
+}
 
-  console.log(`[selectBestOffers] ${tipo.toUpperCase()}: Found ${valutate.length} better offers (from ${offerteFiltered.length} ${tipo} offers, ${offerte.length} total in DB)`);
-  
-  if (valutate.length === 0 && offerteFiltered.length > 0) {
-    console.log(`[selectBestOffers] ${tipo.toUpperCase()}: All ${offerteFiltered.length} offers are MORE EXPENSIVE than current (€${costoAttuale}/year)`);
+function selectBestOffer(offers, currentAnnual, tolerance = 0.01) {
+  if (!offers || offers.length === 0) {
+    return { offer: null, action: "INSUFFICIENT_DATA", reason: "Nessuna offerta comparabile disponibile." };
   }
   
-  if (valutate.length > 0) {
-    console.log(`[selectBestOffers] ${tipo.toUpperCase()}: CHEAPEST = ${valutate[0].o.fornitore} ${valutate[0].o.nome_offerta} (€${valutate[0].costo}/year, saves €${valutate[0].risparmio}/year)`);
+  // Sort by annual cost (cheapest first)
+  const sorted = [...offers].sort((a, b) => a.estimated_annual_eur - b.estimated_annual_eur);
+  const best = sorted[0];
+  
+  // Check if best offer is actually cheaper
+  if (!currentAnnual || currentAnnual <= 0) {
+    return { offer: best, action: "INSUFFICIENT_DATA", reason: "Costo attuale non disponibile per il confronto." };
   }
-
-  // CRITICAL: Return CHEAPEST offer overall as primary recommendation
-  return {
-    fissa: valutate[0] || null,  // CHEAPEST offer (regardless of type)
-    variabile: valutate[1] || null  // Second cheapest (if exists)
+  
+  const savingsPercent = (currentAnnual - best.estimated_annual_eur) / currentAnnual;
+  
+  if (savingsPercent < tolerance) {
+    return { 
+      offer: best, 
+      action: "STAY", 
+      reason: "Sei già tra i migliori: la differenza è inferiore al " + Math.round(tolerance * 100) + "%. Restare conviene." 
+    };
+  }
+  
+  return { 
+    offer: best, 
+    action: "SWITCH", 
+    reason: "Abbiamo trovato un'offerta più conveniente con un risparmio significativo." 
   };
 }
 
-function formatOffer(x) {
-  if (!x) return { id: null, nome: null, fornitore: null, costo_mensile: null, risparmio_mensile: null };
-  const risparmioMensile = x.risparmio ? Math.round(x.risparmio / 12 * 100) / 100 : null;
+function calculateSavings(currentAnnual, bestAnnual) {
+  if (!currentAnnual || !bestAnnual || currentAnnual <= 0) {
+    return { monthly_eur: null, annual_eur: null, percent: null };
+  }
+  
+  const annual = currentAnnual - bestAnnual;
+  const monthly = annual / 12;
+  const percent = (annual / currentAnnual) * 100;
+  
   return {
-    id: x.o.id,
-    nome: x.o.nome_offerta,
-    fornitore: x.o.fornitore,
-    costo_mensile: x.costo ? Math.round(x.costo / 12 * 100) / 100 : null,
-    risparmio_mensile: risparmioMensile
+    monthly_eur: Math.round(monthly * 100) / 100,
+    annual_eur: Math.round(annual * 100) / 100,
+    percent: Math.round(percent * 10) / 10
   };
 }
 
-function genSpiegazione(offertaFissa, offertaVariabile) {
-  if (!offertaFissa && !offertaVariabile) {
-    return "Non abbiamo trovato offerte migliori per il tuo profilo.";
+function generateExpertCopy(data, commodity) {
+  const unit = commodity === "GAS" ? "Smc" : "kWh";
+  const identifier = commodity === "GAS" ? "PDR" : "POD";
+  
+  // Headlines based on decision
+  let headline = "";
+  let summaryLines = [];
+  let prosStay = [];
+  let prosSwitch = [];
+  let nextSteps = [];
+  
+  if (data.decision.action === "SWITCH") {
+    headline = "Puoi risparmiare passando a " + (data.best_offer?.provider || "un nuovo fornitore");
+    summaryLines = [
+      "Abbiamo analizzato la tua bolletta " + commodity.toLowerCase() + ".",
+      "Risparmio stimato: €" + (data.savings.annual_eur || 0).toFixed(0) + "/anno (" + (data.savings.percent || 0).toFixed(0) + "%).",
+      "L'offerta consigliata è a prezzo " + (data.best_offer?.price_type?.toLowerCase() || "variabile") + "."
+    ];
+    prosStay = [
+      "Nessun cambio burocratico",
+      "Conosci già il fornitore"
+    ];
+    prosSwitch = [
+      "Risparmio di €" + (data.savings.annual_eur || 0).toFixed(0) + " all'anno",
+      "Offerta verificata e attiva oggi",
+      data.best_offer?.price_type === "FISSO" ? "Prezzo bloccato per 12-24 mesi" : "Prezzo legato al mercato (può variare)"
+    ];
+    nextSteps = [
+      "Clicca su 'Attiva Offerta Online' per procedere",
+      "Tieni a portata di mano IBAN e dati intestatario",
+      "Il cambio è automatico, senza interruzioni di servizio"
+    ];
+  } else if (data.decision.action === "STAY") {
+    headline = "Sei già tra i migliori - Resta dove sei ✓";
+    summaryLines = [
+      "Abbiamo confrontato la tua bolletta " + commodity.toLowerCase() + " con le offerte disponibili.",
+      "La tua tariffa attuale è già competitiva.",
+      "Non conviene cambiare fornitore in questo momento."
+    ];
+    prosStay = [
+      "Stai già pagando un buon prezzo",
+      "Eviti burocrazia inutile"
+    ];
+    prosSwitch = [];
+    nextSteps = [
+      "Monitora le offerte periodicamente (ogni 6-12 mesi)",
+      "Controlla eventuali bonus sociali se ne hai diritto",
+      "Ricarica una nuova bolletta quando vuoi ricontrollare"
+    ];
+  } else {
+    headline = "Dati insufficienti per un'analisi completa";
+    summaryLines = [
+      "Non abbiamo tutti i dati necessari per un confronto.",
+      data.decision.reason,
+      "Prova a caricare una bolletta più completa."
+    ];
+    prosStay = [];
+    prosSwitch = [];
+    nextSteps = [
+      "Carica una bolletta con periodo e importo visibili",
+      "Assicurati che sia leggibile (non sfocata)",
+      "Contattaci se hai bisogno di aiuto"
+    ];
   }
-  if (offertaFissa && offertaVariabile) {
-    const diffMensile = (offertaVariabile.risparmio_mensile || 0) - (offertaFissa.risparmio_mensile || 0);
-    if (Math.abs(diffMensile) < 3) {
-      return `Le due offerte sono molto simili. L'offerta fissa ti protegge dagli aumenti per 12-24 mesi. Quella variabile segue il mercato: può costare meno se i prezzi scendono, ma potrebbe aumentare nei prossimi mesi. Per la maggior parte delle famiglie, consigliamo il fisso per la tranquillità.`;
-    } else if (diffMensile > 0) {
-      return `L'offerta variabile oggi costa circa €${Math.abs(diffMensile).toFixed(0)} in meno al mese, ma il prezzo può cambiare. L'offerta fissa ti garantisce stabilità: sai già quanto pagherai per i prossimi 12-24 mesi. Se preferisci evitare sorprese, scegli il fisso.`;
-    } else {
-      return `L'offerta fissa oggi è più conveniente di circa €${Math.abs(diffMensile).toFixed(0)} al mese. In più ti protegge da eventuali rincari futuri. L'offerta variabile potrebbe diventare più conveniente se i prezzi dell'energia scendono, ma comporta più rischio.`;
-    }
-  }
-  if (offertaFissa) return `Abbiamo trovato un'offerta a prezzo fisso che ti farebbe risparmiare circa €${offertaFissa.risparmio_mensile?.toFixed(0) || '?'} al mese. Il prezzo resta bloccato per 12-24 mesi.`;
-  if (offertaVariabile) return `Abbiamo trovato un'offerta variabile che oggi ti farebbe risparmiare circa €${offertaVariabile.risparmio_mensile?.toFixed(0) || '?'} al mese. Attenzione: il prezzo può variare.`;
-  return "";
+  
+  return {
+    headline,
+    summary_3_lines: summaryLines,
+    pros_cons: {
+      stay: prosStay,
+      switch: prosSwitch
+    },
+    next_steps: nextSteps,
+    detailed_comparison_rows: [
+      { label: "Fornitore", current: data.current?.provider || "N/A", best: data.best_offer?.provider || "N/A" },
+      { label: "Nome offerta", current: data.current?.offer_name || "N/A", best: data.best_offer?.offer_name || "N/A" },
+      { label: "Costo mensile", current: data.current?.monthly_eur ? "€" + data.current.monthly_eur.toFixed(2) : "N/A", best: data.best_offer?.monthly_eur ? "€" + data.best_offer.monthly_eur.toFixed(2) : "N/A" },
+      { label: "Costo annuo", current: data.current?.annual_eur ? "€" + data.current.annual_eur.toFixed(2) : "N/A", best: data.best_offer?.annual_eur ? "€" + data.best_offer.annual_eur.toFixed(2) : "N/A" },
+      { label: "Tipo prezzo", current: "Attuale", best: data.best_offer?.price_type || "N/A" }
+    ],
+    disclaimer: "I calcoli sono stime basate sui dati forniti. Il risparmio effettivo può variare in base ai consumi reali e alle condizioni contrattuali."
+  };
 }
+
+// ==================== MAIN HANDLER ====================
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "content-type": "application/json" } });
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Method not allowed" }), { 
+        status: 405, 
+        headers: { ...corsHeaders, "content-type": "application/json" } 
+      });
+    }
 
     const { ocr, profilo_utente, offerte_luce, offerte_gas, parametri_business } = await req.json();
-    if (!ocr || !profilo_utente || !parametri_business) return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } });
-
-    const soglia = parametri_business.soglia_risparmio_significativo_mese || 5;
-    const isOver70 = profilo_utente.eta >= 70;
-    const isIseeBasso = profilo_utente.isee_range === "basso";
-
-    // ====== LUCE ======
-    let luce = { analisi_disponibile: false, costo_attuale_mensile: null, costo_attuale_annuo: null, consumo_annuo: null, offerta_fissa: formatOffer(null), offerta_variabile: formatOffer(null), stato: "dati_insufficienti", messaggio_utente: "Carica una bolletta luce per ricevere un'analisi." };
-
-    if (ocr.tipo_fornitura === "luce" || ocr.tipo_fornitura === "luce+gas") {
-      const b = ocr.bolletta_luce;
-      if (b?.totale_periodo_euro != null) {
-        const mesi = b.periodo?.mesi || estimateMesi(b.periodo?.data_inizio, b.periodo?.data_fine);
-        if (mesi > 0) {
-          const costoMensile = Math.round(b.totale_periodo_euro / mesi * 100) / 100;
-          const costoAnnuo = Math.round(costoMensile * 12 * 100) / 100;
-          const consumo = b.consumo_annuo_kwh || calcConsumoAnnuo(b.consumo_periodo_kwh, mesi);
-
-          if (consumo > 0) {
-            luce.analisi_disponibile = true;
-            luce.costo_attuale_mensile = costoMensile;
-            luce.costo_attuale_annuo = costoAnnuo;
-            luce.consumo_annuo = consumo;
-
-            const { fissa, variabile } = selectBestOffers(offerte_luce || [], consumo, costoAnnuo, soglia, "luce");
-            const offertaFissa = formatOffer(fissa);
-            const offertaVariabile = formatOffer(variabile);
-            luce.offerta_fissa = offertaFissa;
-            luce.offerta_variabile = offertaVariabile;
-
-            if (offertaFissa.id || offertaVariabile.id) {
-              luce.stato = "puoi_risparmiare";
-              const best = offertaFissa.id ? offertaFissa : offertaVariabile;
-              luce.messaggio_utente = `Potresti risparmiare circa €${best.risparmio_mensile?.toFixed(0) || '?'} al mese passando a ${best.nome || 'una nuova offerta'}.`;
-            } else {
-              luce.stato = "sei_gia_messo_bene";
-              luce.messaggio_utente = "Ottima notizia! La tua tariffa luce attuale è già tra le migliori sul mercato. Non ha senso cambiare fornitore.";
-            }
-          } else { luce.messaggio_utente = "Non siamo riusciti a determinare il tuo consumo annuo."; }
-        } else { luce.messaggio_utente = "Non siamo riusciti a determinare il periodo di fatturazione."; }
-      }
+    
+    if (!ocr) {
+      return new Response(JSON.stringify({ error: "Missing OCR data" }), { 
+        status: 400, 
+        headers: { ...corsHeaders, "content-type": "application/json" } 
+      });
     }
 
-    // ====== GAS ======
-    let gas = { analisi_disponibile: false, costo_attuale_mensile: null, costo_attuale_annuo: null, consumo_annuo: null, offerta_fissa: formatOffer(null), offerta_variabile: formatOffer(null), stato: "dati_insufficienti", messaggio_utente: "Carica una bolletta gas per ricevere un'analisi." };
+    // Build standardized bill object from OCR
+    const bill = {
+      commodity_hint: ocr.tipo_fornitura?.toUpperCase() || null,
+      provider_current: ocr.provider || null,
+      offer_name_current: ocr.offerta || null,
+      identifiers: {
+        POD: ocr.pod || ocr.bolletta_luce?.pod || null,
+        PDR: ocr.pdr || ocr.bolletta_gas?.pdr || null
+      },
+      period: {
+        start: ocr.bolletta_luce?.periodo?.data_inizio || ocr.bolletta_gas?.periodo?.data_inizio || null,
+        end: ocr.bolletta_luce?.periodo?.data_fine || ocr.bolletta_gas?.periodo?.data_fine || null,
+        label: null,
+        mesi: ocr.bolletta_luce?.periodo?.mesi || ocr.bolletta_gas?.periodo?.mesi || null
+      },
+      consumption: {
+        kwh: ocr.bolletta_luce?.consumo_annuo_kwh || ocr.bolletta_luce?.consumo_periodo_kwh || null,
+        smc: ocr.bolletta_gas?.consumo_annuo_smc || ocr.bolletta_gas?.consumo_periodo_smc || null
+      },
+      costs: {
+        total_eur_luce: ocr.bolletta_luce?.totale_periodo_euro || null,
+        total_eur_gas: ocr.bolletta_gas?.totale_periodo_euro || null
+      }
+    };
 
-    if (ocr.tipo_fornitura === "gas" || ocr.tipo_fornitura === "luce+gas") {
-      const b = ocr.bolletta_gas;
-      if (b?.totale_periodo_euro != null) {
-        const mesi = b.periodo?.mesi || estimateMesi(b.periodo?.data_inizio, b.periodo?.data_fine);
-        if (mesi > 0) {
-          const costoMensile = Math.round(b.totale_periodo_euro / mesi * 100) / 100;
-          const costoAnnuo = Math.round(costoMensile * 12 * 100) / 100;
-          const consumo = b.consumo_annuo_smc || calcConsumoAnnuo(b.consumo_periodo_smc, mesi);
+    // Step A: Determine commodity
+    let commodity_final = determineCommodity(bill);
+    
+    // Handle legacy tipo_fornitura
+    if (commodity_final === "ASK_CLARIFICATION") {
+      if (ocr.tipo_fornitura === "luce" || ocr.tipo_fornitura === "electricity") {
+        commodity_final = "LUCE";
+      } else if (ocr.tipo_fornitura === "gas") {
+        commodity_final = "GAS";
+      } else if (ocr.tipo_fornitura === "luce+gas") {
+        commodity_final = "DUAL";
+      }
+    }
+    
+    if (commodity_final === "ASK_CLARIFICATION") {
+      return new Response(JSON.stringify({
+        commodity_final: "ASK_CLARIFICATION",
+        decision: { action: "ASK_CLARIFICATION", reason: "Questa bolletta è GAS o LUCE?" },
+        debug: { signals_used: ["commodity_detection_failed"], warnings: ["Impossibile determinare la commodity"] }
+      }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+    }
 
-          if (consumo > 0) {
-            gas.analisi_disponibile = true;
-            gas.costo_attuale_mensile = costoMensile;
-            gas.costo_attuale_annuo = costoAnnuo;
-            gas.consumo_annuo = consumo;
+    // Step B: Calculate months equivalent
+    let months_equivalent = 1;
+    if (bill.period.mesi) {
+      months_equivalent = bill.period.mesi;
+    } else {
+      months_equivalent = calculateMonthsEquivalent(bill.period);
+    }
 
-            const { fissa, variabile } = selectBestOffers(offerte_gas || [], consumo, costoAnnuo, soglia, "gas");
-            const offertaFissa = formatOffer(fissa);
-            const offertaVariabile = formatOffer(variabile);
-            gas.offerta_fissa = offertaFissa;
-            gas.offerta_variabile = offertaVariabile;
-
-            if (offertaFissa.id || offertaVariabile.id) {
-              gas.stato = "puoi_risparmiare";
-              const best = offertaFissa.id ? offertaFissa : offertaVariabile;
-              gas.messaggio_utente = `Potresti risparmiare circa €${best.risparmio_mensile?.toFixed(0) || '?'} al mese passando a ${best.nome || 'una nuova offerta'}.`;
-            } else {
-              gas.stato = "sei_gia_messo_bene";
-              gas.messaggio_utente = "Ottima notizia! La tua tariffa gas attuale è già tra le migliori sul mercato. Non ha senso cambiare fornitore.";
-            }
-          }
+    // Process LUCE if applicable
+    let luce_result = null;
+    if (commodity_final === "LUCE" || commodity_final === "DUAL") {
+      const totalEur = bill.costs.total_eur_luce;
+      const monthly = totalEur ? totalEur / months_equivalent : null;
+      const annual = monthly ? monthly * 12 : null;
+      
+      const offers = filterOffersByCommodity(offerte_luce || [], "LUCE");
+      const { offer: best, action, reason } = selectBestOffer(offers, annual);
+      const savings = best && annual ? calculateSavings(annual, best.estimated_annual_eur) : { monthly_eur: null, annual_eur: null, percent: null };
+      
+      const current = {
+        provider: bill.provider_current,
+        offer_name: bill.offer_name_current,
+        monthly_eur: monthly ? Math.round(monthly * 100) / 100 : null,
+        annual_eur: annual ? Math.round(annual * 100) / 100 : null,
+        consumption_annual: { kwh: bill.consumption.kwh, smc: null }
+      };
+      
+      const best_offer = best ? {
+        provider: best.provider,
+        offer_name: best.offer_name,
+        price_type: best.price_type || "VARIABILE",
+        monthly_eur: best.estimated_annual_eur ? Math.round(best.estimated_annual_eur / 12 * 100) / 100 : null,
+        annual_eur: best.estimated_annual_eur,
+        link: best.link || null
+      } : null;
+      
+      const data = { current, best_offer, decision: { action, reason }, savings };
+      const expert_copy = generateExpertCopy(data, "LUCE");
+      
+      luce_result = {
+        commodity_final: "LUCE",
+        months_equivalent,
+        current,
+        best_offer,
+        decision: { action, reason },
+        savings,
+        expert_copy,
+        debug: {
+          signals_used: ["tipo_fornitura", offers.length > 0 ? "offers_filtered" : "no_offers"],
+          warnings: []
         }
-      }
+      };
     }
 
-    // ====== AGEVOLAZIONI ======
-    const agevolazioni = [];
-    if (isOver70) agevolazioni.push({ tipo: "over70", titolo: "Possibili agevolazioni Over 70", descrizione: "Potresti rientrare nelle categorie di clienti vulnerabili con tutele rafforzate. Verifica con il tuo fornitore o con un CAF." });
-    if (isIseeBasso) agevolazioni.push({ tipo: "isee_basso", titolo: "Bonus Sociale Energia", descrizione: "Potresti avere diritto al bonus sociale se il tuo ISEE è inferiore alla soglia nazionale. Presenta la DSU al CAF per verificare." });
+    // Process GAS if applicable
+    let gas_result = null;
+    if (commodity_final === "GAS" || commodity_final === "DUAL") {
+      const totalEur = bill.costs.total_eur_gas;
+      const monthly = totalEur ? totalEur / months_equivalent : null;
+      const annual = monthly ? monthly * 12 : null;
+      
+      const offers = filterOffersByCommodity(offerte_gas || [], "GAS");
+      const { offer: best, action, reason } = selectBestOffer(offers, annual);
+      const savings = best && annual ? calculateSavings(annual, best.estimated_annual_eur) : { monthly_eur: null, annual_eur: null, percent: null };
+      
+      const current = {
+        provider: bill.provider_current,
+        offer_name: bill.offer_name_current,
+        monthly_eur: monthly ? Math.round(monthly * 100) / 100 : null,
+        annual_eur: annual ? Math.round(annual * 100) / 100 : null,
+        consumption_annual: { kwh: null, smc: bill.consumption.smc }
+      };
+      
+      const best_offer = best ? {
+        provider: best.provider,
+        offer_name: best.offer_name,
+        price_type: best.price_type || "VARIABILE",
+        monthly_eur: best.estimated_annual_eur ? Math.round(best.estimated_annual_eur / 12 * 100) / 100 : null,
+        annual_eur: best.estimated_annual_eur,
+        link: best.link || null
+      } : null;
+      
+      const data = { current, best_offer, decision: { action, reason }, savings };
+      const expert_copy = generateExpertCopy(data, "GAS");
+      
+      gas_result = {
+        commodity_final: "GAS",
+        months_equivalent,
+        current,
+        best_offer,
+        decision: { action, reason },
+        savings,
+        expert_copy,
+        debug: {
+          signals_used: ["tipo_fornitura", offers.length > 0 ? "offers_filtered" : "no_offers"],
+          warnings: []
+        }
+      };
+    }
 
-    // ====== SPIEGAZIONE ======
-    const spiegazione = genSpiegazione(luce.offerta_fissa.id ? luce.offerta_fissa : null, luce.offerta_variabile.id ? luce.offerta_variabile : null) || genSpiegazione(gas.offerta_fissa.id ? gas.offerta_fissa : null, gas.offerta_variabile.id ? gas.offerta_variabile : null);
-
-    return new Response(JSON.stringify({ luce, gas, agevolazioni_potenziali: agevolazioni, spiegazione_fisso_vs_variabile: spiegazione }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+    // Return appropriate response based on commodity type
+    if (commodity_final === "DUAL") {
+      return new Response(JSON.stringify({
+        commodity_final: "DUAL",
+        luce: luce_result,
+        gas: gas_result
+      }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+    } else if (commodity_final === "LUCE") {
+      return new Response(JSON.stringify(luce_result), { headers: { ...corsHeaders, "content-type": "application/json" } });
+    } else {
+      return new Response(JSON.stringify(gas_result), { headers: { ...corsHeaders, "content-type": "application/json" } });
+    }
 
   } catch (error) {
-    console.error("[BILL-ANALYZER] Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } });
+    console.error("[BILLSNAP-CORE] Error:", error);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      decision: { action: "INSUFFICIENT_DATA", reason: "Errore interno: " + error.message }
+    }), { 
+      status: 500, 
+      headers: { ...corsHeaders, "content-type": "application/json" } 
+    });
   }
 });
