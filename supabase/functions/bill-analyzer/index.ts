@@ -160,7 +160,7 @@ function generateExpertCopy(data, commodity) {
       "Il cambio è automatico, senza interruzioni di servizio"
     ];
   } else if (data.decision.action === "STAY") {
-    headline = "Sei già tra i migliori - Resta dove sei ✓";
+    headline = "Sei gia tra i migliori - Resta dove sei";
     summaryLines = [
       "Abbiamo confrontato la tua bolletta " + commodity.toLowerCase() + " con le offerte disponibili.",
       "La tua tariffa attuale è già competitiva.",
