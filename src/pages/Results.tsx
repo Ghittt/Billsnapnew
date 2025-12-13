@@ -328,14 +328,14 @@ const ResultsPage = () => {
             f3_consumption: f3,
             current_price_kwh: priceKwh,
             offerta_fissa: offertaFissa ? {
-                nome_offerta: offertaFissa.plan_name,
-                provider: offertaFissa.provider,
-                costo_annuo: offertaFissa.simulated_cost
+                nome_offerta: offertaFissa.nome || offertaFissa.plan_name,
+                provider: offertaFissa.fornitore || offertaFissa.provider,
+                costo_annuo: (offertaFissa.costo_mensile ? offertaFissa.costo_mensile * 12 : offertaFissa.simulated_cost)
             } : null,
             offerta_variabile: offertaVariabile ? {
-                nome_offerta: offertaVariabile.plan_name,
-                provider: offertaVariabile.provider,
-                costo_annuo: offertaVariabile.simulated_cost
+                nome_offerta: offertaVariabile.nome || offertaVariabile.plan_name,
+                provider: offertaVariabile.fornitore || offertaVariabile.provider,
+                costo_annuo: (offertaVariabile.costo_mensile ? offertaVariabile.costo_mensile * 12 : offertaVariabile.simulated_cost)
             } : null
           })
         }
