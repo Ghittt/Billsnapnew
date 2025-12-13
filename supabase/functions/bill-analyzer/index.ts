@@ -63,17 +63,23 @@ function selectBestOffers(offerte, consumo, costoAttuale, soglia, tipo) {
     })
     // CRITICAL RULE: ONLY recommend offers with POSITIVE savings (cheaper than current)
     .filter(x => x.risparmio !== null && x.risparmio > 0)
-    .sort((a, b) => (b.risparmio || 0) - (a.risparmio || 0));
+    // SORT BY LOWEST COST (most economical offer first)
+    .sort((a, b) => (a.costo || Infinity) - (b.costo || Infinity));
 
   console.log(`[selectBestOffers] ${tipo.toUpperCase()}: Found ${valutate.length} better offers (from ${offerteFiltered.length} ${tipo} offers, ${offerte.length} total in DB)`);
   
   if (valutate.length === 0 && offerteFiltered.length > 0) {
     console.log(`[selectBestOffers] ${tipo.toUpperCase()}: All ${offerteFiltered.length} offers are MORE EXPENSIVE than current (€${costoAttuale}/year)`);
   }
+  
+  if (valutate.length > 0) {
+    console.log(`[selectBestOffers] ${tipo.toUpperCase()}: CHEAPEST = ${valutate[0].o.fornitore} ${valutate[0].o.nome_offerta} (€${valutate[0].costo}/year, saves €${valutate[0].risparmio}/year)`);
+  }
 
+  // CRITICAL: Return CHEAPEST offer overall as primary recommendation
   return {
-    fissa: valutate.find(x => x.isFisso) || null,
-    variabile: valutate.find(x => !x.isFisso) || null
+    fissa: valutate[0] || null,  // CHEAPEST offer (regardless of type)
+    variabile: valutate[1] || null  // Second cheapest (if exists)
   };
 }
 
