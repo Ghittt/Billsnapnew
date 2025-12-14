@@ -18,6 +18,18 @@ import { getOfferUrl } from '@/utils/offerUrls';
 import { fixOfferUrlCommodity } from '@/utils/offerUrlFixer';
 
 // DEBUG MODE: Enable via URL ?debug=1 or env VITE_DEBUG=true
+
+// Data Origin Badge Component
+const DataOriginBadge = ({ source }: { source: "BILL" | "ESTIMATED" | "CALCULATED" | "MISSING" }) => {
+  const labels = {
+    BILL: { text: "Da bolletta", variant: "secondary" as const },
+    ESTIMATED: { text: "Stimato", variant: "outline" as const },
+    CALCULATED: { text: "Calcolato", variant: "default" as const },
+    MISSING: { text: "In verifica", variant: "destructive" as const }
+  };
+  const { text, variant } = labels[source];
+  return <Badge variant={variant} className="ml-2 text-xs">{text}</Badge>;
+};
 const DEBUG = (import.meta.env.VITE_DEBUG === "true") || (new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get("debug") === "1");
 
 // Simple hash function for comparison
@@ -646,8 +658,18 @@ const ResultsPage = () => {
                 </div>
 
                 <div className='border-t pt-4 space-y-2 text-sm text-muted-foreground'>
-                  <p>≈ {fmt(currentCost)} all'anno</p>
-                  <p>Consumo annuo: {consumption.toLocaleString('it-IT')} {billType === 'gas' ? 'Smc' : 'kWh'}</p>
+                  <p>
+                    {currentCost > 0 
+                      ? `≈ €${currentCost.toLocaleString("it-IT")} all'anno` 
+                      : "Dato in verifica"}
+                    <DataOriginBadge source="CALCULATED" />
+                  </p>
+                  <p>
+                    Consumo annuo: {consumption > 0 
+                      ? `${consumption.toLocaleString("it-IT")} ${billType === "gas" ? "Smc" : "kWh"}` 
+                      : "Dato in verifica"}
+                    <DataOriginBadge source={analyzerResult?.current?.consumption_was_estimated ? "ESTIMATED" : "BILL"} />
+                  </p>
                   <p>Fornitore attuale: <span className='font-medium text-foreground'>{ocrData?.provider || 'N/A'}</span></p>
                   {ocrData?.tariff_hint && (
                     <p>Tipo offerta: {ocrData.tariff_hint}</p>
