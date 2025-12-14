@@ -55,6 +55,148 @@ function validateBillData(data: {
   }
   return { valid: errors.length === 0, errors };
 }
+
+// COMPARISON ENGINE - Calculate offer cost from components
+function calculateOfferCost(offer, consumption_year, commodity) {
+  if (offer.estimated_annual_eur && offer.estimated_annual_eur > 0) {
+    return { valid: true, value: offer.estimated_annual_eur };
+  }
+  
+  const unitPrice = commodity === "GAS"
+    ? (offer.prezzo_energia_euro_smc || offer.unit_price_smc)
+    : (offer.prezzo_energia_euro_kwh || offer.price_kwh);
+  
+  const fixedMonthly = offer.quota_fissa_mensile_euro || offer.fixed_fee_monthly || 0;
+  
+  if (!unitPrice || unitPrice <= 0) {
+    return { valid: false, value: null, error: "Missing unit_price" };
+  }
+  
+  const energyCost = unitPrice * consumption_year;
+  const fixedCost = fixedMonthly * 12;
+  const systemCharges = energyCost * 0.10;
+  const total = Math.round((energyCost + fixedCost + systemCharges) * 100) / 100;
+  
+  return { valid: true, value: total };
+}
+
+// COMPARISON ENGINE - Compare offers with exclusion logging
+function compareOffers(data) {
+  const considered = [];
+  const excluded = [];
+  
+  for (const offer of data.offers) {
+    const costCalc = calculateOfferCost(offer, data.consumption_year, data.commodity);
+    
+    if (!costCalc.valid) {
+      excluded.push({
+        offer_id: offer.id || offer.nome_offerta || "unknown",
+        reason: costCalc.error
+      });
+      continue;
+    }
+    
+    offer.calculated_annual_cost = costCalc.value;
+    considered.push(offer);
+  }
+  
+  const sorted = [...considered].sort((a, b) => a.calculated_annual_cost - b.calculated_annual_cost);
+  const best = sorted[0] || null;
+  
+  const saving_year = best ? data.current_cost_year - best.calculated_annual_cost : null;
+  const saving_percent = best && data.current_cost_year > 0
+    ? (saving_year / data.current_cost_year) * 100 : null;
+  
+  console.log(`[COMPARE] Considered: ${considered.length}, Excluded: ${excluded.length}`);
+  excluded.forEach(e => console.log(`[EXCLUDE] ${e.offer_id}: ${e.reason}`));
+  
+  return {
+    best_offer: best,
+    best_cost_year: best?.calculated_annual_cost || null,
+    saving_year,
+    saving_percent,
+    offers_considered_count: considered.length,
+    offers_excluded_count: excluded.length,
+    excluded_reasons: excluded
+  };
+}
+
+// DECISION ENGINE - Make decision using DB rules
+async function makeDecision(data, supabase) {
+  const reasons = [];
+  
+  const { data: rules } = await supabase
+    .from("decision_rules")
+    .select("*")
+    .eq("commodity", data.commodity)
+    .eq("active", true)
+    .order("version", { ascending: false })
+    .limit(1);
+  
+  const rule = rules?.[0];
+  
+  if (!rule) {
+    return {
+      decision: "STAY",
+      reasons: ["No active decision rule found"],
+      rule_id: null,
+      rule_version: null
+    };
+  }
+  
+  if (!data.best_cost_year) {
+    reasons.push("Nessuna offerta migliore trovata");
+    return { decision: "STAY", reasons, rule_id: rule.id, rule_version: rule.version };
+  }
+  
+  if (data.offers_considered_count === 0) {
+    reasons.push("Nessuna offerta analizzabile con i dati disponibili");
+    return { decision: "STAY", reasons, rule_id: rule.id, rule_version: rule.version };
+  }
+  
+  const meetsEuroThreshold = data.saving_year >= rule.min_saving_eur_year;
+  const meetsPercentThreshold = data.saving_percent >= rule.min_saving_percent;
+  
+  if (meetsEuroThreshold && meetsPercentThreshold) {
+    reasons.push(`Risparmio €${data.saving_year}/anno (${data.saving_percent.toFixed(1)}%)`);
+    reasons.push(`Supera soglie: €${rule.min_saving_eur_year} e ${rule.min_saving_percent}%`);
+    return { decision: "SWITCH", reasons, rule_id: rule.id, rule_version: rule.version };
+  }
+  
+  if (!meetsEuroThreshold) {
+    reasons.push(`Risparmio €${data.saving_year} < soglia €${rule.min_saving_eur_year}`);
+  }
+  if (!meetsPercentThreshold) {
+    reasons.push(`Risparmio ${data.saving_percent?.toFixed(1)}% < soglia ${rule.min_saving_percent}%`);
+  }
+  
+  return { decision: "STAY", reasons, rule_id: rule.id, rule_version: rule.version };
+}
+
+// AUDIT - Log decision to database
+async function logDecision(auditData, supabase) {
+  const { error } = await supabase.from("decision_audit").insert({
+    upload_id: auditData.upload_id,
+    commodity: auditData.commodity,
+    current_cost_year: auditData.current_cost_year,
+    consumption_year: auditData.consumption_year,
+    best_cost_year: auditData.best_cost_year,
+    saving_year: auditData.saving_year,
+    saving_percent: auditData.saving_percent,
+    decision: auditData.decision,
+    reasons: auditData.reasons,
+    rule_id: auditData.rule_id,
+    rule_version: auditData.rule_version,
+    offers_considered_count: auditData.offers_considered_count,
+    offers_excluded_count: auditData.offers_excluded_count
+  });
+  
+  if (error) {
+    console.error("[AUDIT] Failed to log decision:", error);
+  } else {
+    console.log("[AUDIT] Decision logged:", auditData.decision, auditData.reasons);
+  }
+}
 function determineCommodity(bill) {
   const hasPDR = bill.identifiers?.PDR || false;
   const hasPOD = bill.identifiers?.POD || false;

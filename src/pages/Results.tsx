@@ -136,23 +136,10 @@ const ResultsPage = () => {
       
       setBillType(tipo);
 
-      const consumo = tipo === 'gas'
-        ? (ocrResult.consumo_annuo_smc || ocrResult.gas_smc || 0)
-        : (ocrResult.annual_kwh || 0);
 
-      let costo = ocrResult.costo_annuo_totale || ocrResult.total_cost_eur || 0;
-      
-      // REMOVED: Bimonthly x6 guessing (fail-closed approach)
-
-      if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
-        console.warn('Both consumption and cost missing, activating manual fallback');
-        setShowManualInput(true);
-        setIsLoading(false);
-        return;
-      }
-
-      setConsumption(Number(consumo));
-      // DON'T setCurrentCost here! Wait for bill-analyzer response
+      // UI DATA CERTIFICATION: Use ONLY analyzerResult data
+      // No local calculations - Decision Engine is single source of truth
+      // Consumption and cost will be set from bill-analyzer response (L285+)
 
       // Fetch real offers from database
       // Fetch ALL offers from energy_offers (single source of truth)
@@ -298,6 +285,13 @@ const ResultsPage = () => {
           if (includeProsCons && expertCopy.pros_cons?.switch?.length > 0) {
             text += "**Vantaggi del cambio:**\n" + expertCopy.pros_cons.switch.map(p => "- " + p).join("\n") + "\n\n";
           }
+        
+        // UI DATA CERTIFICATION: Set consumption from certified data
+        if (targetData?.current?.consumption_annual?.kwh) {
+          setConsumption(Number(targetData.current.consumption_annual.kwh));
+        } else if (targetData?.current?.consumption_annual?.smc) {
+          setConsumption(Number(targetData.current.consumption_annual.smc));
+        }
           if (includeProsCons && expertCopy.pros_cons?.stay?.length > 0) {
             text += "**Se resti dove sei:**\n" + expertCopy.pros_cons.stay.map(p => "- " + p).join("\n") + "\n\n";
           }
