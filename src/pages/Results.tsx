@@ -57,6 +57,7 @@ const ResultsPage = () => {
   const [billType, setBillType] = useState<'luce' | 'gas' | 'combo'>('luce');
   const [analyzerResult, setAnalyzerResult] = useState<any>(null);
   const [hasGoodOffer, setHasGoodOffer] = useState(false);
+  const [isDataInVerifica, setIsDataInVerifica] = useState(false);
 
   // DEBUG STATE
   const [debugData, setDebugData] = useState<any>({
@@ -141,13 +142,7 @@ const ResultsPage = () => {
 
       let costo = ocrResult.costo_annuo_totale || ocrResult.total_cost_eur || 0;
       
-      if (consumo > 0 && costo > 0) {
-        const costPerUnit = costo / consumo;
-        if (costPerUnit < 0.10) {
-          console.warn('Suspiciously low annual cost (' + costo + '€ for ' + consumo + ' units). Assuming bimonthly bill.');
-          costo = costo * 6;
-        }
-      }
+      // REMOVED: Bimonthly x6 guessing (fail-closed approach)
 
       if ((!consumo || consumo <= 0) && (!costo || costo <= 0)) {
         console.warn('Both consumption and cost missing, activating manual fallback');
@@ -265,6 +260,15 @@ const ResultsPage = () => {
         }));
         setAnalyzerResult(analyzerData);
         console.log('[Results] BillSnap Core response:', analyzerData);
+
+        // FAIL-CLOSED: Handle IN_VERIFICA status
+        if (analyzerData.data_status === 'IN_VERIFICA' || 
+            (analyzerData.decision?.action === 'INSUFFICIENT_DATA' && !analyzerData.current)) {
+          console.log('[Results] Data gate failed - showing IN_VERIFICA state');
+          setIsDataInVerifica(true);
+          setIsLoading(false);
+          return;
+        }
         
         // New BillSnap Core structure
         // For DUAL: { commodity_final: "DUAL", luce: {...}, gas: {...} }
@@ -585,6 +589,33 @@ const ResultsPage = () => {
             <p className='text-muted-foreground'>Caricamento risultati...</p>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // FAIL-CLOSED: Show "Dati in verifica" when data is unreliable
+  if (isDataInVerifica) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8 max-w-4xl">
+          <Button variant="ghost" onClick={() => navigate("/upload")} className="gap-2 mb-6">
+            <ArrowLeft className="h-4 w-4" /> Analizza un'altra bolletta
+          </Button>
+          <Card className="border-2 border-yellow-400 bg-yellow-50">
+            <CardContent className="p-8 text-center space-y-4">
+              <Loader2 className="h-12 w-12 animate-spin mx-auto text-yellow-600" />
+              <h2 className="text-2xl font-bold text-yellow-700">Dati in verifica</h2>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Non siamo riusciti a estrarre tutti i dati necessari dalla bolletta.
+                Riprova con un'immagine più nitida o inserisci i dati manualmente.
+              </p>
+              <Button onClick={() => setShowManualInput(true)} className="mt-4">
+                Inserisci dati manualmente
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
       </div>
     );
   }

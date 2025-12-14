@@ -19,6 +19,7 @@ const corsHeaders = {
 
 // ==================== HELPER FUNCTIONS ====================
 
+function determineCommodity(bill) {
 
 // COST ENGINE - Deterministic annual cost calculation
 function computeAnnualCost(data: {
@@ -26,36 +27,49 @@ function computeAnnualCost(data: {
   period_months: number | null;
   spesa_annua_from_bill: number | null;
 }): { value: number | null; source: string; valid: boolean; error?: string } {
+  // RULE 1: Prefer spesa_annua if present in bill
   if (data.spesa_annua_from_bill && data.spesa_annua_from_bill > 0) {
     return { value: data.spesa_annua_from_bill, source: "BILL", valid: true };
   }
-  if (data.total_due && data.total_due > 0 && data.period_months && data.period_months > 0) {
+  
+  // RULE 2: Calculate from period if possible
+  if (data.total_due && data.total_due > 0 &&
+      data.period_months && data.period_months > 0) {
     const monthly = data.total_due / data.period_months;
     const annual = monthly * 12;
     return { value: Math.round(annual * 100) / 100, source: "CALCULATED", valid: true };
   }
+  
+  // RULE 3: Missing data
   return { value: null, source: "MISSING", valid: false, error: "Missing total_due or period_months" };
 }
 
-// GUARDRAILS - Validate bill data
+// GUARDRAILS - Validate bill data for impossible values
 function validateBillData(data: {
   current_cost_year: number | null;
   consumption_year: number | null;
   saving_year: number | null;
 }): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
+  
+  // GUARDRAIL 1: Cost must be positive
   if (!data.current_cost_year || data.current_cost_year <= 0) {
     errors.push("current_cost_year <= 0");
   }
+  
+  // GUARDRAIL 2: Consumption must be positive
   if (!data.consumption_year || data.consumption_year <= 0) {
     errors.push("consumption_year <= 0");
   }
-  if (data.saving_year && data.current_cost_year && data.saving_year > data.current_cost_year) {
+  
+  // GUARDRAIL 3: Saving cannot exceed current cost
+  if (data.saving_year && data.current_cost_year && 
+      data.saving_year > data.current_cost_year) {
     errors.push(`IMPOSSIBLE: saving (${data.saving_year}) > current_cost (${data.current_cost_year})`);
   }
+  
   return { valid: errors.length === 0, errors };
 }
-function determineCommodity(bill) {
   const hasPDR = bill.identifiers?.PDR || false;
   const hasPOD = bill.identifiers?.POD || false;
   const hasSmc = (bill.consumption?.smc || 0) > 0;
@@ -128,7 +142,11 @@ function filterOffersByCommodity(offers, commodity, consumption = null) {
     const fixedFee = o.quota_fissa_mensile_euro || o.fixed_fee_monthly || 0;
     
     // Use default consumption if not provided
-    const cons = consumption || (commodity === "GAS" ? 1200 : 2700);
+    const cons = consumption;
+    if (!cons || cons <= 0) {
+      console.log('[FILTER] Skipping offer cost calculation - no consumption data');
+      return o; // Keep offer but cannot calculate estimated cost
+    }
     
     if (unitPrice > 0) {
       // Calculate: (price * consumption) + (fixed * 12) + system charges + VAT
@@ -423,16 +441,70 @@ serve(async (req) => {
       months_equivalent = calculateMonthsEquivalent(bill.period);
     }
 
+    // DATA QUALITY GATE - Fail-closed approach
+    const hasLuceData = bill.consumption.kwh > 0 && bill.costs.total_eur_luce > 0;
+    const hasGasData = bill.consumption.smc > 0 && bill.costs.total_eur_gas > 0;
+    const isLuceRequired = commodity_final === "LUCE" || commodity_final === "DUAL";
+    const isGasRequired = commodity_final === "GAS" || commodity_final === "DUAL";
+    
+    const dataValid = (isLuceRequired ? hasLuceData : true) && (isGasRequired ? hasGasData : true);
+    
+    if (!dataValid) {
+      console.log("[BILLSNAP-CORE] DATA GATE FAILED:", { commodity_final, hasLuceData, hasGasData });
+      return new Response(JSON.stringify({
+        commodity_final,
+        decision: { action: "INSUFFICIENT_DATA", reason: "Dati mancanti: consumo o costo non rilevati dalla bolletta." },
+        data_status: "IN_VERIFICA",
+        debug: { gate_failed: "missing_consumption_or_cost", hasLuceData, hasGasData }
+      }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+    }
+
+
     // Process LUCE if applicable
     let luce_result = null;
     if (commodity_final === "LUCE" || commodity_final === "DUAL") {
-      const totalEur = bill.costs.total_eur_luce;
-      const monthly = totalEur ? totalEur / months_equivalent : null;
-      const annual = monthly ? monthly * 12 : null;
+      // COST ENGINE: Deterministic calculation
+      const costResult = computeAnnualCost({
+        total_due: bill.costs.total_eur_luce,
+        period_months: months_equivalent,
+        spesa_annua_from_bill: null
+      });
+      
+      if (!costResult.valid) {
+        console.error("[COST_ENGINE] Invalid LUCE cost:", costResult.error);
+        return new Response(JSON.stringify({
+          commodity_final: "LUCE",
+          decision: { action: "INSUFFICIENT_DATA", reason: "Dati costo mancanti o non validi." },
+          data_status: "IN_VERIFICA"
+        }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+      }
+      
+      const annual = costResult.value;
+      const monthly = annual / 12;
+      console.log(`[COST_ENGINE] LUCE annual: €${annual} (${costResult.source})`);
       
       const offers = filterOffersByCommodity(offerte_luce || [], "LUCE");
       const { offer: best, action, reason } = selectBestOffer(offers, annual);
       const savings = best && annual ? calculateSavings(annual, best.estimated_annual_eur) : { monthly_eur: null, annual_eur: null, percent: null };
+      
+      // GUARDRAILS: Validate data
+      const validation = validateBillData({
+        current_cost_year: annual,
+        consumption_year: bill.consumption.kwh,
+        saving_year: savings.annual_eur
+      });
+      
+      if (!validation.valid) {
+        console.error("[GUARDRAIL] LUCE validation failed:", validation.errors);
+        
+        // If saving > cost, cap to 0 (safe fallback)
+        if (savings.annual_eur && annual && savings.annual_eur > annual) {
+          console.log("[GUARDRAIL] Capping impossible saving to 0");
+          savings.annual_eur = 0;
+          savings.monthly_eur = 0;
+          savings.percent = 0;
+        }
+      }
       
       const current = {
         provider: bill.provider_current,
@@ -468,19 +540,54 @@ serve(async (req) => {
           warnings: []
         }
       };
-    }
 
+      // TELEMETRY: Log source_map and values_used for debugging
+      console.log('[BILLSNAP-TELEMETRY]', JSON.stringify({
     // Process GAS if applicable
     let gas_result = null;
     if (commodity_final === "GAS" || commodity_final === "DUAL") {
-      const totalEur = bill.costs.total_eur_gas;
-      const monthly = totalEur ? totalEur / months_equivalent : null;
-      const annual = monthly ? monthly * 12 : null;
+      // COST ENGINE: Deterministic calculation
+      const costResult = computeAnnualCost({
+        total_due: bill.costs.total_eur_gas,
+        period_months: months_equivalent,
+        spesa_annua_from_bill: null
+      });
+      
+      if (!costResult.valid) {
+        console.error("[COST_ENGINE] Invalid GAS cost:", costResult.error);
+        return new Response(JSON.stringify({
+          commodity_final: "GAS",
+          decision: { action: "INSUFFICIENT_DATA", reason: "Dati costo mancanti o non validi." },
+          data_status: "IN_VERIFICA"
+        }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+      }
+      
+      const annual = costResult.value;
+      const monthly = annual / 12;
+      console.log(`[COST_ENGINE] GAS annual: €${annual} (${costResult.source})`);
       
       const offers = filterOffersByCommodity(offerte_gas || [], "GAS");
       const { offer: best, action, reason } = selectBestOffer(offers, annual);
       const savings = best && annual ? calculateSavings(annual, best.estimated_annual_eur) : { monthly_eur: null, annual_eur: null, percent: null };
       
+      // GUARDRAILS: Validate data
+      const validation = validateBillData({
+        current_cost_year: annual,
+        consumption_year: bill.consumption.smc,
+        saving_year: savings.annual_eur
+      });
+      
+      if (!validation.valid) {
+        console.error("[GUARDRAIL] GAS validation failed:", validation.errors);
+        
+        // If saving > cost, cap to 0 (safe fallback)
+        if (savings.annual_eur && annual && savings.annual_eur > annual) {
+          console.log("[GUARDRAIL] Capping impossible saving to 0");
+          savings.annual_eur = 0;
+          savings.monthly_eur = 0;
+          savings.percent = 0;
+        }
+      }
       const current = {
         provider: bill.provider_current,
         offer_name: bill.offer_name_current,
@@ -515,6 +622,25 @@ serve(async (req) => {
           warnings: []
         }
       };
+
+      // TELEMETRY: Log source_map and values_used for debugging
+      console.log('[BILLSNAP-TELEMETRY]', JSON.stringify({
+        source_map: {
+          spendi_ora_mese: current.monthly_eur ? 'OCR_CALCULATED' : 'MISSING',
+          spesa_annua: current.annual_eur ? 'OCR_ANNUALIZED' : 'MISSING',
+          consumo_annuo: bill.consumption.smc ? (ocr.bolletta_gas?.consumo_annuo_smc === bill.consumption.smc ? 'OCR_EXTRACTED' : 'OCR_FALLBACK_ESTIMATED') : 'MISSING',
+          fornitore: bill.provider_current ? 'OCR_EXTRACTED' : 'MISSING'
+        },
+        values_used: {
+          spendi_ora_mese: current.monthly_eur,
+          spesa_annua: current.annual_eur,
+          consumo_annuo: bill.consumption.smc,
+          fornitore: bill.provider_current,
+          months_equivalent: months_equivalent
+        },
+        commodity: 'GAS',
+        timestamp: new Date().toISOString()
+      }));
     }
 
     // Return appropriate response based on commodity type

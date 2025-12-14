@@ -87,6 +87,28 @@ REGOLE CRITICHE:
 6. Ignora pubblicità o dati non pertinenti alla fornitura.
 `;
 
+// PRIORITY-BASED CONSUMPTION CALCULATION
+function computeConsumptionYear(data: {
+  consumption_year_raw: number | null;
+  consumption_period: number | null;
+  period_months: number | null;
+}): { value: number | null; was_estimated: boolean; source: string } {
+  // RULE 1: Real data wins
+  if (data.consumption_year_raw && data.consumption_year_raw > 0) {
+    return { value: data.consumption_year_raw, was_estimated: false, source: "REAL" };
+  }
+  
+  // RULE 2: Calculate if we have period data
+  if (data.consumption_period && data.consumption_period > 0 &&
+      data.period_months && data.period_months > 0) {
+    const estimated = Math.round((data.consumption_period / data.period_months) * 12);
+    return { value: estimated, was_estimated: true, source: "CALCULATED" };
+  }
+  
+  // RULE 3: Missing data
+  return { value: null, was_estimated: false, source: "MISSING" };
+}
+
 serve(async (req) => {
   // CORS Preflight
   if (req.method === "OPTIONS") {
@@ -168,31 +190,39 @@ serve(async (req) => {
         throw new Error("Gemini returned invalid JSON");
     }
 
-    console.log("[OCR] Parsed Data:", JSON.stringify(extractedData, null, 2));
 
-    // --- INTELLIGENT FALLBACKS ---
-    // 1. Luce Fallback: Estimate Annual kWh if missing
+    // PRIORITY-BASED CONSUMPTION CALCULATION (replaces old fallbacks)
+    let luceWasEstimated = false;
+    let gasWasEstimated = false;
+    
     if (extractedData.bolletta_luce?.presente) {
-        if (!extractedData.bolletta_luce.consumo_annuo_kwh && 
-             extractedData.bolletta_luce.consumo_periodo_kwh > 0 && 
-             extractedData.bolletta_luce.periodo?.mesi > 0) {
-            
-            const estimated = (extractedData.bolletta_luce.consumo_periodo_kwh / extractedData.bolletta_luce.periodo.mesi) * 12;
-            console.log(`[OCR] Auto-calculating Annual kWh: ${estimated.toFixed(0)}`);
-            extractedData.bolletta_luce.consumo_annuo_kwh = Math.round(estimated);
-        }
+      const result = computeConsumptionYear({
+        consumption_year_raw: extractedData.bolletta_luce.consumo_annuo_kwh,
+        consumption_period: extractedData.bolletta_luce.consumo_periodo_kwh,
+        period_months: extractedData.bolletta_luce.periodo?.mesi
+      });
+      
+      luceWasEstimated = result.was_estimated;
+      console.log(`[OCR] LUCE consumption_year: ${result.value} (${result.source})`);
+      
+      if (result.value !== null) {
+        extractedData.bolletta_luce.consumo_annuo_kwh = result.value;
+      }
     }
-
-    // 2. Gas Fallback: Estimate Annual Smc if missing
+    
     if (extractedData.bolletta_gas?.presente) {
-        if (!extractedData.bolletta_gas.consumo_annuo_smc && 
-             extractedData.bolletta_gas.consumo_periodo_smc > 0 && 
-             extractedData.bolletta_gas.periodo?.mesi > 0) {
-            
-            const estimated = (extractedData.bolletta_gas.consumo_periodo_smc / extractedData.bolletta_gas.periodo.mesi) * 12;
-            console.log(`[OCR] Auto-calculating Annual Smc: ${estimated.toFixed(0)}`);
-            extractedData.bolletta_gas.consumo_annuo_smc = Math.round(estimated);
-        }
+      const result = computeConsumptionYear({
+        consumption_year_raw: extractedData.bolletta_gas.consumo_annuo_smc,
+        consumption_period: extractedData.bolletta_gas.consumo_periodo_smc,
+        period_months: extractedData.bolletta_gas.periodo?.mesi
+      });
+      
+      gasWasEstimated = result.was_estimated;
+      console.log(`[OCR] GAS consumption_year: ${result.value} (${result.source})`);
+      
+      if (result.value !== null) {
+        extractedData.bolletta_gas.consumo_annuo_smc = result.value;
+      }
     }
     // -------------------------------------------------------------
 
@@ -223,11 +253,47 @@ serve(async (req) => {
       consumo_annuo_smc: annualSmc, 
       gas_smc: annualSmc, // Legacy 
       raw_json: extractedData, 
-      quality_score: 1.0 // High confidence
+      quality_score: (provider && (annualKwh || annualSmc) && totalCost) ? 1.0 : 0.3 // Dynamic quality score
     });
 
     if (dbError) {
         console.error("DB Insert Error:", dbError);
+    }
+
+    // BILLNORMALIZED: Save canonical extraction
+    const normalized = {
+      upload_id: uploadId,
+      commodity: extractedData.tipo_fornitura === "luce" ? "LUCE" 
+               : extractedData.tipo_fornitura === "gas" ? "GAS"
+               : extractedData.tipo_fornitura === "luce+gas" ? "DUAL" : null,
+      period_months: extractedData.bolletta_luce?.periodo?.mesi 
+                  || extractedData.bolletta_gas?.periodo?.mesi || null,
+      period_start: extractedData.bolletta_luce?.periodo?.data_inizio 
+                 || extractedData.bolletta_gas?.periodo?.data_inizio || null,
+      period_end: extractedData.bolletta_luce?.periodo?.data_fine 
+               || extractedData.bolletta_gas?.periodo?.data_fine || null,
+      consumption_period: extractedData.bolletta_luce?.consumo_periodo_kwh 
+                       || extractedData.bolletta_gas?.consumo_periodo_smc || null,
+      consumption_year: extractedData.bolletta_luce?.consumo_annuo_kwh 
+                     || extractedData.bolletta_gas?.consumo_annuo_smc || null,
+      consumption_unit: extractedData.bolletta_luce?.presente ? "KWH" 
+                     : extractedData.bolletta_gas?.presente ? "SMC" : null,
+      total_due: extractedData.bolletta_luce?.totale_periodo_euro 
+              || extractedData.bolletta_gas?.totale_periodo_euro || null,
+      supplier: extractedData.provider || null,
+      pod: extractedData.bolletta_luce?.pod || null,
+      pdr: extractedData.bolletta_gas?.pdr || null,
+      confidence: (provider && (annualKwh || annualSmc) && totalCost) ? 1.0 : 0.3,
+      consumption_year_was_estimated: luceWasEstimated || gasWasEstimated,
+      source_fields: {},
+      raw_ocr_response: extractedData
+    };
+
+    const { error: normalizedError } = await supabase.from("bill_extractions").insert(normalized);
+    if (normalizedError) {
+      console.error("[OCR] BillNormalized insert error:", normalizedError);
+    } else {
+      console.log("[OCR] BillNormalized saved for upload:", uploadId);
     }
 
     return new Response(JSON.stringify({ ok: true, data: extractedData }), { headers: { ...corsHeaders, "content-type": "application/json" } });

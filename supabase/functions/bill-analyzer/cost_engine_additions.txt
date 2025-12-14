@@ -1,0 +1,37 @@
+// Add after line 20 (after HELPER FUNCTIONS comment):
+
+// COST ENGINE - Deterministic annual cost calculation
+function computeAnnualCost(data: {
+  total_due: number | null;
+  period_months: number | null;
+  spesa_annua_from_bill: number | null;
+}): { value: number | null; source: string; valid: boolean; error?: string } {
+  if (data.spesa_annua_from_bill && data.spesa_annua_from_bill > 0) {
+    return { value: data.spesa_annua_from_bill, source: "BILL", valid: true };
+  }
+  if (data.total_due && data.total_due > 0 && data.period_months && data.period_months > 0) {
+    const monthly = data.total_due / data.period_months;
+    const annual = monthly * 12;
+    return { value: Math.round(annual * 100) / 100, source: "CALCULATED", valid: true };
+  }
+  return { value: null, source: "MISSING", valid: false, error: "Missing total_due or period_months" };
+}
+
+// GUARDRAILS - Validate bill data
+function validateBillData(data: {
+  current_cost_year: number | null;
+  consumption_year: number | null;
+  saving_year: number | null;
+}): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (!data.current_cost_year || data.current_cost_year <= 0) {
+    errors.push("current_cost_year <= 0");
+  }
+  if (!data.consumption_year || data.consumption_year <= 0) {
+    errors.push("consumption_year <= 0");
+  }
+  if (data.saving_year && data.current_cost_year && data.saving_year > data.current_cost_year) {
+    errors.push(`IMPOSSIBLE: saving (${data.saving_year}) > current_cost (${data.current_cost_year})`);
+  }
+  return { valid: errors.length === 0, errors };
+}
