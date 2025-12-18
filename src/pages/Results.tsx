@@ -467,7 +467,10 @@ const ResultsPage = () => {
           },
           body: JSON.stringify({
             uploadId: uId,
-            consumo_annuo_kwh: consumo,
+            // Pass correct parameter based on bill type
+            ...(billType === 'gas' 
+              ? { consumo_annuo_smc: consumo }
+              : { consumo_annuo_kwh: consumo }),
             spesa_mensile_corrente: mensile,
             spesa_annua_corrente: annuo,
             fornitore_attuale: provider,
