@@ -223,15 +223,9 @@ Ora procedi con l'analisi normale delle offerte.`;
         }
 
         // Extract bill data
-        console.log('[ENERGY-COACH] Received body:', JSON.stringify(body, null, 2));
-        console.log('[ENERGY-COACH] body.consumo_annuo_kwh:', body.consumo_annuo_kwh);
-        console.log('[ENERGY-COACH] body.consumo_annuo_smc:', body.consumo_annuo_smc);
-        
         const consumo = body.consumo_annuo_kwh || body.consumo_annuo_smc || 0;
         const unita = body.consumo_annuo_kwh ? "kWh" : "Smc";
         const spesa = body.spesa_annua_corrente || 0;
-        console.log('[ENERGY-COACH] Final consumo:', consumo, unita);
-        
         const fornitore = body.fornitore_attuale || "non specificato";
         const potenza = body.bolletta_luce?.potenza_kw || body.potenza_impegnata || "N/D";
         const utenza = body.tipo_utenza || "non specificato";

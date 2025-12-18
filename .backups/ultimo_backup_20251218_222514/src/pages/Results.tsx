@@ -147,8 +147,6 @@ const ResultsPage = () => {
         }
       }
       
-      console.log('[🔍 BILLTYPE] tipo from OCR:', tipo);
-      console.log('[🔍 BILLTYPE] ocrResult.raw_json.tipo_fornitura:', ocrResult?.raw_json?.tipo_fornitura);
       setBillType(tipo);
 
 
@@ -292,21 +290,31 @@ const ResultsPage = () => {
         const action = targetData?.decision?.action;
         const copy = targetData?.expert_copy;
         
-        // Extract consumption inline to avoid async state timing issues
-        const extractedConsumption = targetData?.current?.consumption_annual?.kwh 
-          || targetData?.current?.consumption_annual?.smc 
-          || 0;
+        // Helper: Generate AI text from expert_copy
+        const generateAiText = (expertCopy, includeProsCons = false) => {
+          if (!expertCopy) return "";
+          let text = "#### " + expertCopy.headline + "\n\n";
+          text += expertCopy.summary_3_lines?.join("\n\n") + "\n\n";
+          if (includeProsCons && expertCopy.pros_cons?.switch?.length > 0) {
+            text += "**Vantaggi del cambio:**\n" + expertCopy.pros_cons.switch.map(p => "- " + p).join("\n") + "\n\n";
+          }
         
-        console.log('[🔍 BILLTYPE-2] Current billType state:', billType);
-        console.log('[🔍 BILLTYPE-2] Will use parameter:', billType === 'gas' ? 'consumo_annuo_smc' : 'consumo_annuo_kwh');
-        console.log('[🔍 CONSUMPTION] Extracted:', extractedConsumption, 'from', targetData?.current?.consumption_annual);
-        setConsumption(extractedConsumption);  // Update state for UI display
+        // UI DATA CERTIFICATION: Set consumption from certified data
+        if (targetData?.current?.consumption_annual?.kwh) {
+          setConsumption(Number(targetData.current.consumption_annual.kwh));
+        } else if (targetData?.current?.consumption_annual?.smc) {
+          setConsumption(Number(targetData.current.consumption_annual.smc));
+        }
+          if (includeProsCons && expertCopy.pros_cons?.stay?.length > 0) {
+            text += "**Se resti dove sei:**\n" + expertCopy.pros_cons.stay.map(p => "- " + p).join("\n") + "\n\n";
+          }
+          text += "**Prossimi passi:**\n" + (expertCopy.next_steps || []).map((s, i) => (i+1) + ". " + s).join("\n");
+          if (expertCopy.disclaimer) text += "\n\n*" + expertCopy.disclaimer + "*";
+          return text;
+        };
         
         switch (action) {
           case "SWITCH": {
-            console.log('[🔍 AI-DEBUG-1] SWITCH case triggered');
-            console.log('[🔍 AI-DEBUG-2] uploadId:', uploadId);
-            console.log('[🔍 AI-DEBUG-3] consumption:', consumption);
             // DEBUG: Update state
             setDebugData(prev => ({
               ...prev,
@@ -334,34 +342,13 @@ const ResultsPage = () => {
               
               setBestOffer(ranked[0]);
               setAllOffers(ranked);
-              
-              // Call energy-coach API for real AI analysis
-              if (uploadId) {  // Removed consumption check - allow 0
-              console.log('[🔍 AI-DEBUG-4] Condition passed - calling AI');
-              console.log('[🔍 AI-DEBUG-4.5] Using extractedConsumption:', extractedConsumption);
-              setIsAiLoading(true);
-              console.log('[🔍 AI-DEBUG-5] isAiLoading set to true');  // Set loading BEFORE async call
-                fetchAiAnalysis(
-                  uploadId,
-                  extractedConsumption,  // Use extracted value, not state
-                  currentMonthly,
-                  currentCost,
-                  ocrData?.provider || 'non specificato',
-                  ocrData?.tariff_hint,
-                  0, 0, 0, // TODO: add fasce if available
-                  0, // price per kWh
-                  ranked[0], // best offer
-                  null
-                );
-              }
             }
+            setAiAnalysis(generateAiText(copy, true));
             break;
           }
           
           case "STAY":
           case "INSUFFICIENT_DATA": {
-            console.log('[🔍 AI-DEBUG-1-STAY] STAY/INSUFFICIENT case triggered');
-            console.log('[🔍 AI-DEBUG-2-STAY] uploadId:', uploadId);
             // DEBUG: Update state
             setDebugData(prev => ({
               ...prev,
@@ -370,32 +357,10 @@ const ResultsPage = () => {
               savingsAnnual: targetData?.savings?.annual_eur,
               offerCountFiltered: 0
             }));
+            // renderStayExplanation() - Show explanation why NOT to switch
+            console.log('[Results] Decision: ' + action + ' - ' + targetData?.decision?.reason);
             setHasGoodOffer(true);
-            
-            // ALSO call AI for STAY case - personalized analysis
-            if (uploadId) {
-              console.log('[🔍 AI-DEBUG-3-STAY] Calling AI for STAY case');
-              console.log('[🔍 AI-DEBUG-3.5-STAY] Using extractedConsumption:', extractedConsumption);
-              setIsAiLoading(true);
-              fetchAiAnalysis(
-                uploadId,
-                extractedConsumption,  // Use extracted value, not state
-                currentMonthly,
-                currentCost,
-                ocrData?.provider || 'non specificato',
-                ocrData?.tariff_hint,
-                0, 0, 0,
-                0,
-                null,  // No best offer for STAY
-                null
-              );
-            } else {
-              // Fallback if no uploadId
-              const stayText = copy?.headline ? 
-                `#### ${copy.headline}\n\n${(copy.summary_3_lines || []).join('\n\n')}` :
-                `#### ${targetData?.decision?.reason || 'La tua offerta è competitiva'}`;
-              setAiAnalysis(stayText);
-            }
+            setAiAnalysis(generateAiText(copy, false));
             setIsLoading(false);
             return; // Exit early, no offers to show
           }
@@ -455,19 +420,12 @@ const ResultsPage = () => {
     offertaVariabile?: any
   ) => {
     try {
-      console.log('[🔍 AI-DEBUG-6] fetchAiAnalysis CALLED with uploadId:', uId);
       setIsAiLoading(true);
       setAiError(false);
       
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-      console.log('[🔍 AI-DEBUG-6.5] About to call energy-coach with body:', {
-        uploadId: uId,
-        consumo_annuo_kwh: billType === 'gas' ? undefined : consumo,
-        consumo_annuo_smc: billType === 'gas' ? consumo : undefined,
-      });
-      
       const response = await fetch(
         'https://jxluygtonamgadqgzgyh.supabase.co/functions/v1/energy-coach',
         {
@@ -477,11 +435,8 @@ const ResultsPage = () => {
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
-            uploadId: uId,
-            // Pass correct parameter based on bill type
-            ...(billType === 'gas' 
-              ? { consumo_annuo_smc: consumo }
-              : { consumo_annuo_kwh: consumo }),
+            upload_id: uId,
+            consumo_annuo_kwh: consumo,
             spesa_mensile_corrente: mensile,
             spesa_annua_corrente: annuo,
             fornitore_attuale: provider,
@@ -507,11 +462,8 @@ const ResultsPage = () => {
       if (!response.ok) throw new Error('AI Error');
       
       const data = await response.json();
-      console.log('[🔍 AI-DEBUG-7] API Response:', {ok: data.ok, hasAnalysis: !!data.analysis});
       if (data.ok && data.analysis) {
-        console.log('[🔍 AI-DEBUG-8] Setting aiAnalysis, length:', data.analysis?.length);
         setAiAnalysis(data.analysis);
-        console.log('[🔍 AI-DEBUG-9] aiAnalysis state updated');
       } else {
         throw new Error('Invalid AI response');
       }

@@ -1,0 +1,199 @@
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ProviderLogo } from './ProviderLogo';
+
+interface BestOfferCardProps {
+  provider: string;
+  offerName: string;
+  priceKwh: number;
+  fixedFeeYear: number;
+  annualCost: number;
+  lastUpdate: string;
+  source: string;
+  termsUrl?: string;
+  onActivate: () => void;
+  isLoading?: boolean;
+  urlVerified?: boolean;
+  explanation?: {
+    headline: string;
+    in_breve: string;
+    perche_per_te: string;
+    cosa_non_fare: string;
+    numeri_chiari: string;
+    prossimo_passo: string;
+  };
+}
+
+export const BestOfferCard: React.FC<BestOfferCardProps> = ({
+  provider,
+  offerName,
+  priceKwh,
+  fixedFeeYear,
+  annualCost,
+  lastUpdate,
+  source,
+  termsUrl,
+  onActivate,
+  isLoading = false,
+  urlVerified = undefined,
+  explanation
+}) => {
+  const fmt = (n: number) => new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(n);
+
+  return (
+    <Card className="border-primary/30 bg-primary/5 shadow-lg">
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-success" />
+                <span className="text-sm font-medium text-success">Migliore offerta</span>
+              </div>
+              {urlVerified === true && (
+                <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full">
+                  Link verificato
+                </span>
+              )}
+              {urlVerified === false && (
+                <span className="text-xs bg-warning/10 text-warning px-2 py-0.5 rounded-full">
+                  Link da verificare
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mb-1">
+              <ProviderLogo provider={provider} size='md' />
+              <CardTitle className="text-xl md:text-2xl">{provider}</CardTitle>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">{offerName}</p>
+            {source && source !== '#' && (() => {
+              try {
+                return <p className="text-xs text-muted-foreground mt-1">🔗 {new URL(source).hostname}</p>;
+              } catch {
+                return null;
+              }
+            })()}
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {/* Price details grid */}
+        <div className="grid grid-cols-2 gap-4 p-4 bg-background/50 rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground">Prezzo energia</p>
+            <p className="text-lg font-bold">{priceKwh.toFixed(4)} €/kWh</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Quota fissa</p>
+            <p className="text-lg font-bold">{fmt(fixedFeeYear / 12)}/mese</p>
+          </div>
+        </div>
+
+        {/* Annual cost highlight */}
+        <div className="text-center p-4 bg-primary/10 rounded-lg">
+          <p className="text-sm text-muted-foreground mb-1">Costo annuo stimato</p>
+          <p className="text-3xl font-bold text-primary">{fmt(annualCost)}</p>
+        </div>
+
+        {/* AI Explanation - Always-On 5 Blocks */}
+        {explanation && (
+          <div className="space-y-3 p-4 bg-background/50 rounded-lg border border-primary/20">
+            <div>
+              <h4 className="font-semibold text-primary mb-2">{explanation.headline}</h4>
+            </div>
+            
+            <div className="space-y-3 text-sm">
+              <div>
+                <p className="font-medium text-foreground">In breve:</p>
+                <p className="text-muted-foreground leading-relaxed">{explanation.in_breve}</p>
+              </div>
+              
+              <div>
+                <p className="font-medium text-foreground">Perché per te:</p>
+                <p className="text-muted-foreground leading-relaxed">{explanation.perche_per_te}</p>
+              </div>
+              
+              <div>
+                <p className="font-medium text-foreground">Cosa non devi più fare:</p>
+                <p className="text-muted-foreground leading-relaxed">{explanation.cosa_non_fare}</p>
+              </div>
+              
+              <div>
+                <p className="font-medium text-foreground">Numeri chiari:</p>
+                <p className="text-muted-foreground leading-relaxed">{explanation.numeri_chiari}</p>
+              </div>
+              
+              <div className="pt-2 border-t border-primary/10">
+                <p className="font-medium text-primary">{explanation.prossimo_passo}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CTA Button as direct link */}
+        <Button 
+          asChild
+          size="lg"
+          className="w-full text-lg font-semibold"
+          disabled={isLoading}
+        >
+          <a
+            href={source || 'https://www.google.com/search?q=' + encodeURIComponent(provider + ' ' + offerName)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              if (!source) {
+                e.preventDefault();
+                return;
+              }
+              onActivate?.(); // traccia il click/lead
+            }}
+            aria-label={`Attiva offerta ${provider}`}
+          >
+            {isLoading ? (
+              <>Reindirizzamento...</>
+            ) : (
+              <>
+                <ExternalLink className="w-5 h-5" />
+                🔗 Attiva subito e risparmia
+              </>
+            )}
+          </a>
+        </Button>
+
+        {/* Meta info */}
+        <div className="flex flex-col gap-2 text-xs text-muted-foreground pt-2">
+          <span>Aggiornato: {new Date(lastUpdate).toLocaleDateString('it-IT')}</span>
+          {termsUrl && (
+            <a 
+              href={termsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-primary inline-flex items-center gap-1"
+            >
+              Vedi termini e condizioni <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          {source && (
+            <a 
+              href={source}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-primary inline-flex items-center gap-1"
+            >
+              Fonte ufficiale <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
