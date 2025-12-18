@@ -49,11 +49,13 @@ const UploadPage = () => {
   // Pop-up flow states
   const [popupStep, setPopupStep] = useState<0 | 1 | 2>(0);
   const [loaderText, setLoaderText] = useState("Sto analizzando la tua bolletta, ci vuole qualche secondo...");
+    tipoUtenza: "casa" | "ufficio";
   const [userProfile, setUserProfile] = useState<{
     dataNascita: string | null;
     nucleoFamiliare: number | null;
     iseeRange: "basso" | "medio" | "alto" | null;
     codiceFiscale: string | null;
+    tipoUtenza: "casa",
   }>({
     dataNascita: null,
     nucleoFamiliare: null,
@@ -102,7 +104,7 @@ const UploadPage = () => {
   };
 
   // Handle Pop-up Step 2 completion - NOW start actual OCR
-  const handlePopupStep2Complete = async (data: { nucleoFamiliare: number; iseeRange: "basso" | "medio" | "alto" }) => {
+  const handlePopupStep2Complete = async (data: { nucleoFamiliare: number; iseeRange: "basso" | "medio" | "alto"; tipoUtenza: "casa" | "ufficio" }) => {
     setUserProfile(prev => ({ ...prev, ...data }));
     setPopupStep(0); // Close pop-ups
     setLoaderText("Sto finalizzando la tua analisi...");
@@ -153,6 +155,10 @@ const UploadPage = () => {
           file_size: totalSize,
           user_id: user?.id || null,
           ocr_status: "pending",
+          tipo_utenza: userProfile.tipoUtenza === "casa" ? "domestico" : "business",
+          data_nascita: userProfile.dataNascita,
+          nucleo_familiare: userProfile.nucleoFamiliare,
+          isee_range: userProfile.iseeRange,
         })
         .select()
         .single();
