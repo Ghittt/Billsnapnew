@@ -376,10 +376,11 @@ const ResultsPage = () => {
             // ALSO call AI for STAY case - personalized analysis
             if (uploadId) {
               console.log('[🔍 AI-DEBUG-3-STAY] Calling AI for STAY case');
+              console.log('[🔍 AI-DEBUG-3.5-STAY] Using extractedConsumption:', extractedConsumption);
               setIsAiLoading(true);
               fetchAiAnalysis(
                 uploadId,
-                consumption || 0,
+                extractedConsumption,  // Use extracted value, not state
                 currentMonthly,
                 currentCost,
                 ocrData?.provider || 'non specificato',
