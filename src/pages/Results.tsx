@@ -714,7 +714,7 @@ const ResultsPage = () => {
               </CardContent>
             </Card>
 
-            {(bestOffer || hasGoodOffer) && (
+            {bestOffer && !hasGoodOffer && (
               <Card className='border-2 border-primary/40 shadow-md relative overflow-hidden'>
                 <div className='absolute top-0 left-0 w-full h-1 bg-primary'></div>
                 <CardContent className='p-6 md:p-8 text-center space-y-4'>
@@ -740,7 +740,37 @@ const ResultsPage = () => {
             )}
           </div>
 
-          
+          {hasGoodOffer && analyzerResult && (
+            <Card className='border-2 border-green-500/40 shadow-md bg-green-50/50'>
+              <CardContent className='p-8 text-center space-y-4'>
+                <h2 className='text-3xl font-bold text-green-700'>
+                  {(analyzerResult.decision?.action === "STAY" || 
+                    analyzerResult.luce?.decision?.action === "STAY" || 
+                    analyzerResult.gas?.decision?.action === "STAY") 
+                    ? "🎉 Resta dove sei" 
+                    : (analyzerResult.decision?.action === "INSUFFICIENT_DATA"
+                    ? "⚠️ Dati insufficienti" 
+                    : "❓ Servono più informazioni")}
+                </h2>
+                <p className='text-lg text-green-900'>
+                  {analyzerResult.decision?.reason || 
+                   analyzerResult.luce?.decision?.reason || 
+                   analyzerResult.gas?.decision?.reason ||
+                   analyzerResult.expert_copy?.headline ||
+                   analyzerResult.luce?.expert_copy?.headline ||
+                   analyzerResult.gas?.expert_copy?.headline ||
+                   "La tua offerta attuale è già competitiva."}
+                </p>
+                <p className='text-muted-foreground'>
+                  {analyzerResult.expert_copy?.summary_3_lines?.[0] ||
+                   analyzerResult.luce?.expert_copy?.summary_3_lines?.[0] ||
+                   analyzerResult.gas?.expert_copy?.summary_3_lines?.[0] ||
+                   "Non conviene cambiare fornitore in questo momento."}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* DEBUG PANEL - Only visible when DEBUG=true */}
           {DEBUG && (
             <Card className='border-2 border-yellow-500 bg-yellow-50'>
@@ -770,7 +800,7 @@ const ResultsPage = () => {
             </Card>
           )}
 
-          {(bestOffer || hasGoodOffer) && (
+          {bestOffer && !hasGoodOffer && (
             <p className='text-center text-muted-foreground text-sm italic'>
               Questa è l'offerta che oggi risulta più conveniente per il tuo profilo di consumo.
             </p>
