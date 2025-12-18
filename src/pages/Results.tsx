@@ -461,6 +461,12 @@ const ResultsPage = () => {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+      console.log('[🔍 AI-DEBUG-6.5] About to call energy-coach with body:', {
+        uploadId: uId,
+        consumo_annuo_kwh: billType === 'gas' ? undefined : consumo,
+        consumo_annuo_smc: billType === 'gas' ? consumo : undefined,
+      });
+      
       const response = await fetch(
         'https://jxluygtonamgadqgzgyh.supabase.co/functions/v1/energy-coach',
         {
