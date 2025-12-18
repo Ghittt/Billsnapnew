@@ -29,3 +29,26 @@ dist-ssr
 .env
 .env.local
 *.bak
+
+# Backup files
+*.backup
+*.bak
+*.bak2
+*.pre-*
+*.fix_*
+*_fix
+*.date_fix
+*.energy_coach_fix
+
+# Test files
+test_bill.b64
+test_bill.txt
+check-db-*.js
+check-db-*.ts
+
+# Temporary migrations (keep only final ones)
+supabase/migrations/2025121409*.sql
+supabase/migrations/2025121410*.sql
+
+# Scripts directory (if temporary)
+scripts/check-db-*.ts
