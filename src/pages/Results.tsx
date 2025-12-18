@@ -290,19 +290,13 @@ const ResultsPage = () => {
         const action = targetData?.decision?.action;
         const copy = targetData?.expert_copy;
         
-        // Set consumption from bill-analyzer response
-        console.log('[🔍 CONSUMPTION] targetData.current:', targetData?.current);
-        console.log('[🔍 CONSUMPTION] consumption_annual:', targetData?.current?.consumption_annual);
-        if (targetData?.current?.consumption_annual) {
-          console.log('[🔍 CONSUMPTION] Keys:', Object.keys(targetData.current.consumption_annual));
-          console.log('[🔍 CONSUMPTION] Full object:', JSON.stringify(targetData.current.consumption_annual));
-        }
-        if (targetData?.current?.consumption_annual?.kwh) {
-          setConsumption(Number(targetData.current.consumption_annual.kwh));
-        } else if (targetData?.current?.consumption_annual?.smc) {
-          setConsumption(Number(targetData.current.consumption_annual.smc));
-        }
+        // Extract consumption inline to avoid async state timing issues
+        const extractedConsumption = targetData?.current?.consumption_annual?.kwh 
+          || targetData?.current?.consumption_annual?.smc 
+          || 0;
         
+        console.log('[🔍 CONSUMPTION] Extracted:', extractedConsumption, 'from', targetData?.current?.consumption_annual);
+        setConsumption(extractedConsumption);  // Update state for UI display
         
         switch (action) {
           case "SWITCH": {
