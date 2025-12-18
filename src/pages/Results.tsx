@@ -147,6 +147,8 @@ const ResultsPage = () => {
         }
       }
       
+      console.log('[🔍 BILLTYPE] tipo from OCR:', tipo);
+      console.log('[🔍 BILLTYPE] ocrResult.raw_json.tipo_fornitura:', ocrResult?.raw_json?.tipo_fornitura);
       setBillType(tipo);
 
 
@@ -295,6 +297,8 @@ const ResultsPage = () => {
           || targetData?.current?.consumption_annual?.smc 
           || 0;
         
+        console.log('[🔍 BILLTYPE-2] Current billType state:', billType);
+        console.log('[🔍 BILLTYPE-2] Will use parameter:', billType === 'gas' ? 'consumo_annuo_smc' : 'consumo_annuo_kwh');
         console.log('[🔍 CONSUMPTION] Extracted:', extractedConsumption, 'from', targetData?.current?.consumption_annual);
         setConsumption(extractedConsumption);  // Update state for UI display
         
