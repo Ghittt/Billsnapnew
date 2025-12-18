@@ -291,27 +291,6 @@ const ResultsPage = () => {
         const copy = targetData?.expert_copy;
         
         // Helper: Generate AI text from expert_copy
-        const generateAiText = (expertCopy, includeProsCons = false) => {
-          if (!expertCopy) return "";
-          let text = "#### " + expertCopy.headline + "\n\n";
-          text += expertCopy.summary_3_lines?.join("\n\n") + "\n\n";
-          if (includeProsCons && expertCopy.pros_cons?.switch?.length > 0) {
-            text += "**Vantaggi del cambio:**\n" + expertCopy.pros_cons.switch.map(p => "- " + p).join("\n") + "\n\n";
-          }
-        
-        // UI DATA CERTIFICATION: Set consumption from certified data
-        if (targetData?.current?.consumption_annual?.kwh) {
-          setConsumption(Number(targetData.current.consumption_annual.kwh));
-        } else if (targetData?.current?.consumption_annual?.smc) {
-          setConsumption(Number(targetData.current.consumption_annual.smc));
-        }
-          if (includeProsCons && expertCopy.pros_cons?.stay?.length > 0) {
-            text += "**Se resti dove sei:**\n" + expertCopy.pros_cons.stay.map(p => "- " + p).join("\n") + "\n\n";
-          }
-          text += "**Prossimi passi:**\n" + (expertCopy.next_steps || []).map((s, i) => (i+1) + ". " + s).join("\n");
-          if (expertCopy.disclaimer) text += "\n\n*" + expertCopy.disclaimer + "*";
-          return text;
-        };
         
         switch (action) {
           case "SWITCH": {
@@ -345,6 +324,7 @@ const ResultsPage = () => {
               
               // Call energy-coach API for real AI analysis
               if (uploadId && consumption > 0) {
+              setIsAiLoading(true);  // Set loading BEFORE async call
                 fetchAiAnalysis(
                   uploadId,
                   consumption,
