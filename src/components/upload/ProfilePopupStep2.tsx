@@ -81,7 +81,7 @@ export function ProfilePopupStep2({ open, onComplete }: ProfilePopupStep2Props) 
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-sm font-medium">
                             <Users className="w-4 h-4 text-primary" />
-                            Quante persone vivono in casa?
+                            {tipoUtenza === "casa" ? "Quante persone vivono in casa?" : "Quante persone lavorano in ufficio?"}
                         </div>
                         <div className="grid grid-cols-4 gap-2">
                             {nucleoOptions.map((option) => (
