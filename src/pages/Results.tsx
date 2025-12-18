@@ -326,7 +326,7 @@ const ResultsPage = () => {
               setAllOffers(ranked);
               
               // Call energy-coach API for real AI analysis
-              if (uploadId && consumption > 0) {
+              if (uploadId) {  // Removed consumption check - allow 0
               console.log('[🔍 AI-DEBUG-4] Condition passed - calling AI');
               setIsAiLoading(true);
               console.log('[🔍 AI-DEBUG-5] isAiLoading set to true');  // Set loading BEFORE async call
@@ -349,6 +349,8 @@ const ResultsPage = () => {
           
           case "STAY":
           case "INSUFFICIENT_DATA": {
+            console.log('[🔍 AI-DEBUG-1-STAY] STAY/INSUFFICIENT case triggered');
+            console.log('[🔍 AI-DEBUG-2-STAY] uploadId:', uploadId);
             // DEBUG: Update state
             setDebugData(prev => ({
               ...prev,
@@ -357,14 +359,31 @@ const ResultsPage = () => {
               savingsAnnual: targetData?.savings?.annual_eur,
               offerCountFiltered: 0
             }));
-            // renderStayExplanation() - Show explanation why NOT to switch
-            console.log('[Results] Decision: ' + action + ' - ' + targetData?.decision?.reason);
             setHasGoodOffer(true);
-            // For STAY/INSUFFICIENT_DATA, still use expert_copy as it's appropriate
-            const stayText = copy?.headline ? 
-              `#### ${copy.headline}\n\n${(copy.summary_3_lines || []).join('\n\n')}` :
-              `#### ${targetData?.decision?.reason || 'La tua offerta è competitiva'}`;
-            setAiAnalysis(stayText);
+            
+            // ALSO call AI for STAY case - personalized analysis
+            if (uploadId) {
+              console.log('[🔍 AI-DEBUG-3-STAY] Calling AI for STAY case');
+              setIsAiLoading(true);
+              fetchAiAnalysis(
+                uploadId,
+                consumption || 0,
+                currentMonthly,
+                currentCost,
+                ocrData?.provider || 'non specificato',
+                ocrData?.tariff_hint,
+                0, 0, 0,
+                0,
+                null,  // No best offer for STAY
+                null
+              );
+            } else {
+              // Fallback if no uploadId
+              const stayText = copy?.headline ? 
+                `#### ${copy.headline}\n\n${(copy.summary_3_lines || []).join('\n\n')}` :
+                `#### ${targetData?.decision?.reason || 'La tua offerta è competitiva'}`;
+              setAiAnalysis(stayText);
+            }
             setIsLoading(false);
             return; // Exit early, no offers to show
           }
