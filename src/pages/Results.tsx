@@ -290,7 +290,13 @@ const ResultsPage = () => {
         const action = targetData?.decision?.action;
         const copy = targetData?.expert_copy;
         
-        // Helper: Generate AI text from expert_copy
+        // Set consumption from bill-analyzer response
+        if (targetData?.current?.consumption_annual?.kwh) {
+          setConsumption(Number(targetData.current.consumption_annual.kwh));
+        } else if (targetData?.current?.consumption_annual?.smc) {
+          setConsumption(Number(targetData.current.consumption_annual.smc));
+        }
+        
         
         switch (action) {
           case "SWITCH": {
