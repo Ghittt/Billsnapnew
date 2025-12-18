@@ -285,6 +285,8 @@ const ResultsPage = () => {
         
         // Set current cost from Core response
         if (targetData?.current?.annual_eur) {
+          console.log('[🔍 COST] targetData.current:', targetData?.current);
+          console.log('[🔍 COST] annual_eur:', targetData?.current?.annual_eur);
           setCurrentCost(Number(targetData.current.annual_eur));
         }
         
