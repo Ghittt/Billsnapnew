@@ -435,7 +435,7 @@ const ResultsPage = () => {
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
-            upload_id: uId,
+            uploadId: uId,
             consumo_annuo_kwh: consumo,
             spesa_mensile_corrente: mensile,
             spesa_annua_corrente: annuo,
