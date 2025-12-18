@@ -42,6 +42,7 @@ export const IntelligentAnalysis: React.FC<IntelligentAnalysisProps> = ({
   onActivate,
   bestOfferPromo
 }) => {
+  console.log('[📊 COMPONENT] IntelligentAnalysis render:', {aiAnalysis: aiAnalysis?.substring(0,50), isLoading, error});
   
   if (error) {
     return (

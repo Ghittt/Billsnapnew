@@ -294,6 +294,9 @@ const ResultsPage = () => {
         
         switch (action) {
           case "SWITCH": {
+            console.log('[🔍 AI-DEBUG-1] SWITCH case triggered');
+            console.log('[🔍 AI-DEBUG-2] uploadId:', uploadId);
+            console.log('[🔍 AI-DEBUG-3] consumption:', consumption);
             // DEBUG: Update state
             setDebugData(prev => ({
               ...prev,
@@ -324,7 +327,9 @@ const ResultsPage = () => {
               
               // Call energy-coach API for real AI analysis
               if (uploadId && consumption > 0) {
-              setIsAiLoading(true);  // Set loading BEFORE async call
+              console.log('[🔍 AI-DEBUG-4] Condition passed - calling AI');
+              setIsAiLoading(true);
+              console.log('[🔍 AI-DEBUG-5] isAiLoading set to true');  // Set loading BEFORE async call
                 fetchAiAnalysis(
                   uploadId,
                   consumption,
@@ -419,6 +424,7 @@ const ResultsPage = () => {
     offertaVariabile?: any
   ) => {
     try {
+      console.log('[🔍 AI-DEBUG-6] fetchAiAnalysis CALLED with uploadId:', uId);
       setIsAiLoading(true);
       setAiError(false);
       
@@ -461,8 +467,11 @@ const ResultsPage = () => {
       if (!response.ok) throw new Error('AI Error');
       
       const data = await response.json();
+      console.log('[🔍 AI-DEBUG-7] API Response:', {ok: data.ok, hasAnalysis: !!data.analysis});
       if (data.ok && data.analysis) {
+        console.log('[🔍 AI-DEBUG-8] Setting aiAnalysis, length:', data.analysis?.length);
         setAiAnalysis(data.analysis);
+        console.log('[🔍 AI-DEBUG-9] aiAnalysis state updated');
       } else {
         throw new Error('Invalid AI response');
       }
