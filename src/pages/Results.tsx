@@ -343,7 +343,21 @@ const ResultsPage = () => {
               setBestOffer(ranked[0]);
               setAllOffers(ranked);
             }
-            setAiAnalysis(generateAiText(copy, true));
+            // Call energy-coach API for real AI analysis
+            if (uploadId && consumption > 0) {
+              fetchAiAnalysis(
+                uploadId,
+                consumption,
+                currentMonthly,
+                currentCost,
+                ocrData?.provider || 'non specificato',
+                ocrData?.tariff_hint,
+                0, 0, 0, // TODO: add fasce if available
+                0, // price per kWh
+                ranked[0], // best offer
+                null
+              );
+            }
             break;
           }
           
@@ -360,7 +374,11 @@ const ResultsPage = () => {
             // renderStayExplanation() - Show explanation why NOT to switch
             console.log('[Results] Decision: ' + action + ' - ' + targetData?.decision?.reason);
             setHasGoodOffer(true);
-            setAiAnalysis(generateAiText(copy, false));
+            // For STAY/INSUFFICIENT_DATA, still use expert_copy as it's appropriate
+            const stayText = copy?.headline ? 
+              `#### ${copy.headline}\n\n${(copy.summary_3_lines || []).join('\n\n')}` :
+              `#### ${targetData?.decision?.reason || 'La tua offerta è competitiva'}`;
+            setAiAnalysis(stayText);
             setIsLoading(false);
             return; // Exit early, no offers to show
           }
