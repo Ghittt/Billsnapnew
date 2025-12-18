@@ -293,6 +293,10 @@ const ResultsPage = () => {
         // Set consumption from bill-analyzer response
         console.log('[🔍 CONSUMPTION] targetData.current:', targetData?.current);
         console.log('[🔍 CONSUMPTION] consumption_annual:', targetData?.current?.consumption_annual);
+        if (targetData?.current?.consumption_annual) {
+          console.log('[🔍 CONSUMPTION] Keys:', Object.keys(targetData.current.consumption_annual));
+          console.log('[🔍 CONSUMPTION] Full object:', JSON.stringify(targetData.current.consumption_annual));
+        }
         if (targetData?.current?.consumption_annual?.kwh) {
           setConsumption(Number(targetData.current.consumption_annual.kwh));
         } else if (targetData?.current?.consumption_annual?.smc) {
