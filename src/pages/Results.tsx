@@ -291,6 +291,8 @@ const ResultsPage = () => {
         const copy = targetData?.expert_copy;
         
         // Set consumption from bill-analyzer response
+        console.log('[🔍 CONSUMPTION] targetData.current:', targetData?.current);
+        console.log('[🔍 CONSUMPTION] consumption_annual:', targetData?.current?.consumption_annual);
         if (targetData?.current?.consumption_annual?.kwh) {
           setConsumption(Number(targetData.current.consumption_annual.kwh));
         } else if (targetData?.current?.consumption_annual?.smc) {
