@@ -342,21 +342,22 @@ const ResultsPage = () => {
               
               setBestOffer(ranked[0]);
               setAllOffers(ranked);
-            }
-            // Call energy-coach API for real AI analysis
-            if (uploadId && consumption > 0) {
-              fetchAiAnalysis(
-                uploadId,
-                consumption,
-                currentMonthly,
-                currentCost,
-                ocrData?.provider || 'non specificato',
-                ocrData?.tariff_hint,
-                0, 0, 0, // TODO: add fasce if available
-                0, // price per kWh
-                ranked[0], // best offer
-                null
-              );
+              
+              // Call energy-coach API for real AI analysis
+              if (uploadId && consumption > 0) {
+                fetchAiAnalysis(
+                  uploadId,
+                  consumption,
+                  currentMonthly,
+                  currentCost,
+                  ocrData?.provider || 'non specificato',
+                  ocrData?.tariff_hint,
+                  0, 0, 0, // TODO: add fasce if available
+                  0, // price per kWh
+                  ranked[0], // best offer
+                  null
+                );
+              }
             }
             break;
           }
