@@ -156,7 +156,7 @@ const UploadPage = () => {
           user_id: user?.id || null,
           ocr_status: "pending",
           tipo_utenza: userProfile.tipoUtenza === "casa" ? "domestico" : "business",
-          data_nascita: userProfile.dataNascita,
+          data_nascita: userProfile.dataNascita ? (() => { const p = userProfile.dataNascita.split("/"); return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : null; })() : null,
           nucleo_familiare: userProfile.nucleoFamiliare,
           isee_range: userProfile.iseeRange,
         })
