@@ -41,7 +41,9 @@ async function extractWithAzure(fileBase64: string, mimeType: string): Promise<{
   try {
     console.log("[AZURE] Starting document analysis...");
     
-    const analyzeUrl = azureEndpoint + "/formrecognizer/documentModels/prebuilt-layout:analyze?api-version=2024-11-30";
+    // Remove trailing slash from endpoint to prevent double slashes
+    const endpoint = azureEndpoint.endsWith("/") ? azureEndpoint.slice(0, -1) : azureEndpoint;
+    const analyzeUrl = endpoint + "/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30";
     
     const binaryData = Uint8Array.from(atob(fileBase64), c => c.charCodeAt(0));
     
@@ -207,25 +209,54 @@ function parseAzureResult(result: any): any {
     }
   }
 
-  // Cost detection
-  const costMatches = [...content.matchAll(/€\s*(\d+[\.,]\d{2})/g)];
-  const costs: number[] = [];
-  for (const match of costMatches) {
-    const value = parseFloat(match[1].replace(",", "."));
-    if (value > 10 && value < 5000) costs.push(value);
-  }
-  if (costs.length > 0) {
-    const maxCost = Math.max(...costs);
-    if (output.bolletta_luce.presente && !output.bolletta_gas.presente) {
-      output.bolletta_luce.totale_periodo_euro = maxCost;
-    } else if (output.bolletta_gas.presente && !output.bolletta_luce.presente) {
-      output.bolletta_gas.totale_periodo_euro = maxCost;
-    } else if (output.bolletta_luce.presente && output.bolletta_gas.presente) {
-      output.bolletta_luce.totale_periodo_euro = maxCost * 0.6;
-      output.bolletta_gas.totale_periodo_euro = maxCost * 0.4;
+  // Cost detection - Enhanced for Italian bills
+  // First try to find "TOTALE DA PAGARE" or similar Italian patterns
+  const totalePatterns = [
+    /TOTALE\s+DA\s+PAGARE[:\s]*€?\s*(\d+[,\.]\d{2})/i,
+    /TOTALE\s+FATTURA[:\s]*€?\s*(\d+[,\.]\d{2})/i,
+    /IMPORTO\s+TOTALE[:\s]*€?\s*(\d+[,\.]\d{2})/i,
+    /TOTALE\s+DOVUTO[:\s]*€?\s*(\d+[,\.]\d{2})/i,
+    /DA\s+PAGARE\s+ENTRO[^€]*€?\s*(\d+[,\.]\d{2})/i
+  ];
+  
+  let foundTotalCost = null;
+  for (const pattern of totalePatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      foundTotalCost = parseFloat(match[1].replace(",", "."));
+      console.log("[AZURE] Found TOTALE DA PAGARE:", foundTotalCost, "€");
+      break;
     }
   }
-
+  
+  // Fallback: general € detection
+  if (!foundTotalCost) {
+    const costMatches = [...content.matchAll(/€\s*(\d+[,\.]\d{2})/g)];
+    const costs: number[] = [];
+    for (const match of costMatches) {
+      const value = parseFloat(match[1].replace(",", "."));
+      if (value > 10 && value < 5000) costs.push(value);
+    }
+    if (costs.length > 0) {
+      foundTotalCost = Math.max(...costs);
+      console.log("[AZURE] Found max cost from € patterns:", foundTotalCost, "€");
+    }
+  }
+  
+  // Assign cost to appropriate bill type
+  if (foundTotalCost) {
+    if (output.bolletta_luce.presente && !output.bolletta_gas.presente) {
+      output.bolletta_luce.totale_periodo_euro = foundTotalCost;
+    } else if (output.bolletta_gas.presente && !output.bolletta_luce.presente) {
+      output.bolletta_gas.totale_periodo_euro = foundTotalCost;
+    } else if (output.bolletta_luce.presente && output.bolletta_gas.presente) {
+      // Dual bill: split 60/40
+      output.bolletta_luce.totale_periodo_euro = foundTotalCost * 0.6;
+      output.bolletta_gas.totale_periodo_euro = foundTotalCost * 0.4;
+    }
+  } else {
+    console.warn("[AZURE] Cost not found in document");
+  }
   // Power detection
   const powerMatch = content.match(/potenza\s*(impegnata|contrattuale)?\s*[:\s]*(\d+[\.,]?\d*)\s*kw/i);
   if (powerMatch) {
@@ -258,7 +289,104 @@ function parseAzureResult(result: any): any {
 
 // ==================== GEMINI FALLBACK ====================
 
-const GEMINI_PROMPT = "Sei un esperto analista di bollette energetiche. Analizza VISIVAMENTE i documenti forniti. Estrai i dati e restituisci un JSON STRICT: {\"tipo_fornitura\": \"luce\"|\"gas\"|\"luce+gas\"|\"altro\", \"provider\": \"Nome fornitore\", \"data_emissione_bolletta\": \"YYYY-MM-DD\", \"bolletta_luce\": {\"presente\": boolean, \"pod\": \"IT...\", \"potenza_kw\": number, \"consumo_annuo_kwh\": number, \"consumo_periodo_kwh\": number, \"periodo\": {\"data_inizio\": \"YYYY-MM-DD\", \"data_fine\": \"YYYY-MM-DD\", \"mesi\": number}, \"totale_periodo_euro\": number, \"consumi_fasce\": {\"f1\": number, \"f2\": number, \"f3\": number}}, \"bolletta_gas\": {\"presente\": boolean, \"pdr\": \"numero...\", \"consumo_annuo_smc\": number, \"consumo_periodo_smc\": number, \"periodo\": {\"data_inizio\": \"YYYY-MM-DD\", \"data_fine\": \"YYYY-MM-DD\", \"mesi\": number}, \"totale_periodo_euro\": number}}. Non inventare dati, usa null se mancano.";
+const GEMINI_PROMPT = `Sei un esperto analista di bollette energetiche italiane con 20 anni di esperienza.
+
+OBIETTIVO: Estrarre dati PRECISI da bollette luce/gas italiane e restituire JSON STRICT.
+
+REGOLE CRITICHE DI ESTRAZIONE:
+1. **ZERO INVENZIONI**: Se un dato non è visibile o leggibile, usa null
+2. **VALIDAZIONE RANGE**:
+   - totale_periodo_euro: 20-5000 (bollette mensili/bimestrali realistiche)
+   - consumo_annuo_kwh: 500-15000 (consumi residenziali)
+   - consumo_annuo_smc: 100-2500 (gas residenziale)
+   - potenza_kw: 1.5-10 (contratti residenziali)
+3. **FORMAT VALIDATION**:
+   - POD: ^IT[0-9A-Z]{10,15}$ (codice identificativo elettricità)
+   - PDR: ^\d{14}$ (codice identificativo gas, esattamente 14 cifre)
+   - Date: YYYY-MM-DD format only
+4. **CROSS-VALIDATION**:
+   - Se trovi consumo_periodo_kwh E periodo.mesi, verifica coerenza con consumo_annuo
+   - Se totale_periodo_euro è molto distante dal consumo × prezzo medio, usa confidence basso
+5. **PROVIDER DETECTION** (lista completa italiani):
+   - ENEL, ENI PLENITUDE, A2A, EDISON, SORGENIA, HERA, IREN, ACEA
+   - ILLUMIA, ENGIE, WEKIWI, ESTRA, E.ON, OPTIMA, DOLOMITI ENERGIA, AXPO
+   - NEN, OCTOPUS
+6. **UNITÀ DI MISURA**:
+   - Elettricità: kWh (converti MWh → kWh se necessario)
+   - Gas: Smc, mc, m³ (standard metro cubo)
+   - Costi: sempre in Euro (€)
+
+SCHEMA JSON OUTPUT (strict): { "tipo_fornitura": "luce" | "gas" | "luce+gas" | "altro", "provider": string | null, "data_emissione_bolletta": "YYYY-MM-DD" | null, "bolletta_luce": { "presente": boolean, "pod": string | null, "potenza_kw": number | null, "consumo_annuo_kwh": number | null, "consumo_periodo_kwh": number | null, "periodo": { "data_inizio": "YYYY-MM-DD" | null, "data_fine": "YYYY-MM-DD" | null, "mesi": number | null }, "totale_periodo_euro": number | null, "consumi_fasce": { "f1": number | null, "f2": number | null, "f3": number | null } }, "bolletta_gas": { "presente": boolean, "pdr": string | null, "consumo_annuo_smc": number | null, "consumo_periodo_smc": number | null, "periodo": { "data_inizio": "YYYY-MM-DD" | null, "data_fine": "YYYY-MM-DD" | null, "mesi": number | null }, "totale_periodo_euro": number | null }, "_confidence_per_field": { "provider": number, "consumption": number, "cost": number, "pod_pdr": number } }
+
+CALCOLA confidence per ogni campo (1.0=certo, 0.7=probabile, 0.3=possibile, 0.0=non trovato). Valida ranges. Se anomalo usa null. NON RISPONDERE CON TESTO, SOLO JSON.`;
+
+
+// ==================== VALIDATION UTILITIES ====================
+
+function validateAndCleanData(data: any): any {
+  // POD validation
+  if (data.bolletta_luce?.pod) {
+    const podRegex = /^IT[0-9A-Z]{10,15}$/;
+    if (!podRegex.test(data.bolletta_luce.pod)) {
+      console.log("[GEMINI] Invalid POD format:", data.bolletta_luce.pod);
+      data.bolletta_luce.pod = null;
+      if (data._confidence_per_field) data._confidence_per_field.pod_pdr = Math.min(data._confidence_per_field.pod_pdr || 0, 0.3);
+    }
+  }
+  
+  // PDR validation
+  if (data.bolletta_gas?.pdr) {
+    const pdrRegex = /^\d{14}$/;
+    if (!pdrRegex.test(String(data.bolletta_gas.pdr))) {
+      console.log("[GEMINI] Invalid PDR format:", data.bolletta_gas.pdr);
+      data.bolletta_gas.pdr = null;
+      if (data._confidence_per_field) data._confidence_per_field.pod_pdr = Math.min(data._confidence_per_field.pod_pdr || 0, 0.3);
+    }
+  }
+  
+  // Range validation for consumption
+  if (data.bolletta_luce?.consumo_annuo_kwh) {
+    if (data.bolletta_luce.consumo_annuo_kwh < 500 || data.bolletta_luce.consumo_annuo_kwh > 15000) {
+      console.log("[GEMINI] Consumption out of range:", data.bolletta_luce.consumo_annuo_kwh, "kWh");
+      data.bolletta_luce.consumo_annuo_kwh = null;
+      if (data._confidence_per_field) data._confidence_per_field.consumption = 0.4;
+    }
+  }
+  
+  if (data.bolletta_gas?.consumo_annuo_smc) {
+    if (data.bolletta_gas.consumo_annuo_smc < 100 || data.bolletta_gas.consumo_annuo_smc > 2500) {
+      console.log("[GEMINI] Gas consumption out of range:", data.bolletta_gas.consumo_annuo_smc, "Smc");
+      data.bolletta_gas.consumo_annuo_smc = null;
+      if (data._confidence_per_field) data._confidence_per_field.consumption = 0.4;
+    }
+  }
+  
+  // Cost validation
+  const luceCost = data.bolletta_luce?.totale_periodo_euro;
+  if (luceCost && (luceCost < 20 || luceCost > 5000)) {
+    console.log("[GEMINI] Cost out of range:", luceCost, "€");
+    data.bolletta_luce.totale_periodo_euro = null;
+    if (data._confidence_per_field) data._confidence_per_field.cost = 0.3;
+  }
+  
+  const gasCost = data.bolletta_gas?.totale_periodo_euro;
+  if (gasCost && (gasCost < 20 || gasCost > 5000)) {
+    console.log("[GEMINI] Gas cost out of range:", gasCost, "€");
+    data.bolletta_gas.totale_periodo_euro = null;
+    if (data._confidence_per_field) data._confidence_per_field.cost = 0.3;
+  }
+  
+  return data;
+}
+
+function calculateOverallConfidence(data: any): number {
+  const conf = data._confidence_per_field || {};
+  const values = Object.values(conf) as number[];
+  if (values.length === 0) return 0.90; // Enhanced baseline
+  
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  return Math.round(avg * 100) / 100;
+}
 
 async function extractWithGemini(fileBase64: string, mimeType: string): Promise<{ success: boolean; data?: any; error?: string }> {
   if (!geminiApiKey) {
@@ -298,14 +426,22 @@ async function extractWithGemini(fileBase64: string, mimeType: string): Promise<
     }
 
     const extractedData = JSON.parse(resultText);
-    extractedData._azure_metadata = {
-      ocr_engine: "Gemini 2.0 Flash (Fallback)",
+    
+    // Apply validation and cleaning
+    const validated = validateAndCleanData(extractedData);
+    
+    // Calculate overall confidence
+    const overallConf = calculateOverallConfidence(validated);
+    
+    validated._azure_metadata = {
+      ocr_engine: "Gemini 2.0 Flash Enhanced",
       model: "gemini-2.0-flash-exp",
-      confidence: 0.85
+      confidence: overallConf,
+      validation_applied: true
     };
     
-    console.log("[GEMINI] Extraction successful");
-    return { success: true, data: extractedData };
+    console.log("[GEMINI] Enhanced extraction successful (confidence: " + overallConf + ")");
+    return { success: true, data: validated };
 
   } catch (error) {
     console.error("[GEMINI] Exception:", error);

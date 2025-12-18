@@ -56,6 +56,60 @@ function validateBillData(data: {
   return { valid: errors.length === 0, errors };
 }
 
+
+// ==================== ENHANCED GUARDRAILS ====================
+// CRITICAL: Enforce data quality BEFORE any calculation
+interface GuardrailResult {
+  valid: boolean;
+  errors: string[];
+  data_status: 'OK' | 'IN_VERIFICA';
+  critical_failures: string[];
+}
+
+function validateGuardrailsEnhanced(data: {
+  current_cost_year: number | null;
+  consumption_year: number | null;
+  best_cost_year?: number | null;
+  saving_year?: number | null;
+}): GuardrailResult {
+  const errors: string[] = [];
+  const critical_failures: string[] = [];
+  
+  // Guardrail 1: cost > 0
+  if (!data.current_cost_year || data.current_cost_year <= 0) {
+    const error = `GUARDRAIL VIOLATION: current_cost_year = ${data.current_cost_year} (must be > 0)`;
+    errors.push(error);
+    critical_failures.push('cost_invalid');
+    console.error(`[GUARDRAIL] ${error}`);
+  }
+  
+  // Guardrail 2: consumption > 0
+  if (!data.consumption_year || data.consumption_year <= 0) {
+    const error = `GUARDRAIL VIOLATION: consumption_year = ${data.consumption_year} (must be > 0)`;
+    errors.push(error);
+    critical_failures.push('consumption_invalid');
+    console.error(`[GUARDRAIL] ${error}`);
+  }
+  
+  // Guardrail 3: saving <= cost
+  if (data.saving_year !== undefined && data.saving_year !== null && data.current_cost_year) {
+    if (data.saving_year > data.current_cost_year) {
+      const error = `GUARDRAIL VIOLATION: saving (${data.saving_year}€) > current_cost (${data.current_cost_year}€) - IMPOSSIBLE`;
+      errors.push(error);
+      critical_failures.push('impossible_saving');
+      console.error(`[GUARDRAIL] ${error}`);
+    }
+  }
+  
+  const valid = errors.length === 0;
+  const data_status = valid ? 'OK' : 'IN_VERIFICA';
+  
+  if (!valid) {
+    console.log(`[GUARDRAIL] Validation FAILED. Status: ${data_status}. Errors: ${errors.length}`);
+  }
+  
+  return { valid, errors, data_status, critical_failures };
+}
 // COMPARISON ENGINE - Calculate offer cost from components
 function calculateOfferCost(offer, consumption_year, commodity) {
   if (offer.estimated_annual_eur && offer.estimated_annual_eur > 0) {
@@ -422,24 +476,19 @@ function generateExpertCopy(data, commodity) {
     
   } else if (data.decision.action === "STAY") {
     // STAY: Explain why alternatives DON'T work
-    headline = "Resta dove sei: le alternative non convengono";
+    headline = "Resta dove sei";
     
-    let spiegazione = "Con un consumo " + livelloConsumo + " di " + consumo + " " + unit + "/anno, ";
-    spiegazione += "paghi €" + costoAttuale.toFixed(0) + " all'anno. ";
+    let spiegazione = "La tua offerta attuale è già la più conveniente sul mercato. Non ci sono offerte migliori disponibili.";
     
-    // Two concrete reasons why NOT to switch
-    if (livelloConsumo === "basso") {
-      spiegazione += "Motivo 1: con consumi cosi bassi, le offerte concorrenti non riescono a battere la tua quota fissa. ";
-      spiegazione += "Motivo 2: il risparmio sarebbe inferiore a €" + Math.abs(risparmioAnnuo).toFixed(0) + "/anno, non vale la burocrazia. ";
-    } else if (livelloConsumo === "alto") {
-      spiegazione += "Motivo 1: il tuo prezzo energia e gia competitivo rispetto al mercato. ";
-      spiegazione += "Motivo 2: cambiare comporterebbe meno di €" + Math.abs(risparmioAnnuo).toFixed(0) + " di differenza, troppo poco. ";
-    } else {
-      spiegazione += "Motivo 1: la differenza con le migliori offerte e sotto il 2%, non significativa. ";
-      spiegazione += "Motivo 2: il tempo e la burocrazia del cambio non valgono un risparmio cosi piccolo. ";
+    // Se ci sono alternative ma non convenienti
+    if (costoMigliore > 0 && costoMigliore >= costoAttuale) {
+      const differenza = Math.abs(costoMigliore - costoAttuale);
+      if (differenza > 50) {
+        spiegazione = "Le alternative costerebbero €" + costoMigliore.toFixed(0) + "/anno contro i tuoi €" + costoAttuale.toFixed(0) + ". Resteresti a pagare €" + differenza.toFixed(0) + "/anno in più. Non vale la pena cambiare.";
+      } else {
+        spiegazione = "Le migliori alternative hanno prezzi praticamente identici al tuo (differenza < €50/anno). Non ha senso cambiare per così poco.";
+      }
     }
-    
-    spiegazione += "Ricontrolla tra 6 mesi: le offerte cambiano spesso.";
     
     summaryLines = [spiegazione];
     prosStay = [

@@ -85,7 +85,7 @@ serve(async (req) => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            from: 'BillSnap <onboarding@resend.dev>',
+            from: 'BillSnap <noreply@billsnap.it>',
             to: email,
             subject: 'Il tuo codice di verifica BillSnap',
             html: `
