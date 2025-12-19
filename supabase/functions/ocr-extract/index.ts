@@ -43,7 +43,8 @@ async function extractWithAzure(fileBase64: string, mimeType: string): Promise<{
     
     // Remove trailing slash from endpoint to prevent double slashes
     const endpoint = azureEndpoint.endsWith("/") ? azureEndpoint.slice(0, -1) : azureEndpoint;
-    const analyzeUrl = endpoint + "/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30";
+    // Explicitly request ALL pages (1-) to ensure multi-page PDFs are fully scanned
+    const analyzeUrl = endpoint + "/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&pages=1-";
     
     const binaryData = Uint8Array.from(atob(fileBase64), c => c.charCodeAt(0));
     
@@ -113,8 +114,12 @@ function parseAzureResult(result: any): any {
   const content = result.content || "";
   const tables = result.tables || [];
   const paragraphs = result.paragraphs || [];
+  const pageCount = result.pages?.length || 0;
   
-  console.log("[AZURE] Parsing: " + content.length + " chars, " + tables.length + " tables, " + paragraphs.length + " paragraphs");
+  console.log("[AZURE] Parsing MULTI-PAGE document:");
+  console.log("[AZURE] - Total pages scanned: " + pageCount);
+  console.log("[AZURE] - Total chars: " + content.length);
+  console.log("[AZURE] - Tables: " + tables.length + ", Paragraphs: " + paragraphs.length);
 
   const output = {
     tipo_fornitura: "altro",

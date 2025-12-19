@@ -508,12 +508,20 @@ const ResultsPage = () => {
             offerta_fissa: offertaFissa ? {
                 nome_offerta: offertaFissa.nome || offertaFissa.plan_name,
                 provider: offertaFissa.fornitore || offertaFissa.provider,
-                costo_annuo: (offertaFissa.costo_mensile ? offertaFissa.costo_mensile * 12 : offertaFissa.simulated_cost)
+                costo_annuo: (offertaFissa.costo_mensile ? offertaFissa.costo_mensile * 12 : offertaFissa.simulated_cost),
+                prezzo_energia_euro_kwh: offertaFissa.prezzo_energia_euro_kwh || offertaFissa.price_kwh || null,
+                prezzo_energia_euro_smc: offertaFissa.prezzo_energia_euro_smc || offertaFissa.price_smc || null,
+                quota_fissa_mensile: offertaFissa.quota_fissa_mensile || offertaFissa.fixed_fee_monthly || null,
+                tipo_prezzo: offertaFissa.tipo_prezzo || offertaFissa.price_type || 'fisso'
             } : null,
             offerta_variabile: offertaVariabile ? {
                 nome_offerta: offertaVariabile.nome || offertaVariabile.plan_name,
                 provider: offertaVariabile.fornitore || offertaVariabile.provider,
-                costo_annuo: (offertaVariabile.costo_mensile ? offertaVariabile.costo_mensile * 12 : offertaVariabile.simulated_cost)
+                costo_annuo: (offertaVariabile.costo_mensile ? offertaVariabile.costo_mensile * 12 : offertaVariabile.simulated_cost),
+                prezzo_energia_euro_kwh: offertaVariabile.prezzo_energia_euro_kwh || offertaVariabile.price_kwh || null,
+                prezzo_energia_euro_smc: offertaVariabile.prezzo_energia_euro_smc || offertaVariabile.price_smc || null,
+                quota_fissa_mensile: offertaVariabile.quota_fissa_mensile || offertaVariabile.fixed_fee_monthly || null,
+                tipo_prezzo: offertaVariabile.tipo_prezzo || offertaVariabile.price_type || 'variabile'
             } : null
           })
         }
