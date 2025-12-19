@@ -550,6 +550,9 @@ serve(async (req) => {
     
     if (extractedData.bolletta_luce?.presente && extractedData.bolletta_gas?.presente) {
       totalCost = (extractedData.bolletta_luce.totale_periodo_euro || 0) + (extractedData.bolletta_gas.totale_periodo_euro || 0);
+    console.log('[OCR] totalCost extracted:', totalCost);
+    console.log('[OCR] bolletta_luce.totale_periodo_euro:', extractedData.bolletta_luce?.totale_periodo_euro);
+    console.log('[OCR] bolletta_gas.totale_periodo_euro:', extractedData.bolletta_gas?.totale_periodo_euro);
     }
 
     const qualityScore = (provider && (annualKwh || annualSmc) && totalCost) ? 1.0 : 0.5;

@@ -229,7 +229,9 @@ Ora procedi con l'analisi normale delle offerte.`;
         
         const consumo = body.consumo_annuo_kwh || body.consumo_annuo_smc || 0;
         const unita = body.consumo_annuo_kwh ? "kWh" : "Smc";
+        console.log('[ENERGY-COACH] body.spesa_annua_corrente:', body.spesa_annua_corrente);
         const spesa = body.spesa_annua_corrente || 0;
+        console.log('[ENERGY-COACH] Final spesa:', spesa);
         console.log('[ENERGY-COACH] Final consumo:', consumo, unita);
         
         const fornitore = body.fornitore_attuale || "non specificato";
