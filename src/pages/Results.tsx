@@ -361,8 +361,8 @@ const ResultsPage = () => {
                   extractedConsumption,  // Use extracted value, not state
                   currentMonthly,
                   extractedCost,  // Use extracted value, not state
-                  ocrResult?.provider || 'non specificato',
-                  ocrResult?.tariff_hint,
+                  ocrData?.provider || 'non specificato',
+                  ocrData?.tariff_hint,
                   f1, f2, f3,
                   potenzaKw, // ADDED: potenza oraria from OCR
                   0, // price per kWh
@@ -398,8 +398,8 @@ const ResultsPage = () => {
                 extractedConsumption,  // Use extracted value, not state
                 currentMonthly,
                 extractedCost,  // Use extracted value, not state
-                ocrResult?.provider || 'non specificato',
-                ocrResult?.tariff_hint,
+                ocrData?.provider || 'non specificato',
+                ocrData?.tariff_hint,
                 f1, f2, f3,
                 potenzaKw, // ADDED: potenza oraria from OCR
                 0,
@@ -746,8 +746,8 @@ const ResultsPage = () => {
                       : "Dato in verifica"}
                     <DataOriginBadge source={analyzerResult?.current?.consumption_was_estimated ? "ESTIMATED" : "BILL"} />
                   </p>
-                  <p>Fornitore attuale: <span className='font-medium text-foreground'>{ocrResult?.provider || 'N/A'}</span></p>
-                  {ocrResult?.tariff_hint && (
+                  <p>Fornitore attuale: <span className='font-medium text-foreground'>{ocrData?.provider || 'N/A'}</span></p>
+                  {ocrData?.tariff_hint && (
                     <p>Tipo offerta: {ocrData.tariff_hint}</p>
                   )}
                 </div>
@@ -827,7 +827,7 @@ const ResultsPage = () => {
                   <div>API Status:</div><div>{debugData.apiStatus || 'N/A'}</div>
                   <div>Payload Hash:</div><div className='text-xs break-all'>{debugData.payloadHash || 'N/A'}</div>
                   <div>Response Hash:</div><div className='text-xs break-all'>{debugData.responseHash || 'N/A'}</div>
-                  <div>Current Provider:</div><div>{ocrResult?.provider || 'N/A'}</div>
+                  <div>Current Provider:</div><div>{ocrData?.provider || 'N/A'}</div>
                   <div>Best Offer:</div><div>{bestOffer?.provider || 'None'} - {bestOffer?.plan_name || 'N/A'}</div>
                 </div>
                 <details className='mt-4'>
@@ -853,8 +853,8 @@ const ResultsPage = () => {
                 billType={billType}
                 currentMonthly={currentMonthly}
                 currentAnnual={currentCost}
-                currentProvider={ocrResult?.provider || 'provider attuale'}
-                currentOfferType={ocrResult?.tariff_hint}
+                currentProvider={ocrData?.provider || 'provider attuale'}
+                currentOfferType={ocrData?.tariff_hint}
                 bestOfferName={bestOffer.plan_name}
                 bestOfferProvider={bestOffer.provider}
                 bestOfferMonthly={newMonthly}
