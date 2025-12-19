@@ -510,22 +510,22 @@ const ResultsPage = () => {
             potenza_kw: potenza, // ADDED
             current_price_kwh: priceKwh,
             offerta_fissa: offertaFissa ? {
-                nome_offerta: offertaFissa.nome || offertaFissa.plan_name,
-                provider: offertaFissa.fornitore || offertaFissa.provider,
-                costo_annuo: (offertaFissa.costo_mensile ? offertaFissa.costo_mensile * 12 : offertaFissa.simulated_cost),
+                nome_offerta: offertaFissa.offer_name || offertaFissa.nome || offertaFissa.plan_name,
+                provider: offertaFissa.provider || offertaFissa.fornitore,
+                costo_annuo: offertaFissa.annual_eur || (offertaFissa.costo_mensile ? offertaFissa.costo_mensile * 12 : offertaFissa.simulated_cost),
                 prezzo_energia_euro_kwh: offertaFissa.prezzo_energia_euro_kwh || offertaFissa.price_kwh || null,
                 prezzo_energia_euro_smc: offertaFissa.prezzo_energia_euro_smc || offertaFissa.price_smc || null,
                 quota_fissa_mensile: offertaFissa.quota_fissa_mensile || offertaFissa.fixed_fee_monthly || null,
-                tipo_prezzo: offertaFissa.tipo_prezzo || offertaFissa.price_type || 'fisso'
+                tipo_prezzo: offertaFissa.price_type || offertaFissa.tipo_prezzo || 'fisso'
             } : null,
             offerta_variabile: offertaVariabile ? {
-                nome_offerta: offertaVariabile.nome || offertaVariabile.plan_name,
-                provider: offertaVariabile.fornitore || offertaVariabile.provider,
-                costo_annuo: (offertaVariabile.costo_mensile ? offertaVariabile.costo_mensile * 12 : offertaVariabile.simulated_cost),
+                nome_offerta: offertaVariabile.offer_name || offertaVariabile.nome || offertaVariabile.plan_name,
+                provider: offertaVariabile.provider || offertaVariabile.fornitore,
+                costo_annuo: offertaVariabile.annual_eur || (offertaVariabile.costo_mensile ? offertaVariabile.costo_mensile * 12 : offertaVariabile.simulated_cost),
                 prezzo_energia_euro_kwh: offertaVariabile.prezzo_energia_euro_kwh || offertaVariabile.price_kwh || null,
                 prezzo_energia_euro_smc: offertaVariabile.prezzo_energia_euro_smc || offertaVariabile.price_smc || null,
                 quota_fissa_mensile: offertaVariabile.quota_fissa_mensile || offertaVariabile.fixed_fee_monthly || null,
-                tipo_prezzo: offertaVariabile.tipo_prezzo || offertaVariabile.price_type || 'variabile'
+                tipo_prezzo: offertaVariabile.price_type || offertaVariabile.tipo_prezzo || 'variabile'
             } : null
           })
         }

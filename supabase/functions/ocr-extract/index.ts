@@ -308,7 +308,14 @@ function parseAzureResult(result: any): any {
   for (const pattern of fasceF2Patterns) {
     const match = content.match(pattern);
     if (match && match[1]) {
-      output.bolletta_luce.consumi_fasce.f2 = parseFloat(match[1].replace(",", "."));
+      const val = parseFloat(match[1].replace(",", "."));
+      // SAFETY: If the value is EXACTLY the fascia index (1, 2, or 3) and doesn't explicitly have units
+      // it's almost certainly a miscapture of a table header/index.
+      if (val === 2 && !match[0].toLowerCase().includes("kw")) {
+         console.warn("[AZURE] Suspicious F2 match (likely index):", match[0]);
+         continue; 
+      }
+      output.bolletta_luce.consumi_fasce.f2 = val;
       console.log("[AZURE] Found F2:", output.bolletta_luce.consumi_fasce.f2, "from match:", match[0]);
       break;
     }
@@ -323,7 +330,14 @@ function parseAzureResult(result: any): any {
   for (const pattern of fasceF3Patterns) {
     const match = content.match(pattern);
     if (match && match[1]) {
-      output.bolletta_luce.consumi_fasce.f3 = parseFloat(match[1].replace(",", "."));
+      const val = parseFloat(match[1].replace(",", "."));
+      // SAFETY: If the value is EXACTLY the fascia index (1, 2, or 3) and doesn't explicitly have units
+      // it's almost certainly a miscapture of a table header/index.
+      if (val === 3 && !match[0].toLowerCase().includes("kw")) {
+         console.warn("[AZURE] Suspicious F3 match (likely index):", match[0]);
+         continue; 
+      }
+      output.bolletta_luce.consumi_fasce.f3 = val;
       console.log("[AZURE] Found F3:", output.bolletta_luce.consumi_fasce.f3, "from match:", match[0]);
       break;
     }
