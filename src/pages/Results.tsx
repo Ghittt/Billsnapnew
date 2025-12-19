@@ -316,6 +316,10 @@ const ResultsPage = () => {
         const f3 = ocrResult?.f3_kwh || ocrResult?.raw_json?.bolletta_luce?.consumi_fasce?.f3 || 0;
         const potenzaKw = ocrResult?.potenza_kw || ocrResult?.raw_json?.bolletta_luce?.potenza_kw || 0;
         console.log('[🔍 FASCE] Extracted:', {f1, f2, f3, potenzaKw});
+        const providerName = ocrResult?.provider || ocrResult?.raw_json?.provider || ocrResult?.raw_json?.bolletta_luce?.provider || null;
+        const currentOffer = currentOffer || ocrResult?.raw_json?.bolletta_luce?.offerta || null;
+        console.log('[🔍 DATA-CHECK] Final Provider:', providerName, 'Offer:', currentOffer);
+
         
         switch (action) {
           case "SWITCH": {
@@ -361,8 +365,8 @@ const ResultsPage = () => {
                   extractedConsumption,  // Use extracted value, not state
                   currentMonthly,
                   extractedCost,  // Use extracted value, not state
-                  ocrData?.provider || 'non specificato',
-                  ocrData?.tariff_hint,
+                  providerName,
+                  currentOffer,
                   f1, f2, f3,
                   potenzaKw, // ADDED: potenza oraria from OCR
                   0, // price per kWh
@@ -398,8 +402,8 @@ const ResultsPage = () => {
                 extractedConsumption,  // Use extracted value, not state
                 currentMonthly,
                 extractedCost,  // Use extracted value, not state
-                ocrData?.provider || 'non specificato',
-                ocrData?.tariff_hint,
+                providerName,
+                currentOffer,
                 f1, f2, f3,
                 potenzaKw, // ADDED: potenza oraria from OCR
                 0,
@@ -747,7 +751,7 @@ const ResultsPage = () => {
                     <DataOriginBadge source={analyzerResult?.current?.consumption_was_estimated ? "ESTIMATED" : "BILL"} />
                   </p>
                   <p>Fornitore attuale: <span className='font-medium text-foreground'>{ocrData?.provider || 'N/A'}</span></p>
-                  {ocrData?.tariff_hint && (
+                  {currentOffer && (
                     <p>Tipo offerta: {ocrData.tariff_hint}</p>
                   )}
                 </div>
@@ -854,7 +858,7 @@ const ResultsPage = () => {
                 currentMonthly={currentMonthly}
                 currentAnnual={currentCost}
                 currentProvider={ocrData?.provider || 'provider attuale'}
-                currentOfferType={ocrData?.tariff_hint}
+                currentOfferType={currentOffer}
                 bestOfferName={bestOffer.plan_name}
                 bestOfferProvider={bestOffer.provider}
                 bestOfferMonthly={newMonthly}
