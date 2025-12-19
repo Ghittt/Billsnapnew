@@ -257,7 +257,7 @@ Ora procedi con l'analisi normale delle offerte.`;
         if (!offerteInfo) offerteInfo = "Nessuna offerta disponibile per confronto";
 
         // Get Gemini API key
-        const openaiKey = Deno.env.get("OPENAI_API_KEY");
+        const rawKey = Deno.env.get("OPENAI_API_KEY") || ""; const openaiKey = rawKey.replace(/[^\x00-\x7F]/g, "").trim();
 
         if (!openaiKey) {
             return new Response(JSON.stringify({

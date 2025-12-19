@@ -311,9 +311,9 @@ const ResultsPage = () => {
         console.log('[🔍 COST] Extracted cost:', extractedCost, 'from annual_eur:', targetData?.current?.annual_eur);
         
         // Extract fasce orarie from OCR data
-        const f1 = ocrData?.consumi_fasce?.f1 || ocrData?.raw_json?.bolletta_luce?.consumi_fasce?.f1 || 0;
-        const f2 = ocrData?.consumi_fasce?.f2 || ocrData?.raw_json?.bolletta_luce?.consumi_fasce?.f2 || 0;
-        const f3 = ocrData?.consumi_fasce?.f3 || ocrData?.raw_json?.bolletta_luce?.consumi_fasce?.f3 || 0;
+        const f1 = ocrData?.f1_kwh || ocrData?.raw_json?.bolletta_luce?.consumi_fasce?.f1 || 0;
+        const f2 = ocrData?.f2_kwh || ocrData?.raw_json?.bolletta_luce?.consumi_fasce?.f2 || 0;
+        const f3 = ocrData?.f3_kwh || ocrData?.raw_json?.bolletta_luce?.consumi_fasce?.f3 || 0;
         const potenzaKw = ocrData?.potenza_kw || ocrData?.raw_json?.bolletta_luce?.potenza_kw || 0;
         console.log('[🔍 FASCE] Extracted:', {f1, f2, f3, potenzaKw});
         

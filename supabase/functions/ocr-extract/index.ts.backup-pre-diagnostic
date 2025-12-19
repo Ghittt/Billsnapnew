@@ -121,13 +121,6 @@ function parseAzureResult(result: any): any {
   console.log("[AZURE] - Total chars: " + content.length);
   console.log("[AZURE] - Tables: " + tables.length + ", Paragraphs: " + paragraphs.length);
   
-  // ENHANCED DIAGNOSTIC LOGGING
-  console.log("[DIAGNOSTIC] Content preview (first 1000 chars):", content.substring(0, 1000));
-  console.log("[DIAGNOSTIC] Searching for fasce keywords...");
-  const fasceMatches = content.match(/.{0,80}(F1|F2|F3|fascia).{0,80}/gi);
-  console.log("[DIAGNOSTIC] Fasce matches found:", fasceMatches ? fasceMatches.length : 0);
-  if (fasceMatches) console.log("[DIAGNOSTIC] Sample matches:", fasceMatches.slice(0, 3));
-  
   // DEBUG: Show first 500 chars and search for fasce keywords
   console.log("[AZURE-DEBUG] First 500 chars:", content.substring(0, 500));
   console.log("[AZURE-DEBUG] Contains 'F1'?", content.includes("F1"));
@@ -285,7 +278,7 @@ function parseAzureResult(result: any): any {
   // Fasce orarie extraction (F1, F2, F3)
   // Pattern: "F1: XXX kWh" or "Fascia F1: XXX" or "F1 XXX kwh"
   const fascePatterns = [
-    /F1[:\s-]+([\d.,]+)\s*kwh/gi,
+    /F1[:\s]*([\d.,]+)\s*kwh/gi,
     /fascia\s*1[:\s]*([\d.,]+)\s*kwh/gi,
     /fascia\s*F1[:\s]*([\d.,]+)/gi
   ];
@@ -302,7 +295,7 @@ function parseAzureResult(result: any): any {
   }
   
   const fasceF2Patterns = [
-    /F2[:\s-]+([\d.,]+)\s*kwh/gi,
+    /F2[:\s]*([\d.,]+)\s*kwh/gi,
     /fascia\s*2[:\s]*([\d.,]+)\s*kwh/gi,
     /fascia\s*F2[:\s]*([\d.,]+)/gi
   ];
@@ -319,7 +312,7 @@ function parseAzureResult(result: any): any {
   }
   
   const fasceF3Patterns = [
-    /F3[:\s-]+([\d.,]+)\s*kwh/gi,
+    /F3[:\s]*([\d.,]+)\s*kwh/gi,
     /fascia\s*3[:\s]*([\d.,]+)\s*kwh/gi,
     /fascia\s*F3[:\s]*([\d.,]+)/gi
   ];

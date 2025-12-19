@@ -43,3 +43,5 @@ verify_jwt = false
 
 [functions.ai-best-offer]
 verify_jwt = false
+[functions.energy-coach]
+verify_jwt = false
