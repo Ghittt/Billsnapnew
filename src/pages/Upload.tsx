@@ -49,18 +49,18 @@ const UploadPage = () => {
   // Pop-up flow states
   const [popupStep, setPopupStep] = useState<0 | 1 | 2>(0);
   const [loaderText, setLoaderText] = useState("Sto analizzando la tua bolletta, ci vuole qualche secondo...");
-    tipoUtenza: "casa" | "ufficio";
-  const [userProfile, setUserProfile] = useState<{
+      const [userProfile, setUserProfile] = useState<{
     dataNascita: string | null;
     nucleoFamiliare: number | null;
     iseeRange: "basso" | "medio" | "alto" | null;
     codiceFiscale: string | null;
-    tipoUtenza: "casa",
+    tipoUtenza: "casa" | "ufficio";
   }>({
     dataNascita: null,
     nucleoFamiliare: null,
     iseeRange: null,
     codiceFiscale: null,
+    tipoUtenza: "casa",
   });
   const navigate = useNavigate();
   const location = useLocation();

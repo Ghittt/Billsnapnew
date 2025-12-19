@@ -130,6 +130,10 @@ const ResultsPage = () => {
       }
 
       setOcrData(ocrResult);
+      
+      // Extraction for the analyzer payload
+      const consumo = ocrResult.annual_kwh || ocrResult.consumo_annuo_smc || 0;
+      const costo = ocrResult.totale_periodo_euro || 0;
 
       const { data: uploadData } = await supabase
         .from('uploads')
