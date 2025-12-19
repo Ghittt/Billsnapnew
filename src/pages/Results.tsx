@@ -304,6 +304,12 @@ const ResultsPage = () => {
         console.log('[🔍 CONSUMPTION] Extracted:', extractedConsumption, 'from', targetData?.current?.consumption_annual);
         setConsumption(extractedConsumption);  // Update state for UI display
         
+        // Extract cost inline (same pattern as consumption)
+        const extractedCost = targetData?.current?.annual_eur 
+          || (targetData?.current?.monthly_eur ? Number(targetData.current.monthly_eur) * 12 : 0)
+          || 0;
+        console.log('[🔍 COST] Extracted cost:', extractedCost, 'from annual_eur:', targetData?.current?.annual_eur);
+        
         switch (action) {
           case "SWITCH": {
             console.log('[🔍 AI-DEBUG-1] SWITCH case triggered');
