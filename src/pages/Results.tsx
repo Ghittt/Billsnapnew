@@ -310,6 +310,13 @@ const ResultsPage = () => {
           || 0;
         console.log('[🔍 COST] Extracted cost:', extractedCost, 'from annual_eur:', targetData?.current?.annual_eur);
         
+        // Extract fasce orarie from OCR data
+        const f1 = ocrData?.consumi_fasce?.f1 || ocrData?.raw_json?.bolletta_luce?.consumi_fasce?.f1 || 0;
+        const f2 = ocrData?.consumi_fasce?.f2 || ocrData?.raw_json?.bolletta_luce?.consumi_fasce?.f2 || 0;
+        const f3 = ocrData?.consumi_fasce?.f3 || ocrData?.raw_json?.bolletta_luce?.consumi_fasce?.f3 || 0;
+        const potenzaKw = ocrData?.potenza_kw || ocrData?.raw_json?.bolletta_luce?.potenza_kw || 0;
+        console.log('[🔍 FASCE] Extracted:', {f1, f2, f3, potenzaKw});
+        
         switch (action) {
           case "SWITCH": {
             console.log('[🔍 AI-DEBUG-1] SWITCH case triggered');
@@ -356,7 +363,7 @@ const ResultsPage = () => {
                   extractedCost,  // Use extracted value, not state
                   ocrData?.provider || 'non specificato',
                   ocrData?.tariff_hint,
-                  0, 0, 0, // TODO: add fasce if available
+                  f1, f2, f3, // fasce orarie from OCR
                   0, // price per kWh
                   ranked[0], // best offer
                   null
@@ -392,7 +399,7 @@ const ResultsPage = () => {
                 extractedCost,  // Use extracted value, not state
                 ocrData?.provider || 'non specificato',
                 ocrData?.tariff_hint,
-                0, 0, 0,
+                f1, f2, f3,  // fasce orarie from OCR
                 0,
                 null,  // No best offer for STAY
                 null

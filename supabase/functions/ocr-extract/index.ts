@@ -263,6 +263,61 @@ function parseAzureResult(result: any): any {
     output.bolletta_luce.potenza_kw = parseFloat(powerMatch[2].replace(",", "."));
   }
 
+  // Fasce orarie extraction (F1, F2, F3)
+  // Pattern: "F1: XXX kWh" or "Fascia F1: XXX" or "F1 XXX kwh"
+  const fascePatterns = [
+    /F1[:\s]*([\d.,]+)\s*kwh/gi,
+    /fascia\s*1[:\s]*([\d.,]+)\s*kwh/gi,
+    /fascia\s*F1[:\s]*([\d.,]+)/gi
+  ];
+  for (const pattern of fascePatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      const valueMatch = match[0].match(/([\d.,]+)/);
+      if (valueMatch) {
+        output.bolletta_luce.consumi_fasce.f1 = parseFloat(valueMatch[1].replace(",", "."));
+        console.log("[AZURE] Found F1:", output.bolletta_luce.consumi_fasce.f1);
+        break;
+      }
+    }
+  }
+  
+  const fasceF2Patterns = [
+    /F2[:\s]*([\d.,]+)\s*kwh/gi,
+    /fascia\s*2[:\s]*([\d.,]+)\s*kwh/gi,
+    /fascia\s*F2[:\s]*([\d.,]+)/gi
+  ];
+  for (const pattern of fasceF2Patterns) {
+    const match = content.match(pattern);
+    if (match) {
+      const valueMatch = match[0].match(/([\d.,]+)/);
+      if (valueMatch) {
+        output.bolletta_luce.consumi_fasce.f2 = parseFloat(valueMatch[1].replace(",", "."));
+        console.log("[AZURE] Found F2:", output.bolletta_luce.consumi_fasce.f2);
+        break;
+      }
+    }
+  }
+  
+  const fasceF3Patterns = [
+    /F3[:\s]*([\d.,]+)\s*kwh/gi,
+    /fascia\s*3[:\s]*([\d.,]+)\s*kwh/gi,
+    /fascia\s*F3[:\s]*([\d.,]+)/gi
+  ];
+  for (const pattern of fasceF3Patterns) {
+    const match = content.match(pattern);
+    if (match) {
+      const valueMatch = match[0].match(/([\d.,]+)/);
+      if (valueMatch) {
+        output.bolletta_luce.consumi_fasce.f3 = parseFloat(valueMatch[1].replace(",", "."));
+        console.log("[AZURE] Found F3:", output.bolletta_luce.consumi_fasce.f3);
+        break;
+      }
+    }
+  }
+  
+  console.log("[AZURE] Fasce orarie extracted:", output.bolletta_luce.consumi_fasce);
+
   // Period detection
   const periodKeywords = { "mensile": 1, "bimestrale": 2, "trimestrale": 3, "semestrale": 6, "annuale": 12 };
   for (const [keyword, months] of Object.entries(periodKeywords)) {
