@@ -317,7 +317,7 @@ const ResultsPage = () => {
         const potenzaKw = ocrResult?.potenza_kw || ocrResult?.raw_json?.bolletta_luce?.potenza_kw || 0;
         console.log('[🔍 FASCE] Extracted:', {f1, f2, f3, potenzaKw});
         const providerName = ocrResult?.provider || ocrResult?.raw_json?.provider || ocrResult?.raw_json?.bolletta_luce?.provider || null;
-        const currentOffer = currentOffer || ocrResult?.raw_json?.bolletta_luce?.offerta || null;
+        const currentOffer = ocrResult?.tariff_hint || ocrResult?.raw_json?.bolletta_luce?.offerta || null;
         console.log('[🔍 DATA-CHECK] Final Provider:', providerName, 'Offer:', currentOffer);
 
         

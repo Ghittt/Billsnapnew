@@ -90,7 +90,8 @@ const UploadPage = () => {
 
     setIsUploading(true);
     setLoaderText("Sto analizzando la tua bolletta, ci vuole qualche secondo...");
-    setPopupStep(1); // Show first pop-up
+    // START IMMEDIATELY - ADDRESSING "ONE CLICK" REQUEST
+    await handleFileUpload(stagedFiles);
   };
 
   // Handle Pop-up Step 1 completion
