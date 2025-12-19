@@ -73,11 +73,8 @@ const UploadPage = () => {
   }, [location.state]);
 
   const handleFileStaging = (files: File[]) => {
-    // START IMMEDIATELY - ADDRESSING "ONE CLICK" REQUEST
-    console.log('[Upload] Triggering immediate analysis for', files.length, 'files');
-    setIsUploading(true);
-    setLoaderText("Sto analizzando la tua bolletta, ci vuole qualche secondo...");
-    handleFileUpload(files);
+    setStagedFiles((prev) => [...prev, ...files]);
+    setCurrentStep("staged");
   };
 
   const handleAnalyzeFiles = async () => {
@@ -92,8 +89,7 @@ const UploadPage = () => {
 
     setIsUploading(true);
     setLoaderText("Sto analizzando la tua bolletta, ci vuole qualche secondo...");
-    // START IMMEDIATELY - ADDRESSING "ONE CLICK" REQUEST
-    await handleFileUpload(stagedFiles);
+    setPopupStep(1); // Show first pop-up
   };
 
   // Handle Pop-up Step 1 completion
