@@ -257,13 +257,13 @@ Ora procedi con l'analisi normale delle offerte.`;
         if (!offerteInfo) offerteInfo = "Nessuna offerta disponibile per confronto";
 
         // Get Gemini API key
-        const geminiKey = Deno.env.get("GEMINI_API_KEY_2") || Deno.env.get("GEMINI_API_KEY");
+        const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
-        if (!geminiKey) {
+        if (!openaiKey) {
             return new Response(JSON.stringify({
                 ok: true,
                 analysis: "🔍 **Il Tuo Profilo Energetico**\nFornitore: " + fornitore + "\nConsumo: " + consumo + " " + unita + "/anno\nSpesa: EUR " + spesa + "/anno\n\n📌 **Livello di Confidenza**: Bassa - API key non configurata.",
-                model_used: "fallback-no-key"
+                model_used: "fallback-no-openai-key"
             }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
@@ -303,39 +303,40 @@ Se vedi pattern interessanti nei consumi, evidenziali.
 Proponi alternative concrete quando sensato.
 Spiega sempre il "perché" dietro ogni raccomandazione.`;
 
-        // Call Gemini API
-        const geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=" + geminiKey;
-
-        const geminiRes = await fetch(geminiUrl, {
+        // Call OpenAI GPT-4o API
+        console.log("[Energy Coach] Calling GPT-4o...");
+        
+        const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${openaiKey}`
+            },
             body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        { text: SYSTEM_PROMPT + "\n\n---\n\n" + userPrompt }
-                    ]
-                }],
-                generationConfig: {
-                    temperature: 0.5,
-                    maxOutputTokens: 2500
-                }
+                model: "gpt-4o",
+                messages: [
+                    { role: "system", content: SYSTEM_PROMPT },
+                    { role: "user", content: userPrompt }
+                ],
+                temperature: 0.5,
+                max_tokens: 2500
             })
         });
 
-        if (!geminiRes.ok) {
-            const errText = await geminiRes.text();
-            console.error("[Energy Coach] Gemini error:", errText);
-            throw new Error("Gemini API error: " + geminiRes.status);
+        if (!openaiRes.ok) {
+            const errText = await openaiRes.text();
+            console.error("[Energy Coach] GPT-4o error:", errText);
+            throw new Error("GPT-4o API error: " + openaiRes.status);
         }
 
-        const geminiData = await geminiRes.json();
-        const analysis = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        const openaiData = await openaiRes.json();
+        const analysis = openaiData.choices?.[0]?.message?.content;
 
         if (!analysis) {
-            throw new Error("Empty response from Gemini");
+            throw new Error("Empty response from GPT-4o");
         }
 
-        console.log("[Energy Coach v9.0] Professional analysis generated, length:", analysis.length);
+        console.log("[Energy Coach GPT-4o] Professional analysis generated, length:", analysis.length);
         console.log("[Energy Coach v9.0] Bonus sociale info included:", bonusSocialeInfo ? "YES" : "NO");
 
         // Determine confidence from analysis
@@ -345,7 +346,7 @@ Spiega sempre il "perché" dietro ogni raccomandazione.`;
         return new Response(JSON.stringify({
             ok: true,
             analysis: analysis,
-            model_used: "gemini-2.0-flash-exp-v9-bonus-sociale",
+            model_used: "gpt-4o-energy-coach",
             confidence: confidenza,
             bonus_sociale_checked: !!bonusSocialeInfo
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
