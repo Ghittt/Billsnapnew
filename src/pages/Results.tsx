@@ -347,7 +347,7 @@ const ResultsPage = () => {
                   uploadId,
                   extractedConsumption,  // Use extracted value, not state
                   currentMonthly,
-                  currentCost,
+                  extractedCost,  // Use extracted value, not state
                   ocrData?.provider || 'non specificato',
                   ocrData?.tariff_hint,
                   0, 0, 0, // TODO: add fasce if available
@@ -383,7 +383,7 @@ const ResultsPage = () => {
                 uploadId,
                 extractedConsumption,  // Use extracted value, not state
                 currentMonthly,
-                currentCost,
+                extractedCost,  // Use extracted value, not state
                 ocrData?.provider || 'non specificato',
                 ocrData?.tariff_hint,
                 0, 0, 0,
