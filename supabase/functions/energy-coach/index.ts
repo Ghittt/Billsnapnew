@@ -235,12 +235,17 @@ Ora procedi con l'analisi normale delle offerte.`;
         console.log('[ENERGY-COACH] Final consumo:', consumo, unita);
         
         const fornitore = body.fornitore_attuale || "non specificato";
-        const potenza = body.bolletta_luce?.potenza_kw || body.potenza_impegnata || "N/D";
+        const potenza = body.potenza_kw || body.bolletta_luce?.potenza_kw || body.potenza_impegnata || "N/D";
         const utenza = body.tipo_utenza || "non specificato";
         const periodoMesi = body.bolletta_luce?.periodo?.mesi || body.bolletta_gas?.periodo?.mesi || "N/D";
         const periodoInizio = body.bolletta_luce?.periodo?.data_inizio || body.bolletta_gas?.periodo?.data_inizio || "N/D";
         const periodoFine = body.bolletta_luce?.periodo?.data_fine || body.bolletta_gas?.periodo?.data_fine || "N/D";
-        const fasce = body.bolletta_luce?.consumi_fasce ? JSON.stringify(body.bolletta_luce.consumi_fasce) : "N/D";
+        // FIX: Read fasce from direct parameters OR nested object
+        const f1 = body.f1_consumption || body.bolletta_luce?.consumi_fasce?.f1 || 0;
+        const f2 = body.f2_consumption || body.bolletta_luce?.consumi_fasce?.f2 || 0;
+        const f3 = body.f3_consumption || body.bolletta_luce?.consumi_fasce?.f3 || 0;
+        const fasce = (f1 || f2 || f3) ? `F1: ${f1} kWh, F2: ${f2} kWh, F3: ${f3} kWh` : "N/D";
+        console.log('[ENERGY-COACH] Fasce orarie:', {f1, f2, f3, fasce});
 
         // Build offers info
         let offerteInfo = "";

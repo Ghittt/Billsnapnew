@@ -277,7 +277,7 @@ function parseAzureResult(result: any): any {
     console.warn("[AZURE] Cost not found in document");
   }
   // Power detection
-  const powerMatch = content.match(/potenza\s*(impegnata|contrattuale)?\s*[:\s]*(\d+[\.,]?\d*)\s*kw/i);
+  const powerMatch = content.match(/potenza\s*(impegnata|contrattuale|disponibile)?\s*[:\s-]+(\d+[\.,]?\d*)\s*kw/i);
   if (powerMatch) {
     output.bolletta_luce.potenza_kw = parseFloat(powerMatch[2].replace(",", "."));
   }
@@ -285,53 +285,47 @@ function parseAzureResult(result: any): any {
   // Fasce orarie extraction (F1, F2, F3)
   // Pattern: "F1: XXX kWh" or "Fascia F1: XXX" or "F1 XXX kwh"
   const fascePatterns = [
-    /F1[:\s-]+([\d.,]+)\s*kwh/gi,
-    /fascia\s*1[:\s]*([\d.,]+)\s*kwh/gi,
-    /fascia\s*F1[:\s]*([\d.,]+)/gi
+    /F1[:\s-]+([\d.,]+)\s*(?:kwh|kw)/i,
+    /fascia\s*1[:\s-]+([\d.,]+)\s*(?:kwh|kw)/i,
+    /A1[:\s-]+([\d.,]+)\s*(?:kwh|kw)/i,
+    /fascia\s*F1[:\s-]+([\d.,]+)/i
   ];
   for (const pattern of fascePatterns) {
     const match = content.match(pattern);
-    if (match) {
-      const valueMatch = match[0].match(/([\d.,]+)/);
-      if (valueMatch) {
-        output.bolletta_luce.consumi_fasce.f1 = parseFloat(valueMatch[1].replace(",", "."));
-        console.log("[AZURE] Found F1:", output.bolletta_luce.consumi_fasce.f1);
-        break;
-      }
+    if (match && match[1]) {
+      output.bolletta_luce.consumi_fasce.f1 = parseFloat(match[1].replace(",", "."));
+      console.log("[AZURE] Found F1:", output.bolletta_luce.consumi_fasce.f1, "from match:", match[0]);
+      break;
     }
   }
   
   const fasceF2Patterns = [
-    /F2[:\s-]+([\d.,]+)\s*kwh/gi,
-    /fascia\s*2[:\s]*([\d.,]+)\s*kwh/gi,
-    /fascia\s*F2[:\s]*([\d.,]+)/gi
+    /F2[:\s-]+([\d.,]+)\s*(?:kwh|kw)/i,
+    /fascia\s*2[:\s-]+([\d.,]+)\s*(?:kwh|kw)/i,
+    /A2[:\s-]+([\d.,]+)\s*(?:kwh|kw)/i,
+    /fascia\s*F2[:\s-]+([\d.,]+)/i
   ];
   for (const pattern of fasceF2Patterns) {
     const match = content.match(pattern);
-    if (match) {
-      const valueMatch = match[0].match(/([\d.,]+)/);
-      if (valueMatch) {
-        output.bolletta_luce.consumi_fasce.f2 = parseFloat(valueMatch[1].replace(",", "."));
-        console.log("[AZURE] Found F2:", output.bolletta_luce.consumi_fasce.f2);
-        break;
-      }
+    if (match && match[1]) {
+      output.bolletta_luce.consumi_fasce.f2 = parseFloat(match[1].replace(",", "."));
+      console.log("[AZURE] Found F2:", output.bolletta_luce.consumi_fasce.f2, "from match:", match[0]);
+      break;
     }
   }
   
   const fasceF3Patterns = [
-    /F3[:\s-]+([\d.,]+)\s*kwh/gi,
-    /fascia\s*3[:\s]*([\d.,]+)\s*kwh/gi,
-    /fascia\s*F3[:\s]*([\d.,]+)/gi
+    /F3[:\s-]+([\d.,]+)\s*(?:kwh|kw)/i,
+    /fascia\s*3[:\s-]+([\d.,]+)\s*(?:kwh|kw)/i,
+    /A3[:\s-]+([\d.,]+)\s*(?:kwh|kw)/i,
+    /fascia\s*F3[:\s-]+([\d.,]+)/i
   ];
   for (const pattern of fasceF3Patterns) {
     const match = content.match(pattern);
-    if (match) {
-      const valueMatch = match[0].match(/([\d.,]+)/);
-      if (valueMatch) {
-        output.bolletta_luce.consumi_fasce.f3 = parseFloat(valueMatch[1].replace(",", "."));
-        console.log("[AZURE] Found F3:", output.bolletta_luce.consumi_fasce.f3);
-        break;
-      }
+    if (match && match[1]) {
+      output.bolletta_luce.consumi_fasce.f3 = parseFloat(match[1].replace(",", "."));
+      console.log("[AZURE] Found F3:", output.bolletta_luce.consumi_fasce.f3, "from match:", match[0]);
+      break;
     }
   }
   
