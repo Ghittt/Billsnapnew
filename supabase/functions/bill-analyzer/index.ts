@@ -639,7 +639,9 @@ serve(async (req) => {
         price_type: best.tipo_prezzo || best.price_type || best.pricing_type || "VARIABILE",
         monthly_eur: best.estimated_annual_eur ? Math.round(best.estimated_annual_eur / 12 * 100) / 100 : null,
         annual_eur: best.estimated_annual_eur,
-        link: best.redirect_url || best.url_offerta || best.link || null
+        link: best.redirect_url || best.url_offerta || best.link || null,
+        prezzo_energia_euro_kwh: best.prezzo_energia_euro_kwh || best.price_kwh || null,
+        quota_fissa_mensile: best.quota_fissa_mensile || best.fixed_fee_monthly || null
       } : null;
       
       console.log('[LUCE] best_offer:', JSON.stringify(best_offer));
@@ -686,7 +688,9 @@ serve(async (req) => {
         price_type: best.tipo_prezzo || best.price_type || best.pricing_type || "VARIABILE",
         monthly_eur: best.estimated_annual_eur ? Math.round(best.estimated_annual_eur / 12 * 100) / 100 : null,
         annual_eur: best.estimated_annual_eur,
-        link: best.redirect_url || best.url_offerta || best.link || null
+        link: best.redirect_url || best.url_offerta || best.link || null,
+        prezzo_energia_euro_smc: best.prezzo_energia_euro_smc || best.price_smc || null,
+        quota_fissa_mensile: best.quota_fissa_mensile || best.fixed_fee_monthly || null
       } : null;
       
       console.log('[GAS] best_offer:', JSON.stringify(best_offer));

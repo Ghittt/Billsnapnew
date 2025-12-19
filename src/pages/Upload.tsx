@@ -76,10 +76,6 @@ const UploadPage = () => {
     setStagedFiles((prev) => [...prev, ...files]);
     setCurrentStep("staged");
 
-    toast({
-      title: "File caricati",
-      description: `${files.length} file pronti per l'analisi. Clicca "Analizza bolletta" quando sei pronto.`,
-    });
   };
 
   const handleAnalyzeFiles = async () => {

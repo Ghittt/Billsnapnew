@@ -120,6 +120,13 @@ function parseAzureResult(result: any): any {
   console.log("[AZURE] - Total pages scanned: " + pageCount);
   console.log("[AZURE] - Total chars: " + content.length);
   console.log("[AZURE] - Tables: " + tables.length + ", Paragraphs: " + paragraphs.length);
+  
+  // DEBUG: Show first 500 chars and search for fasce keywords
+  console.log("[AZURE-DEBUG] First 500 chars:", content.substring(0, 500));
+  console.log("[AZURE-DEBUG] Contains 'F1'?", content.includes("F1"));
+  console.log("[AZURE-DEBUG] Contains 'fascia'?", content.toLowerCase().includes("fascia"));
+  console.log("[AZURE-DEBUG] Contains 'fasce'?", content.toLowerCase().includes("fasce"));
+  console.log("[AZURE-DEBUG] Contains 'potenza'?", content.toLowerCase().includes("potenza"));
 
   const output = {
     tipo_fornitura: "altro",
