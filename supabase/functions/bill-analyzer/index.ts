@@ -135,6 +135,7 @@ function calculateOfferCost(offer, consumption_year, commodity) {
 }
 
 // COMPARISON ENGINE - Compare offers with exclusion logging
+// Returns BOTH best_offer_fissa AND best_offer_variabile
 function compareOffers(data) {
   const considered = [];
   const excluded = [];
@@ -154,21 +155,54 @@ function compareOffers(data) {
     considered.push(offer);
   }
   
+  // Separate into fixed and variable
+  const fixedOffers = considered.filter(o => {
+    const tipo = (o.tipo_prezzo || o.tipo_tariffa || '').toLowerCase();
+    return tipo.includes('fiss') || tipo === 'fixed';
+  });
+  const variableOffers = considered.filter(o => {
+    const tipo = (o.tipo_prezzo || o.tipo_tariffa || '').toLowerCase();
+    return tipo.includes('variabil') || tipo.includes('index') || tipo === 'indexed';
+  });
+  
+  // Sort each by cost
+  const sortedFixed = [...fixedOffers].sort((a, b) => a.calculated_annual_cost - b.calculated_annual_cost);
+  const sortedVariable = [...variableOffers].sort((a, b) => a.calculated_annual_cost - b.calculated_annual_cost);
+  
+  const bestFixed = sortedFixed[0] || null;
+  const bestVariable = sortedVariable[0] || null;
+  
+  // Overall best is the cheapest regardless of type
   const sorted = [...considered].sort((a, b) => a.calculated_annual_cost - b.calculated_annual_cost);
   const best = sorted[0] || null;
   
   const saving_year = best ? data.current_cost_year - best.calculated_annual_cost : null;
   const saving_percent = best && data.current_cost_year > 0
     ? (saving_year / data.current_cost_year) * 100 : null;
+    
+  // Calculate savings for each type
+  const savingFixedYear = bestFixed ? data.current_cost_year - bestFixed.calculated_annual_cost : null;
+  const savingFixedPercent = bestFixed && data.current_cost_year > 0
+    ? (savingFixedYear / data.current_cost_year) * 100 : null;
+    
+  const savingVariableYear = bestVariable ? data.current_cost_year - bestVariable.calculated_annual_cost : null;
+  const savingVariablePercent = bestVariable && data.current_cost_year > 0
+    ? (savingVariableYear / data.current_cost_year) * 100 : null;
   
-  console.log(`[COMPARE] Considered: ${considered.length}, Excluded: ${excluded.length}`);
+  console.log(`[COMPARE] Considered: ${considered.length} (Fixed: ${fixedOffers.length}, Variable: ${variableOffers.length}), Excluded: ${excluded.length}`);
   excluded.forEach(e => console.log(`[EXCLUDE] ${e.offer_id}: ${e.reason}`));
   
   return {
     best_offer: best,
+    best_offer_fissa: bestFixed,
+    best_offer_variabile: bestVariable,
     best_cost_year: best?.calculated_annual_cost || null,
     saving_year,
     saving_percent,
+    saving_fissa_year: savingFixedYear,
+    saving_fissa_percent: savingFixedPercent,
+    saving_variabile_year: savingVariableYear,
+    saving_variabile_percent: savingVariablePercent,
     offers_considered_count: considered.length,
     offers_excluded_count: excluded.length,
     excluded_reasons: excluded
@@ -625,6 +659,25 @@ serve(async (req) => {
       const { offer: best, action, reason } = selectBestOffer(offers, annual);
       const savings = best && annual ? calculateSavings(annual, best.estimated_annual_eur) : { monthly_eur: null, annual_eur: null, percent: null };
       
+      // Separate into fixed and variable offers
+      const fixedOffers = offers.filter(o => {
+        const tipo = (o.tipo_prezzo || o.pricing_type || '').toLowerCase();
+        return tipo.includes('fiss') || tipo === 'fixed' || tipo === 'fisso';
+      });
+      const variableOffers = offers.filter(o => {
+        const tipo = (o.tipo_prezzo || o.pricing_type || '').toLowerCase();
+        return tipo.includes('variabil') || tipo.includes('index') || tipo === 'indexed' || tipo === 'variabile';
+      });
+      
+      // Sort each by cost and get best
+      const sortedFixed = [...fixedOffers].sort((a, b) => a.estimated_annual_eur - b.estimated_annual_eur);
+      const sortedVariable = [...variableOffers].sort((a, b) => a.estimated_annual_eur - b.estimated_annual_eur);
+      const bestFixed = sortedFixed[0] || null;
+      const bestVariable = sortedVariable[0] || null;
+      
+      console.log('[LUCE] Fixed offers:', fixedOffers.length, 'Variable offers:', variableOffers.length);
+      console.log('[LUCE] Best fixed:', bestFixed?.nome_offerta, 'Best variable:', bestVariable?.nome_offerta);
+      
       const current = {
         provider: bill.provider_current,
         offer_name: bill.offer_name_current,
@@ -633,18 +686,31 @@ serve(async (req) => {
         consumption_annual: { kwh: bill.consumption.kwh, smc: null }
       };
       
-      const best_offer = best ? {
-        provider: best.fornitore || best.provider || "Sconosciuto",
-        offer_name: best.nome_offerta || best.offer_name || best.plan_name || "Offerta",
-        price_type: best.tipo_prezzo || best.price_type || best.pricing_type || "VARIABILE",
-        monthly_eur: best.estimated_annual_eur ? Math.round(best.estimated_annual_eur / 12 * 100) / 100 : null,
-        annual_eur: best.estimated_annual_eur,
-        link: best.redirect_url || best.url_offerta || best.link || null,
-        prezzo_energia_euro_kwh: best.prezzo_energia_euro_kwh || best.price_kwh || null,
-        quota_fissa_mensile: best.quota_fissa_mensile || best.fixed_fee_monthly || null
+      const formatOffer = (o) => o ? {
+        id: o.id,
+        fornitore: o.fornitore || o.provider || "Sconosciuto",
+        provider: o.fornitore || o.provider || "Sconosciuto",
+        nome_offerta: o.nome_offerta || o.offer_name || o.plan_name || "Offerta",
+        offer_name: o.nome_offerta || o.offer_name || o.plan_name || "Offerta",
+        tipo_prezzo: o.tipo_prezzo || o.price_type || o.pricing_type || "variabile",
+        price_type: o.tipo_prezzo || o.price_type || o.pricing_type || "VARIABILE",
+        monthly_eur: o.estimated_annual_eur ? Math.round(o.estimated_annual_eur / 12 * 100) / 100 : null,
+        annual_eur: o.estimated_annual_eur,
+        calculated_annual_cost: o.estimated_annual_eur,
+        link: o.redirect_url || o.url_offerta || o.link_affiliazione || o.link || null,
+        link_affiliazione: o.link_affiliazione || o.redirect_url || o.url_offerta || o.link || null,
+        prezzo_energia_euro_kwh: o.prezzo_energia_euro_kwh || o.price_kwh || null,
+        quota_fissa_mensile: o.quota_fissa_mensile_euro || o.quota_fissa_mensile || o.fixed_fee_monthly || null,
+        tipo_fornitura: 'luce'
       } : null;
       
-      console.log('[LUCE] best_offer:', JSON.stringify(best_offer));
+      const best_offer = formatOffer(best);
+      const best_offer_fissa = formatOffer(bestFixed);
+      const best_offer_variabile = formatOffer(bestVariable);
+      
+      console.log('[LUCE] best_offer_fissa:', best_offer_fissa?.nome_offerta);
+      console.log('[LUCE] best_offer_variabile:', best_offer_variabile?.nome_offerta);
+      
       const data = { current, best_offer, decision: { action, reason }, savings };
       const expert_copy = generateExpertCopy(data, "LUCE");
       
@@ -653,12 +719,16 @@ serve(async (req) => {
         months_equivalent,
         current,
         best_offer,
+        best_offer_fissa,
+        best_offer_variabile,
         decision: { action, reason },
         savings,
         expert_copy,
         debug: {
           signals_used: ["tipo_fornitura", offers.length > 0 ? "offers_filtered" : "no_offers"],
-          warnings: []
+          warnings: [],
+          fixed_count: fixedOffers.length,
+          variable_count: variableOffers.length
         }
       };
     }
@@ -674,6 +744,25 @@ serve(async (req) => {
       const { offer: best, action, reason } = selectBestOffer(offers, annual);
       const savings = best && annual ? calculateSavings(annual, best.estimated_annual_eur) : { monthly_eur: null, annual_eur: null, percent: null };
       
+      // Separate into fixed and variable offers
+      const fixedOffers = offers.filter(o => {
+        const tipo = (o.tipo_prezzo || o.pricing_type || '').toLowerCase();
+        return tipo.includes('fiss') || tipo === 'fixed' || tipo === 'fisso';
+      });
+      const variableOffers = offers.filter(o => {
+        const tipo = (o.tipo_prezzo || o.pricing_type || '').toLowerCase();
+        return tipo.includes('variabil') || tipo.includes('index') || tipo === 'indexed' || tipo === 'variabile';
+      });
+      
+      // Sort each by cost and get best
+      const sortedFixed = [...fixedOffers].sort((a, b) => a.estimated_annual_eur - b.estimated_annual_eur);
+      const sortedVariable = [...variableOffers].sort((a, b) => a.estimated_annual_eur - b.estimated_annual_eur);
+      const bestFixed = sortedFixed[0] || null;
+      const bestVariable = sortedVariable[0] || null;
+      
+      console.log('[GAS] Fixed offers:', fixedOffers.length, 'Variable offers:', variableOffers.length);
+      console.log('[GAS] Best fixed:', bestFixed?.nome_offerta, 'Best variable:', bestVariable?.nome_offerta);
+      
       const current = {
         provider: bill.provider_current,
         offer_name: bill.offer_name_current,
@@ -682,18 +771,31 @@ serve(async (req) => {
         consumption_annual: { kwh: null, smc: bill.consumption.smc }
       };
       
-      const best_offer = best ? {
-        provider: best.fornitore || best.provider || "Sconosciuto",
-        offer_name: best.nome_offerta || best.offer_name || best.plan_name || "Offerta",
-        price_type: best.tipo_prezzo || best.price_type || best.pricing_type || "VARIABILE",
-        monthly_eur: best.estimated_annual_eur ? Math.round(best.estimated_annual_eur / 12 * 100) / 100 : null,
-        annual_eur: best.estimated_annual_eur,
-        link: best.redirect_url || best.url_offerta || best.link || null,
-        prezzo_energia_euro_smc: best.prezzo_energia_euro_smc || best.price_smc || null,
-        quota_fissa_mensile: best.quota_fissa_mensile || best.fixed_fee_monthly || null
+      const formatOffer = (o) => o ? {
+        id: o.id,
+        fornitore: o.fornitore || o.provider || "Sconosciuto",
+        provider: o.fornitore || o.provider || "Sconosciuto",
+        nome_offerta: o.nome_offerta || o.offer_name || o.plan_name || "Offerta",
+        offer_name: o.nome_offerta || o.offer_name || o.plan_name || "Offerta",
+        tipo_prezzo: o.tipo_prezzo || o.price_type || o.pricing_type || "variabile",
+        price_type: o.tipo_prezzo || o.price_type || o.pricing_type || "VARIABILE",
+        monthly_eur: o.estimated_annual_eur ? Math.round(o.estimated_annual_eur / 12 * 100) / 100 : null,
+        annual_eur: o.estimated_annual_eur,
+        calculated_annual_cost: o.estimated_annual_eur,
+        link: o.redirect_url || o.url_offerta || o.link_affiliazione || o.link || null,
+        link_affiliazione: o.link_affiliazione || o.redirect_url || o.url_offerta || o.link || null,
+        prezzo_energia_euro_smc: o.prezzo_energia_euro_smc || o.price_smc || null,
+        quota_fissa_mensile: o.quota_fissa_mensile_euro || o.quota_fissa_mensile || o.fixed_fee_monthly || null,
+        tipo_fornitura: 'gas'
       } : null;
       
-      console.log('[GAS] best_offer:', JSON.stringify(best_offer));
+      const best_offer = formatOffer(best);
+      const best_offer_fissa = formatOffer(bestFixed);
+      const best_offer_variabile = formatOffer(bestVariable);
+      
+      console.log('[GAS] best_offer_fissa:', best_offer_fissa?.nome_offerta);
+      console.log('[GAS] best_offer_variabile:', best_offer_variabile?.nome_offerta);
+      
       const data = { current, best_offer, decision: { action, reason }, savings };
       const expert_copy = generateExpertCopy(data, "GAS");
       
@@ -702,12 +804,16 @@ serve(async (req) => {
         months_equivalent,
         current,
         best_offer,
+        best_offer_fissa,
+        best_offer_variabile,
         decision: { action, reason },
         savings,
         expert_copy,
         debug: {
           signals_used: ["tipo_fornitura", offers.length > 0 ? "offers_filtered" : "no_offers"],
-          warnings: []
+          warnings: [],
+          fixed_count: fixedOffers.length,
+          variable_count: variableOffers.length
         }
       };
     }

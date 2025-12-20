@@ -4,6 +4,18 @@ import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2, AlertTriangle, ExternalLink } from 'lucide-react';
 import { ComparisonTable } from './ComparisonTable';
 
+interface OfferDataProp {
+  provider: string;
+  name: string;
+  monthlyEur: number;
+  annualEur: number;
+  savingEur: number;
+  savingPercent: number;
+  priceType: 'fisso' | 'variabile';
+  potenzaKw?: number;
+  onActivate?: () => void;
+}
+
 interface IntelligentAnalysisProps {
   consumption: number;
   billType: 'luce' | 'gas' | 'combo';
@@ -11,6 +23,7 @@ interface IntelligentAnalysisProps {
   currentAnnual: number;
   currentProvider: string;
   currentOfferType?: string;
+  currentPotenzaKw?: number;
   bestOfferName: string;
   bestOfferProvider: string;
   bestOfferMonthly: number;
@@ -22,6 +35,8 @@ interface IntelligentAnalysisProps {
   error: boolean;
   onActivate?: () => void;
   bestOfferPromo?: string | null;
+  fixedOffer?: OfferDataProp | null;
+  variableOffer?: OfferDataProp | null;
 }
 
 export const IntelligentAnalysis: React.FC<IntelligentAnalysisProps> = ({
@@ -31,6 +46,7 @@ export const IntelligentAnalysis: React.FC<IntelligentAnalysisProps> = ({
   currentAnnual,
   currentProvider,
   currentOfferType,
+  currentPotenzaKw,
   bestOfferName,
   bestOfferProvider,
   bestOfferMonthly,
@@ -40,7 +56,9 @@ export const IntelligentAnalysis: React.FC<IntelligentAnalysisProps> = ({
   isLoading,
   error,
   onActivate,
-  bestOfferPromo
+  bestOfferPromo,
+  fixedOffer,
+  variableOffer
 }) => {
   console.log('[📊 COMPONENT] IntelligentAnalysis render:', {aiAnalysis: aiAnalysis?.substring(0,50), isLoading, error});
   
@@ -149,14 +167,16 @@ export const IntelligentAnalysis: React.FC<IntelligentAnalysisProps> = ({
             currentOfferType={currentOfferType}
             currentMonthly={currentMonthly}
             currentAnnual={currentAnnual}
+            currentPotenzaKw={currentPotenzaKw}
             bestOfferName={bestOfferName}
             bestOfferProvider={bestOfferProvider}
             bestOfferMonthly={bestOfferMonthly}
             bestOfferAnnual={bestOfferAnnual}
-            bestOfferPromo={bestOfferPromo}
             savingAnnual={savingAnnual}
             consumption={consumption}
             billType={billType}
+            fixedOffer={fixedOffer}
+            variableOffer={variableOffer}
           />
         </CardContent>
       </Card>

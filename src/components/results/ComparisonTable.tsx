@@ -1,189 +1,117 @@
 import React from 'react';
-import { Check, X, Clock, TrendingDown, TrendingUp } from 'lucide-react';
+import { TrendingDown, Lock, LineChart } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+interface OfferData {
+  provider: string;
+  name: string;
+  monthlyEur: number;
+  annualEur: number;
+  savingEur: number;
+  savingPercent: number;
+  priceType: 'fisso' | 'variabile';
+  potenzaKw?: number;
+  onActivate?: () => void;
+}
 
 interface ComparisonTableProps {
   currentProvider: string;
   currentOfferType?: string;
   currentMonthly: number;
   currentAnnual: number;
-  bestOfferName: string;
-  bestOfferProvider: string;
-  bestOfferMonthly: number;
-  bestOfferAnnual: number;
-  bestOfferPromo?: string | null;
-  savingAnnual: number;
+  currentPotenzaKw?: number;
   consumption: number;
   billType: 'luce' | 'gas' | 'combo';
+  fixedOffer?: OfferData | null;
+  variableOffer?: OfferData | null;
+  bestOfferName?: string;
+  bestOfferProvider?: string;
+  bestOfferMonthly?: number;
+  bestOfferAnnual?: number;
+  savingAnnual?: number;
 }
 
 export const ComparisonTable: React.FC<ComparisonTableProps> = ({
-  currentProvider,
-  currentOfferType,
-  currentMonthly,
-  currentAnnual,
-  bestOfferName,
-  bestOfferProvider,
-  bestOfferMonthly,
-  bestOfferAnnual,
-  bestOfferPromo,
-  savingAnnual,
-  consumption,
-  billType
+  currentProvider, currentOfferType, currentMonthly, currentAnnual, currentPotenzaKw,
+  consumption, billType, fixedOffer, variableOffer,
+  bestOfferName, bestOfferProvider, bestOfferMonthly, bestOfferAnnual, savingAnnual: legacySaving
 }) => {
-  const hasPromo = bestOfferPromo && bestOfferPromo.trim() !== '';
-  const savingPercentage = currentAnnual > 0 ? Math.round((savingAnnual / currentAnnual) * 100) : 0;
+  const fmt = (n: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+
+  const hasNewOffers = fixedOffer || variableOffer;
+  const effectiveFixedOffer: OfferData | null = fixedOffer || (!hasNewOffers && bestOfferName ? {
+    provider: bestOfferProvider || '', name: bestOfferName, monthlyEur: bestOfferMonthly || 0,
+    annualEur: bestOfferAnnual || 0, savingEur: legacySaving || 0,
+    savingPercent: currentAnnual > 0 ? Math.round(((legacySaving || 0) / currentAnnual) * 100) : 0, priceType: 'fisso'
+  } : null);
+
+  const colCount = 2 + (effectiveFixedOffer ? 1 : 0) + (variableOffer ? 1 : 0);
 
   return (
     <div className="mt-6 space-y-4">
-      <div className="flex items-center gap-2 mb-4">
-        <h3 className="text-xl font-bold text-purple-900">Confronto Dettagliato</h3>
-        {hasPromo && (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold animate-pulse">
-            <Clock className="h-3 w-3" />
-            Promo a Tempo
-          </span>
+      <h3 className="text-lg md:text-xl font-bold text-purple-900">Confronto Dettagliato</h3>
+
+      {/* Mobile Cards */}
+      <div className="block md:hidden space-y-4">
+        <div className="bg-gray-50 rounded-lg p-4 border">
+          <h4 className="font-bold text-gray-700 mb-3">📄 La Tua Bolletta</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between"><span>Fornitore:</span><span className="font-semibold">{currentProvider}</span></div>
+            <div className="flex justify-between"><span>Costo mensile:</span><span className="font-bold text-lg">{fmt(currentMonthly)}</span></div>
+            <div className="flex justify-between"><span>Costo annuale:</span><span className="font-semibold">{fmt(currentAnnual)}</span></div>
+            {currentPotenzaKw && <div className="flex justify-between"><span>Potenza:</span><span>{currentPotenzaKw} kW</span></div>}
+          </div>
+        </div>
+        {effectiveFixedOffer && (
+          <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-300">
+            <div className="flex items-center gap-2 mb-3"><Lock className="h-4 w-4 text-blue-600" /><h4 className="font-bold text-blue-800">Offerta Fissa</h4></div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span>Fornitore:</span><span className="font-semibold">{effectiveFixedOffer.provider}</span></div>
+              <div className="flex justify-between"><span>Offerta:</span><span className="font-medium">{effectiveFixedOffer.name}</span></div>
+              <div className="flex justify-between"><span>Costo mensile:</span><span className="font-bold text-lg text-blue-700">{fmt(effectiveFixedOffer.monthlyEur)}</span></div>
+              <div className="flex justify-between"><span>Costo annuale:</span><span className="font-semibold text-blue-700">{fmt(effectiveFixedOffer.annualEur)}</span></div>
+              <div className="flex justify-between bg-green-100 p-2 rounded"><span>Risparmio:</span><span className="font-bold text-green-600">{fmt(effectiveFixedOffer.savingEur)} (-{effectiveFixedOffer.savingPercent}%)</span></div>
+            </div>
+            {effectiveFixedOffer.onActivate && <Button onClick={effectiveFixedOffer.onActivate} className="w-full mt-4 bg-blue-600 hover:bg-blue-700">Attiva Offerta Fissa</Button>}
+          </div>
+        )}
+        {variableOffer && (
+          <div className="bg-green-50 rounded-lg p-4 border-2 border-green-300">
+            <div className="flex items-center gap-2 mb-3"><LineChart className="h-4 w-4 text-green-600" /><h4 className="font-bold text-green-800">Offerta Variabile</h4></div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span>Fornitore:</span><span className="font-semibold">{variableOffer.provider}</span></div>
+              <div className="flex justify-between"><span>Offerta:</span><span className="font-medium">{variableOffer.name}</span></div>
+              <div className="flex justify-between"><span>Costo mensile:</span><span className="font-bold text-lg text-green-700">{fmt(variableOffer.monthlyEur)}</span></div>
+              <div className="flex justify-between"><span>Costo annuale:</span><span className="font-semibold text-green-700">{fmt(variableOffer.annualEur)}</span></div>
+              <div className="flex justify-between bg-green-100 p-2 rounded"><span>Risparmio:</span><span className="font-bold text-green-600">{fmt(variableOffer.savingEur)} (-{variableOffer.savingPercent}%)</span></div>
+            </div>
+            {variableOffer.onActivate && <Button onClick={variableOffer.onActivate} className="w-full mt-4 bg-green-600 hover:bg-green-700">Attiva Offerta Variabile</Button>}
+          </div>
         )}
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Desktop Table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b-2 border-purple-200">
               <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Caratteristica</th>
-              <th className="py-3 px-4 text-sm font-semibold text-gray-700 bg-gray-50 rounded-tl-lg">
-                La Tua Offerta
-              </th>
-              <th className="py-3 px-4 text-sm font-semibold text-purple-700 bg-purple-50 rounded-tr-lg">
-                Offerta Consigliata
-              </th>
+              <th className="py-3 px-4 text-sm font-semibold text-gray-700 bg-gray-50">La Tua Bolletta</th>
+              {effectiveFixedOffer && <th className="py-3 px-4 text-sm font-semibold text-blue-700 bg-blue-50"><div className="flex items-center justify-center gap-1"><Lock className="h-4 w-4" /><span>Offerta Fissa</span></div></th>}
+              {variableOffer && <th className="py-3 px-4 text-sm font-semibold text-green-700 bg-green-50"><div className="flex items-center justify-center gap-1"><LineChart className="h-4 w-4" /><span>Offerta Variabile</span></div></th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {/* Fornitore */}
-            <tr className="hover:bg-gray-50/50 transition-colors">
-              <td className="py-4 px-4 font-medium text-sm text-gray-700">Fornitore</td>
-              <td className="py-4 px-4 text-center bg-gray-50/30">
-                <span className="font-semibold text-gray-800">{currentProvider}</span>
-              </td>
-              <td className="py-4 px-4 text-center bg-purple-50/30">
-                <span className="font-semibold text-purple-900">{bestOfferProvider}</span>
-              </td>
-            </tr>
-
-            {/* Nome Offerta */}
-            <tr className="hover:bg-gray-50/50 transition-colors">
-              <td className="py-4 px-4 font-medium text-sm text-gray-700">Nome Offerta</td>
-              <td className="py-4 px-4 text-center bg-gray-50/30">
-                <span className="text-sm text-gray-700">{currentOfferType || 'Non specificato'}</span>
-              </td>
-              <td className="py-4 px-4 text-center bg-purple-50/30">
-                <span className="text-sm font-medium text-purple-800">{bestOfferName}</span>
-              </td>
-            </tr>
-
-            {/* Costo Mensile */}
-            <tr className="hover:bg-gray-50/50 transition-colors">
-              <td className="py-4 px-4 font-medium text-sm text-gray-700">Costo Mensile</td>
-              <td className="py-4 px-4 text-center bg-gray-50/30">
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-2xl font-bold text-gray-800">
-                    {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(currentMonthly)}
-                  </span>
-                </div>
-              </td>
-              <td className="py-4 px-4 text-center bg-purple-50/30">
-                <div className="flex items-center justify-center gap-2">
-                  <TrendingDown className="h-5 w-5 text-green-600" />
-                  <span className="text-2xl font-bold text-green-600">
-                    {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(bestOfferMonthly)}
-                  </span>
-                </div>
-              </td>
-            </tr>
-
-            {/* Costo Annuale */}
-            <tr className="hover:bg-gray-50/50 transition-colors">
-              <td className="py-4 px-4 font-medium text-sm text-gray-700">Costo Annuale</td>
-              <td className="py-4 px-4 text-center bg-gray-50/30">
-                <span className="text-lg font-semibold text-gray-700">
-                  {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(currentAnnual)}
-                </span>
-              </td>
-              <td className="py-4 px-4 text-center bg-purple-50/30">
-                <span className="text-lg font-semibold text-green-600">
-                  {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(bestOfferAnnual)}
-                </span>
-              </td>
-            </tr>
-
-            {/* Risparmio */}
-            <tr className="bg-green-50 border-t-2 border-green-200">
-              <td className="py-4 px-4 font-bold text-sm text-green-900">Risparmio Annuo</td>
-              <td className="py-4 px-4 text-center">
-                <span className="text-sm text-gray-500">-</span>
-              </td>
-              <td className="py-4 px-4 text-center">
-                <div className="flex flex-col items-center">
-                  <span className="text-3xl font-bold text-green-600">
-                    {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(savingAnnual)}
-                  </span>
-                  <span className="text-sm font-semibold text-green-700 mt-1">
-                    (-{savingPercentage}%)
-                  </span>
-                </div>
-              </td>
-            </tr>
-
-            {/* Consumo */}
-            <tr className="hover:bg-gray-50/50 transition-colors border-t border-gray-200">
-              <td className="py-4 px-4 font-medium text-sm text-gray-700">Consumo Annuo</td>
-              <td colSpan={2} className="py-4 px-4 text-center">
-                <span className="text-base font-semibold text-gray-800">
-                  {consumption.toLocaleString('it-IT')} {billType === 'gas' ? 'Smc' : 'kWh'}
-                </span>
-              </td>
-            </tr>
-
-            {/* Promozione */}
-            {hasPromo && (
-              <tr className="bg-orange-50 border-t-2 border-orange-200">
-                <td className="py-4 px-4 font-medium text-sm text-orange-900 flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Promozione Attiva
-                </td>
-                <td className="py-4 px-4 text-center">
-                  <X className="h-5 w-5 text-gray-400 mx-auto" />
-                </td>
-                <td className="py-4 px-4 text-center bg-orange-100/50">
-                  <div className="flex items-start gap-2 justify-center">
-                    <Check className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
-                    <span className="text-sm font-medium text-orange-800 text-left">{bestOfferPromo}</span>
-                  </div>
-                </td>
-              </tr>
-            )}
+            <tr><td className="py-3 px-4 font-medium text-sm text-gray-700">Fornitore</td><td className="py-3 px-4 text-center bg-gray-50/30 font-semibold">{currentProvider}</td>{effectiveFixedOffer && <td className="py-3 px-4 text-center bg-blue-50/30 font-semibold text-blue-800">{effectiveFixedOffer.provider}</td>}{variableOffer && <td className="py-3 px-4 text-center bg-green-50/30 font-semibold text-green-800">{variableOffer.provider}</td>}</tr>
+            <tr><td className="py-3 px-4 font-medium text-sm text-gray-700">Nome Offerta</td><td className="py-3 px-4 text-center bg-gray-50/30 text-sm">{currentOfferType || 'N/D'}</td>{effectiveFixedOffer && <td className="py-3 px-4 text-center bg-blue-50/30 text-sm font-medium text-blue-800">{effectiveFixedOffer.name}</td>}{variableOffer && <td className="py-3 px-4 text-center bg-green-50/30 text-sm font-medium text-green-800">{variableOffer.name}</td>}</tr>
+            <tr><td className="py-3 px-4 font-medium text-sm text-gray-700">Costo Mensile</td><td className="py-3 px-4 text-center bg-gray-50/30"><span className="text-xl font-bold text-gray-800">{fmt(currentMonthly)}</span></td>{effectiveFixedOffer && <td className="py-3 px-4 text-center bg-blue-50/30"><div className="flex items-center justify-center gap-1"><TrendingDown className="h-4 w-4 text-blue-600" /><span className="text-xl font-bold text-blue-600">{fmt(effectiveFixedOffer.monthlyEur)}</span></div></td>}{variableOffer && <td className="py-3 px-4 text-center bg-green-50/30"><div className="flex items-center justify-center gap-1"><TrendingDown className="h-4 w-4 text-green-600" /><span className="text-xl font-bold text-green-600">{fmt(variableOffer.monthlyEur)}</span></div></td>}</tr>
+            <tr><td className="py-3 px-4 font-medium text-sm text-gray-700">Costo Annuale</td><td className="py-3 px-4 text-center bg-gray-50/30 font-semibold">{fmt(currentAnnual)}</td>{effectiveFixedOffer && <td className="py-3 px-4 text-center bg-blue-50/30 font-semibold text-blue-700">{fmt(effectiveFixedOffer.annualEur)}</td>}{variableOffer && <td className="py-3 px-4 text-center bg-green-50/30 font-semibold text-green-700">{fmt(variableOffer.annualEur)}</td>}</tr>
+            {currentPotenzaKw && <tr><td className="py-3 px-4 font-medium text-sm text-gray-700">Potenza</td><td className="py-3 px-4 text-center bg-gray-50/30">{currentPotenzaKw} kW</td>{effectiveFixedOffer && <td className="py-3 px-4 text-center bg-blue-50/30">{effectiveFixedOffer.potenzaKw || currentPotenzaKw} kW</td>}{variableOffer && <td className="py-3 px-4 text-center bg-green-50/30">{variableOffer.potenzaKw || currentPotenzaKw} kW</td>}</tr>}
+            <tr className="bg-green-50 border-t-2 border-green-200"><td className="py-4 px-4 font-bold text-sm text-green-900">Risparmio Annuo</td><td className="py-4 px-4 text-center text-gray-400">-</td>{effectiveFixedOffer && <td className="py-4 px-4 text-center"><span className="text-2xl font-bold text-green-600">{fmt(effectiveFixedOffer.savingEur)}</span><span className="block text-sm text-green-700">(-{effectiveFixedOffer.savingPercent}%)</span></td>}{variableOffer && <td className="py-4 px-4 text-center"><span className="text-2xl font-bold text-green-600">{fmt(variableOffer.savingEur)}</span><span className="block text-sm text-green-700">(-{variableOffer.savingPercent}%)</span></td>}</tr>
+            <tr className="border-t border-gray-200"><td className="py-3 px-4 font-medium text-sm text-gray-700">Consumo Annuo</td><td colSpan={colCount - 1} className="py-3 px-4 text-center font-semibold">{consumption.toLocaleString('it-IT')} {billType === 'gas' ? 'Smc' : 'kWh'}</td></tr>
+            {(effectiveFixedOffer?.onActivate || variableOffer?.onActivate) && <tr className="border-t-2 border-purple-200"><td className="py-4 px-4"></td><td className="py-4 px-4"></td>{effectiveFixedOffer && <td className="py-4 px-4 text-center">{effectiveFixedOffer.onActivate && <Button onClick={effectiveFixedOffer.onActivate} className="bg-blue-600 hover:bg-blue-700 w-full">Attiva Fissa</Button>}</td>}{variableOffer && <td className="py-4 px-4 text-center">{variableOffer.onActivate && <Button onClick={variableOffer.onActivate} className="bg-green-600 hover:bg-green-700 w-full">Attiva Variabile</Button>}</td>}</tr>}
           </tbody>
         </table>
-      </div>
-
-      {/* Summary Card */}
-      <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-200 rounded-lg">
-        <div className="flex items-start gap-3">
-          <TrendingDown className="h-6 w-6 text-green-600 mt-0.5 flex-shrink-0" />
-          <div>
-            <h4 className="font-bold text-green-900 mb-1">Riepilogo Vantaggi</h4>
-            <p className="text-sm text-green-800">
-              Passando a <span className="font-semibold">{bestOfferName}</span> risparmi{' '}
-              <span className="font-bold text-green-600">{new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(savingAnnual)}</span>{' '}
-              all'anno rispetto alla tua offerta attuale.
-              {hasPromo && (
-                <span className="block mt-2 text-xs font-semibold text-orange-700 bg-orange-100 inline-block px-2 py-1 rounded">
-                  ⚡ Approfitta della promozione a tempo prima che scada!
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );

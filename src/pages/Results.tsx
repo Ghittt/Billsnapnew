@@ -71,6 +71,7 @@ const ResultsPage = () => {
   const [analyzerResult, setAnalyzerResult] = useState<any>(null);
   const [hasGoodOffer, setHasGoodOffer] = useState(false);
   const [isDataInVerifica, setIsDataInVerifica] = useState(false);
+  const [currentOfferName, setCurrentOfferName] = useState<string | null>(null);
 
   // DEBUG STATE
   const [debugData, setDebugData] = useState<any>({
@@ -322,6 +323,7 @@ const ResultsPage = () => {
         console.log('[🔍 FASCE] Extracted:', {f1, f2, f3, potenzaKw});
         const providerName = ocrResult?.provider || ocrResult?.raw_json?.provider || ocrResult?.raw_json?.bolletta_luce?.provider || null;
         const currentOffer = ocrResult?.tariff_hint || ocrResult?.raw_json?.bolletta_luce?.offerta || null;
+        setCurrentOfferName(currentOffer);
         console.log('[🔍 DATA-CHECK] Final Provider:', providerName, 'Offer:', currentOffer);
 
         
@@ -763,7 +765,7 @@ const ResultsPage = () => {
                     <DataOriginBadge source={analyzerResult?.current?.consumption_was_estimated ? "ESTIMATED" : "BILL"} />
                   </p>
                   <p>Fornitore attuale: <span className='font-medium text-foreground'>{ocrData?.provider || 'N/A'}</span></p>
-                  {currentOffer && (
+                  {currentOfferName && (
                     <p>Tipo offerta: {ocrData.tariff_hint}</p>
                   )}
                 </div>
@@ -870,7 +872,7 @@ const ResultsPage = () => {
                 currentMonthly={currentMonthly}
                 currentAnnual={currentCost}
                 currentProvider={ocrData?.provider || 'provider attuale'}
-                currentOfferType={currentOffer}
+                currentOfferType={currentOfferName}
                 bestOfferName={bestOffer.plan_name}
                 bestOfferProvider={bestOffer.provider}
                 bestOfferMonthly={newMonthly}

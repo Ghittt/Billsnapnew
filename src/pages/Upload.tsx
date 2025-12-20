@@ -6,8 +6,6 @@ import UploadZone from "@/components/upload/UploadZone";
 import ProgressIndicator from "@/components/upload/ProgressIndicator";
 import { ManualBillInputModal } from "@/components/upload/ManualBillInputModal";
 import { ManualBillInputFallback } from "@/components/upload/ManualBillInputFallback";
-import { ProfilePopupStep1 } from "@/components/upload/ProfilePopupStep1";
-import { ProfilePopupStep2 } from "@/components/upload/ProfilePopupStep2";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, Clock, Upload, Shield, Zap, Loader2, Plus } from "lucide-react";
@@ -57,8 +55,8 @@ const UploadPage = () => {
     tipoUtenza: "casa" | "ufficio";
   }>({
     dataNascita: null,
-    nucleoFamiliare: null,
-    iseeRange: null,
+    nucleoFamiliare: 2,
+    iseeRange: "medio",
     codiceFiscale: null,
     tipoUtenza: "casa",
   });
@@ -72,40 +70,16 @@ const UploadPage = () => {
     }
   }, [location.state]);
 
-  const handleFileStaging = (files: File[]) => {
-    setStagedFiles((prev) => [...prev, ...files]);
-    setCurrentStep("staged");
+  const handleFileStaging = async (files: File[]) => {
+    // Immediate upload for one-click experience
+    setLoaderText("Sto analizzando la tua bolletta, ci vuole qualche secondo...");
+    await handleFileUpload(files);
   };
 
   const handleAnalyzeFiles = async () => {
-    if (stagedFiles.length === 0) {
-      toast({
-        title: "Nessun file",
-        description: "Carica almeno un file prima di analizzare.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsUploading(true);
-    setLoaderText("Sto analizzando la tua bolletta, ci vuole qualche secondo...");
-    setPopupStep(1); // Show first pop-up
-  };
-
-  // Handle Pop-up Step 1 completion
-  const handlePopupStep1Complete = (dataNascita: string) => {
-    setUserProfile(prev => ({ ...prev, dataNascita }));
-    setPopupStep(2); // Move to second pop-up
-  };
-
-  // Handle Pop-up Step 2 completion - NOW start actual OCR
-  const handlePopupStep2Complete = async (data: { nucleoFamiliare: number; iseeRange: "basso" | "medio" | "alto"; tipoUtenza: "casa" | "ufficio" }) => {
-    setUserProfile(prev => ({ ...prev, ...data }));
-    setPopupStep(0); // Close pop-ups
-    setLoaderText("Sto finalizzando la tua analisi...");
-    
-    // NOW start the actual file upload and OCR
-    await handleFileUpload(stagedFiles);
+     // Fallback if needed
+     if (stagedFiles.length === 0) return;
+     handleFileUpload(stagedFiles);
   };
 
   const handleFileUpload = async (files: File[]) => {
@@ -496,7 +470,7 @@ const UploadPage = () => {
                           onClick={() => document.getElementById("add-more-input")?.click()}
                           title="Aggiungi altre pagine"
                           className="w-full sm:w-auto"
-                        >
+                          >
                           <Plus className="w-5 h-5 mr-2" />
                           Aggiungi altro
                         </Button>
@@ -560,20 +534,6 @@ const UploadPage = () => {
           )}
         </div>
       </div>
-
-      
-      {/* Pop-up Step 1: Birth Date */}
-      <ProfilePopupStep1
-        open={popupStep === 1}
-        codiceFiscale={userProfile.codiceFiscale}
-        onNext={handlePopupStep1Complete}
-      />
-
-      {/* Pop-up Step 2: Household */}
-      <ProfilePopupStep2
-        open={popupStep === 2}
-        onComplete={handlePopupStep2Complete}
-      />
 
       <ManualBillInputModal
         open={showManualInput}
