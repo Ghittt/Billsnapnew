@@ -676,47 +676,7 @@ serve(async (req) => {
       const bestVariable = sortedVariable[0] || null;
       
       console.log('[LUCE] Fixed offers:', fixedOffers.length, 'Variable offers:', variableOffers.length);
-      console.log('[LUCE] Best fixed:', bestFixed?.nome_offerta, bestFixed?.estimated_annual_eur);
-      console.log('[LUCE] Best variable:', bestVariable?.nome_offerta, bestVariable?.estimated_annual_eur);
-      
-      // CRITICAL: Intelligent recommendation logic
-      let recommendedOffer = null;
-      let recommendationReason = '';
-      
-      if (annual && bestFixed && bestVariable) {
-        const fixedCost = bestFixed.estimated_annual_eur;
-        const variableCost = bestVariable.estimated_annual_eur;
-        const fixedSavings = annual - fixedCost;
-        const variableSavings = annual - variableCost;
-        const fixedSavingsPercent = (fixedSavings / annual) * 100;
-        const variableSavingsPercent = (variableSavings / annual) * 100;
-        
-        console.log('[LUCE] Current cost:', annual, '€');
-        console.log('[LUCE] Fixed savings:', fixedSavings, '€', `(${fixedSavingsPercent.toFixed(1)}%)`);
-        console.log('[LUCE] Variable savings:', variableSavings, '€', `(${variableSavingsPercent.toFixed(1)}%)`);
-        
-        if (variableCost >= fixedCost) {
-          recommendedOffer = bestFixed;
-          recommendationReason = `Fisso costa meno (€${Math.round(fixedCost)} vs €${Math.round(variableCost)} variabile)`;
-          console.log('[LUCE] RECOMMENDATION: Fixed (cheaper than variable)');
-        } else if ((fixedCost - variableCost) > (annual * 0.1)) {
-          recommendedOffer = bestVariable;
-          recommendationReason = `Variabile offre risparmio significativo (€${Math.round(fixedCost - variableCost)} in più rispetto al fisso)`;
-          console.log('[LUCE] RECOMMENDATION: Variable (meaningfully cheaper)');
-        } else {
-          recommendedOffer = bestFixed;
-          recommendationReason = `Fisso offre miglior rapporto sicurezza/risparmio (differenza < 10%)`;
-          console.log('[LUCE] RECOMMENDATION: Fixed (safety first)');
-        }
-      } else if (bestFixed && !bestVariable) {
-        recommendedOffer = bestFixed;
-        recommendationReason = 'Solo offerte fisse disponibili';
-      } else if (bestVariable && !bestFixed) {
-        recommendedOffer = bestVariable;
-        recommendationReason = 'Solo offerte variabili disponibili';
-      }
-      
-      console.log('[LUCE] FINAL RECOMMENDATION:', recommendedOffer?.nome_offerta, '-', recommendationReason);
+      console.log('[LUCE] Best fixed:', bestFixed?.nome_offerta, 'Best variable:', bestVariable?.nome_offerta);
       
       const current = {
         provider: bill.provider_current,
@@ -801,47 +761,7 @@ serve(async (req) => {
       const bestVariable = sortedVariable[0] || null;
       
       console.log('[GAS] Fixed offers:', fixedOffers.length, 'Variable offers:', variableOffers.length);
-      console.log('[GAS] Best fixed:', bestFixed?.nome_offerta, bestFixed?.estimated_annual_eur);
-      console.log('[GAS] Best variable:', bestVariable?.nome_offerta, bestVariable?.estimated_annual_eur);
-      
-      // CRITICAL: Intelligent recommendation logic
-      let recommendedOffer = null;
-      let recommendationReason = '';
-      
-      if (annual && bestFixed && bestVariable) {
-        const fixedCost = bestFixed.estimated_annual_eur;
-        const variableCost = bestVariable.estimated_annual_eur;
-        const fixedSavings = annual - fixedCost;
-        const variableSavings = annual - variableCost;
-        const fixedSavingsPercent = (fixedSavings / annual) * 100;
-        const variableSavingsPercent = (variableSavings / annual) * 100;
-        
-        console.log('[GAS] Current cost:', annual, '€');
-        console.log('[GAS] Fixed savings:', fixedSavings, '€', `(${fixedSavingsPercent.toFixed(1)}%)`);
-        console.log('[GAS] Variable savings:', variableSavings, '€', `(${variableSavingsPercent.toFixed(1)}%)`);
-        
-        if (variableCost >= fixedCost) {
-          recommendedOffer = bestFixed;
-          recommendationReason = `Fisso costa meno (€${Math.round(fixedCost)} vs €${Math.round(variableCost)} variabile)`;
-          console.log('[GAS] RECOMMENDATION: Fixed (cheaper than variable)');
-        } else if ((fixedCost - variableCost) > (annual * 0.1)) {
-          recommendedOffer = bestVariable;
-          recommendationReason = `Variabile offre risparmio significativo (€${Math.round(fixedCost - variableCost)} in più rispetto al fisso)`;
-          console.log('[GAS] RECOMMENDATION: Variable (meaningfully cheaper)');
-        } else {
-          recommendedOffer = bestFixed;
-          recommendationReason = `Fisso offre miglior rapporto sicurezza/risparmio (differenza < 10%)`;
-          console.log('[GAS] RECOMMENDATION: Fixed (safety first)');
-        }
-      } else if (bestFixed && !bestVariable) {
-        recommendedOffer = bestFixed;
-        recommendationReason = 'Solo offerte fisse disponibili';
-      } else if (bestVariable && !bestFixed) {
-        recommendedOffer = bestVariable;
-        recommendationReason = 'Solo offerte variabili disponibili';
-      }
-      
-      console.log('[GAS] FINAL RECOMMENDATION:', recommendedOffer?.nome_offerta, '-', recommendationReason);
+      console.log('[GAS] Best fixed:', bestFixed?.nome_offerta, 'Best variable:', bestVariable?.nome_offerta);
       
       const current = {
         provider: bill.provider_current,

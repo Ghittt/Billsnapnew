@@ -72,6 +72,8 @@ const ResultsPage = () => {
   const [hasGoodOffer, setHasGoodOffer] = useState(false);
   const [isDataInVerifica, setIsDataInVerifica] = useState(false);
   const [currentOfferName, setCurrentOfferName] = useState<string | null>(null);
+  const [fixedOffer, setFixedOffer] = useState<any | null>(null);
+  const [variableOffer, setVariableOffer] = useState<any | null>(null);
 
   // DEBUG STATE
   const [debugData, setDebugData] = useState<any>({
@@ -359,6 +361,97 @@ const ResultsPage = () => {
               
               setBestOffer(ranked[0]);
               setAllOffers(ranked);
+
+              // Use `best` offer from bill-analyzer for accurate data, fallback to DB for the other type
+              const bestPriceType = best.price_type?.toLowerCase() || 'variabile';
+              const bestAnnualCost = best.annual_eur || 0;
+              
+              // Filter offers from DB for the type that is NOT the best
+              const fixedOffers = (allOffersData || []).filter(o => {
+                const comm = (o.commodity || o.tipo_fornitura || '').toLowerCase();
+                const pType = (o.tipo_prezzo || o.price_type || '').toLowerCase();
+                return (comm === tipo.toLowerCase() || (comm === 'electricity' && tipo === 'luce')) && 
+                       (pType === 'fisso' || pType === 'fixed');
+              }).sort((a, b) => (a.annual_cost_simulated || 999999) - (b.annual_cost_simulated || 999999));
+              
+              const variableOffers = (allOffersData || []).filter(o => {
+                const comm = (o.commodity || o.tipo_fornitura || '').toLowerCase();
+                const pType = (o.tipo_prezzo || o.price_type || '').toLowerCase();
+                return (comm === tipo.toLowerCase() || (comm === 'electricity' && tipo === 'luce')) && 
+                       (pType === 'variabile' || pType === 'variable');
+              }).sort((a, b) => (a.annual_cost_simulated || 999999) - (b.annual_cost_simulated || 999999));
+              
+              // Set fixed offer: use `best` if it's fixed type, otherwise calculate from DB
+              if (bestPriceType === 'fisso' || bestPriceType === 'fixed') {
+                // Use exact data from bill-analyzer
+                setFixedOffer({
+                  provider: best.provider,
+                  name: best.offer_name,
+                  monthlyEur: bestAnnualCost / 12,
+                  annualEur: bestAnnualCost,
+                  savingEur: extractedCost - bestAnnualCost,
+                  savingPercent: extractedCost > 0 ? Math.round(((extractedCost - bestAnnualCost) / extractedCost) * 100) : 0,
+                  priceType: 'fisso' as const,
+                  priceKwh: fixedOffers[0]?.prezzo_energia_euro_kwh,
+                  fixedMonthly: fixedOffers[0]?.quota_fissa_mensile_euro,
+                  onActivate: () => handleActivateOffer(ranked[0])
+                });
+              } else if (fixedOffers[0]) {
+                // Calculate cost: (consumption_kWh * price_per_kWh) + (fixed_monthly * 12) + system_charges
+                const priceKwh = fixedOffers[0].prezzo_energia_euro_kwh || 0;
+                const fixedMonthly = fixedOffers[0].quota_fissa_mensile_euro || 0;
+                const energyCost = extractedConsumption * priceKwh;
+                // Add ~30% for system charges (oneri di sistema, trasporto, dispacciamento, IVA)
+                const annualCost = (energyCost * 1.3) + (fixedMonthly * 12);
+                setFixedOffer({
+                  provider: fixedOffers[0].provider,
+                  name: fixedOffers[0].plan_name || fixedOffers[0].nome_offerta,
+                  monthlyEur: annualCost / 12,
+                  annualEur: annualCost,
+                  savingEur: extractedCost - annualCost,
+                  savingPercent: extractedCost > 0 ? Math.round(((extractedCost - annualCost) / extractedCost) * 100) : 0,
+                  priceType: 'fisso' as const,
+                  priceKwh: priceKwh,
+                  fixedMonthly: fixedMonthly,
+                  onActivate: () => handleActivateOffer(fixedOffers[0])
+                });
+              }
+              
+              // Set variable offer: use `best` if it's variable type, otherwise calculate from DB
+              if (bestPriceType === 'variabile' || bestPriceType === 'variable') {
+                // Use exact data from bill-analyzer
+                setVariableOffer({
+                  provider: best.provider,
+                  name: best.offer_name,
+                  monthlyEur: bestAnnualCost / 12,
+                  annualEur: bestAnnualCost,
+                  savingEur: extractedCost - bestAnnualCost,
+                  savingPercent: extractedCost > 0 ? Math.round(((extractedCost - bestAnnualCost) / extractedCost) * 100) : 0,
+                  priceType: 'variabile' as const,
+                  priceKwh: variableOffers[0]?.prezzo_energia_euro_kwh,
+                  fixedMonthly: variableOffers[0]?.quota_fissa_mensile_euro,
+                  onActivate: () => handleActivateOffer(ranked[0])
+                });
+              } else if (variableOffers[0]) {
+                // Calculate cost: (consumption_kWh * price_per_kWh) + (fixed_monthly * 12) + system_charges
+                const priceKwh = variableOffers[0].prezzo_energia_euro_kwh || 0;
+                const fixedMonthly = variableOffers[0].quota_fissa_mensile_euro || 0;
+                const energyCost = extractedConsumption * priceKwh;
+                // Add ~30% for system charges (oneri di sistema, trasporto, dispacciamento, IVA)
+                const annualCost = (energyCost * 1.3) + (fixedMonthly * 12);
+                setVariableOffer({
+                  provider: variableOffers[0].provider,
+                  name: variableOffers[0].plan_name || variableOffers[0].nome_offerta,
+                  monthlyEur: annualCost / 12,
+                  annualEur: annualCost,
+                  savingEur: extractedCost - annualCost,
+                  savingPercent: extractedCost > 0 ? Math.round(((extractedCost - annualCost) / extractedCost) * 100) : 0,
+                  priceType: 'variabile' as const,
+                  priceKwh: priceKwh,
+                  fixedMonthly: fixedMonthly,
+                  onActivate: () => handleActivateOffer(variableOffers[0])
+                });
+              }
               
               // Call energy-coach API for real AI analysis
               if (uploadId) {  // Removed consumption check - allow 0
@@ -741,8 +834,8 @@ const ResultsPage = () => {
         </div>
 
         <div className='space-y-12'>
-          <div className={hasGoodOffer ? 'grid grid-cols-1 gap-6' : 'grid grid-cols-1 md:grid-cols-2 gap-6'}>
-            <Card className='border-2 shadow-sm'>
+          <div className='flex justify-center mb-8'>
+            <Card className='border-2 shadow-sm max-w-md w-full'>
               <CardContent className='p-6 md:p-8 text-center space-y-4'>
                 <p className='text-xs font-bold uppercase tracking-widest text-muted-foreground'>SPENDI ORA</p>
                 
@@ -768,34 +861,19 @@ const ResultsPage = () => {
                   {currentOfferName && (
                     <p>Tipo offerta: {ocrData.tariff_hint}</p>
                   )}
+                  {ocrData?.potenza_kw && (
+                    <p>Potenza: <span className='font-medium text-foreground'>{ocrData.potenza_kw} kW</span></p>
+                  )}
+                  {ocrData?.tipo_utenza && (
+                    <p>Tipo utenza: <span className='font-medium text-foreground capitalize'>{ocrData.tipo_utenza}</span></p>
+                  )}
+                  {ocrData?.data_bolletta && (
+                    <p className='text-xs opacity-75'>Data bolletta: {new Date(ocrData.data_bolletta).toLocaleDateString('it-IT')}</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
-            {bestOffer && !hasGoodOffer && (
-              <Card className='border-2 border-primary/40 shadow-md relative overflow-hidden'>
-                <div className='absolute top-0 left-0 w-full h-1 bg-primary'></div>
-                <CardContent className='p-6 md:p-8 text-center space-y-4'>
-                  <p className='text-xs font-bold uppercase tracking-widest text-primary'>CON L'OFFERTA MIGLIORE PER TE</p>
-                  
-                  <div className='py-2'>
-                    <span className='text-5xl font-bold text-primary'>{fmt(newMonthly)}</span>
-                    <p className='text-sm text-muted-foreground mt-1'>al mese</p>
-                  </div>
-
-                  <div className='border-t pt-4 space-y-2 text-sm text-muted-foreground'>
-                    <p>≈ {fmt(bestOffer.simulated_cost)} all'anno</p>
-                    <p>Offerta consigliata: <span className='font-medium text-foreground'>{bestOffer.plan_name}</span></p>
-                    <p>Fornitore: <span className='font-medium text-foreground'>{bestOffer.provider}</span></p>
-                    
-                    <div className='pt-2 mt-2 bg-green-50 text-green-700 p-2 rounded-md font-medium'>
-                      Risparmio stimato: {fmt(monthlySaving)}/mese
-                      <span className='block text-xs opacity-80'>(≈ {fmt(annualSaving)}/anno)</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           {hasGoodOffer && analyzerResult && (
@@ -884,6 +962,8 @@ const ResultsPage = () => {
                 error={aiError}
                 onActivate={() => handleActivateOffer(bestOffer)}
                 bestOfferPromo={bestOffer.promo_text}
+                fixedOffer={fixedOffer}
+                variableOffer={variableOffer}
               />
               
               {/* Review CTA */}

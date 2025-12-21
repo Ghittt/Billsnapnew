@@ -6,6 +6,8 @@ import UploadZone from "@/components/upload/UploadZone";
 import ProgressIndicator from "@/components/upload/ProgressIndicator";
 import { ManualBillInputModal } from "@/components/upload/ManualBillInputModal";
 import { ManualBillInputFallback } from "@/components/upload/ManualBillInputFallback";
+import { ProfilePopupStep1 } from "@/components/upload/ProfilePopupStep1";
+import { ProfilePopupStep2 } from "@/components/upload/ProfilePopupStep2";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, Clock, Upload, Shield, Zap, Loader2, Plus } from "lucide-react";
@@ -70,16 +72,34 @@ const UploadPage = () => {
     }
   }, [location.state]);
 
-  const handleFileStaging = async (files: File[]) => {
-    // Immediate upload for one-click experience
+  const handleFileStaging = (files: File[]) => {
+    // Put files in staging and show first popup
+    setStagedFiles((prev) => [...prev, ...files]);
+    setPopupStep(1);
+  };
+
+  const handlePopupStep1Complete = (dataNascita: string) => {
+    setUserProfile((prev) => ({ ...prev, dataNascita }));
+    setPopupStep(2);
+  };
+
+  const handlePopupStep2Complete = (data: { nucleoFamiliare: number; iseeRange: "basso" | "medio" | "alto"; tipoUtenza: "casa" | "ufficio" }) => {
+    setUserProfile((prev) => ({
+      ...prev,
+      nucleoFamiliare: data.nucleoFamiliare,
+      iseeRange: data.iseeRange,
+      tipoUtenza: data.tipoUtenza,
+    }));
+    setPopupStep(0);
+    // Now start the actual upload with user profile data
     setLoaderText("Sto analizzando la tua bolletta, ci vuole qualche secondo...");
-    await handleFileUpload(files);
+    handleFileUpload(stagedFiles);
   };
 
   const handleAnalyzeFiles = async () => {
-     // Fallback if needed
+     // Start popup flow when user clicks analyze
      if (stagedFiles.length === 0) return;
-     handleFileUpload(stagedFiles);
+     setPopupStep(1);
   };
 
   const handleFileUpload = async (files: File[]) => {
@@ -542,6 +562,19 @@ const UploadPage = () => {
           setPendingUploadId(null);
         }}
         onSubmit={handleManualInput}
+      />
+
+      {/* Profile Popup Step 1 - Data di nascita */}
+      <ProfilePopupStep1
+        open={popupStep === 1}
+        codiceFiscale={userProfile.codiceFiscale}
+        onNext={handlePopupStep1Complete}
+      />
+
+      {/* Profile Popup Step 2 - Nucleo familiare, ISEE, tipo utenza */}
+      <ProfilePopupStep2
+        open={popupStep === 2}
+        onComplete={handlePopupStep2Complete}
       />
     </div>
   );
