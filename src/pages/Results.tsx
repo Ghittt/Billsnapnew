@@ -75,6 +75,8 @@ const ResultsPage = () => {
   const [fixedOffer, setFixedOffer] = useState<any | null>(null);
   const [variableOffer, setVariableOffer] = useState<any | null>(null);
 
+  const [currentPriceKwh, setCurrentPriceKwh] = useState<number>(0);
+  const [currentFixedMonthly, setCurrentFixedMonthly] = useState<number>(0);
   // DEBUG STATE
   const [debugData, setDebugData] = useState<any>({
     analysisId: null,
@@ -331,8 +333,10 @@ const ResultsPage = () => {
         const currentOffer = ocrResult?.tariff_hint || ocrResult?.raw_json?.bolletta_luce?.offerta || null;
         
         // NEW: Extract Unit Price and Fixed Fee
-        const currentPriceKwh = targetData?.current?.details?.price_kwh || targetData?.current?.details?.price_smc || 0;
-        const currentFixedMonthly = targetData?.current?.details?.fixed_fee_monthly || 0;
+        const extractedPriceKwh = targetData?.current?.details?.price_kwh || targetData?.current?.details?.price_smc || 0;
+        const extractedFixedMonthly = targetData?.current?.details?.fixed_fee_monthly || 0;
+        setCurrentPriceKwh(extractedPriceKwh);
+        setCurrentFixedMonthly(extractedFixedMonthly);
         setCurrentOfferName(currentOffer);
         console.log('[🔍 DATA-CHECK] Final Provider:', providerName, 'Offer:', currentOffer);
 
