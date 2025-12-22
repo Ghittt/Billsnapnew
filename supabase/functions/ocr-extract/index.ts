@@ -147,7 +147,8 @@ function parseAzureResult(result: any): any {
       consumo_periodo_kwh: null as number | null,
       periodo: { data_inizio: null as string | null, data_fine: null as string | null, mesi: null as number | null },
       totale_periodo_euro: null as number | null,
-      consumi_fasce: { f1: null, f2: null, f3: null }
+      consumi_fasce: { f1: null, f2: null, f3: null },
+      offerta: null as string | null
     },
     bolletta_gas: {
       presente: false,
@@ -155,7 +156,8 @@ function parseAzureResult(result: any): any {
       consumo_annuo_smc: null as number | null,
       consumo_periodo_smc: null as number | null,
       periodo: { data_inizio: null as string | null, data_fine: null as string | null, mesi: null as number | null },
-      totale_periodo_euro: null as number | null
+      totale_periodo_euro: null as number | null,
+      offerta: null as string | null
     },
     _azure_metadata: {
       ocr_engine: "Azure Document Intelligence",
@@ -280,6 +282,45 @@ function parseAzureResult(result: any): any {
   const powerMatch = content.match(/potenza\s*(impegnata|contrattuale|disponibile)?\s*[:\s-]+(\d+[\.,]?\d*)\s*kw/i);
   if (powerMatch) {
     output.bolletta_luce.potenza_kw = parseFloat(powerMatch[2].replace(",", "."));
+  }
+
+  // Offer name extraction
+  const offerPatterns = [
+    /offerta[\s:]+([A-Za-z0-9\s]+?)(?:\n|\r|$|\.|,)/i,
+    /piano\s+tariffario[\s:]+([A-Za-z0-9\s]+?)(?:\n|\r|$|\.|,)/i,
+    /tariffa[\s:]+([A-Za-z0-9\s]+?)(?:\n|\r|$|\.|,)/i
+  ];
+  for (const pattern of offerPatterns) {
+    const match = content.match(pattern);
+    if (match && match[1] && match[1].trim().length > 2) {
+      const offerName = match[1].trim();
+      if (!offerName.match(/^(si|no|€|\d+)$/i)) {
+        if (output.bolletta_luce.presente) output.bolletta_luce.offerta = offerName;
+        if (output.bolletta_gas.presente) output.bolletta_gas.offerta = offerName;
+        console.log('[AZURE] Found offer:', offerName);
+        break;
+      }
+    }
+  }
+
+  // Offer name extraction
+  const offerPatterns = [
+    /offerta[\\s:]+([A-Za-z0-9\\s]+?)(?:\\n|\\r|$|\\.|,)/i,
+    /piano\\s+tariffario[\\s:]+([A-Za-z0-9\\s]+?)(?:\\n|\\r|$|\\.|,)/i,
+    /tariffa[\\s:]+([A-Za-z0-9\\s]+?)(?:\\n|\\r|$|\\.|,)/i,
+    /nome\\s+offerta[\\s:]+([A-Za-z0-9\\s]+?)(?:\\n|\\r|$|\\.|,)/i
+  ];
+  for (const pattern of offerPatterns) {
+    const match = content.match(pattern);
+    if (match && match[1] && match[1].trim().length > 2) {
+      const offerName = match[1].trim();
+      if (!offerName.match(/^(si|no|€|\\d+)$/i)) {
+        if (output.bolletta_luce.presente) output.bolletta_luce.offerta = offerName;
+        if (output.bolletta_gas.presente) output.bolletta_gas.offerta = offerName;
+        console.log('[AZURE] Found offer name:', offerName, 'from match:', match[0]);
+        break;
+      }
+    }
   }
 
   // Fasce orarie extraction (F1, F2, F3)
@@ -445,7 +486,8 @@ function parseAzureTables(tables) {
     consumption_annuo_kwh: null,
     consumption_period_kwh: null, // NEW: Try to find period consumption in table
     quota_fissa_mensile: null,
-    prezzo_unitario: null
+    prezzo_unitario: null,
+    offerta: null as string | null
   };
 
   if (!tables || tables.length === 0) return result;
@@ -822,6 +864,7 @@ serve(async (req) => {
       f3_kwh: extractedData.bolletta_luce?.consumi_fasce?.f3 || null,
       // FIX: Add potenza data from extracted bolletta_luce
       potenza_kw: extractedData.bolletta_luce?.potenza_kw || null,
+      tariff_hint: extractedData.bolletta_luce?.offerta || extractedData.bolletta_gas?.offerta || null,
       raw_json: extractedData,
       quality_score: qualityScore,
       ocr_engine: ocrEngine
