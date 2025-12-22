@@ -147,8 +147,7 @@ function parseAzureResult(result: any): any {
       consumo_periodo_kwh: null as number | null,
       periodo: { data_inizio: null as string | null, data_fine: null as string | null, mesi: null as number | null },
       totale_periodo_euro: null as number | null,
-      consumi_fasce: { f1: null, f2: null, f3: null },
-      offerta: null as string | null
+      consumi_fasce: { f1: null, f2: null, f3: null }
     },
     bolletta_gas: {
       presente: false,
@@ -156,8 +155,7 @@ function parseAzureResult(result: any): any {
       consumo_annuo_smc: null as number | null,
       consumo_periodo_smc: null as number | null,
       periodo: { data_inizio: null as string | null, data_fine: null as string | null, mesi: null as number | null },
-      totale_periodo_euro: null as number | null,
-      offerta: null as string | null
+      totale_periodo_euro: null as number | null
     },
     _azure_metadata: {
       ocr_engine: "Azure Document Intelligence",
@@ -283,26 +281,6 @@ function parseAzureResult(result: any): any {
   if (powerMatch) {
     output.bolletta_luce.potenza_kw = parseFloat(powerMatch[2].replace(",", "."));
   }
-
-  // Offer name extraction
-  const offerPatterns = [
-    /offerta[\s:]+([A-Za-z0-9\s]+?)(?:\n|\r|$|\.|,)/i,
-    /piano\s+tariffario[\s:]+([A-Za-z0-9\s]+?)(?:\n|\r|$|\.|,)/i,
-    /tariffa[\s:]+([A-Za-z0-9\s]+?)(?:\n|\r|$|\.|,)/i
-  ];
-  for (const pattern of offerPatterns) {
-    const match = content.match(pattern);
-    if (match && match[1] && match[1].trim().length > 2) {
-      const offerName = match[1].trim();
-      if (!offerName.match(/^(si|no|€|\d+)$/i)) {
-        if (output.bolletta_luce.presente) output.bolletta_luce.offerta = offerName;
-        if (output.bolletta_gas.presente) output.bolletta_gas.offerta = offerName;
-        console.log('[AZURE] Found offer:', offerName);
-        break;
-      }
-    }
-  }
-
 
   // Fasce orarie extraction (F1, F2, F3)
   // Pattern: "F1: XXX kWh" or "Fascia F1: XXX" or "F1 XXX kwh"
@@ -430,25 +408,18 @@ function parseAzureResult(result: any): any {
         // Note: text extraction puts it in 'totale_periodo_kwh' usually? 
         // Actually output structure is: output.bolletta_luce.consumo_periodo_kwh (from regex)
         
-        // Use period consumption from table, or fall back to annual/period from text
-        const consumption = tableData.consumption_period_kwh || 
-                          output.bolletta_luce.consumo_periodo_kwh ||
-                          output.bolletta_luce.consumo_annuo_kwh ||
-                          output.bolletta_luce.consumo_attivo_kwh;
+        // Let's rely on tableData.consumption_period_kwh first, then text extraction
+        const consumption = tableData.consumption_period_kwh || output.bolletta_luce.consumo_attivo_kwh || output.bolletta_luce.consumo_periodo_kwh;
         
         if (consumption && consumption > 0) {
             const calculated = tableData.costo_materia_energia / consumption;
-            console.log("[AZURE] Calculated Effective Price:", calculated, "€/kWh (Cost:", tableData.costo_materia_energia, "€, Cons:", consumption, "kWh)");
+            console.log("[AZURE] Calculated Effective Price:", calculated, "(Cost:", tableData.costo_materia_energia, "Cons:", consumption, ")");
             
-            // Sanity check: price should be reasonable (0.05 to 0.80 €/kWh)
+            // Sanity check: price should be reasonable (e.g. 0.05 to 0.80)
             if (calculated > 0.05 && calculated < 0.80) {
                 finalUnitPrice = calculated;
-                console.log("[AZURE] Using calculated unit price:", calculated, "€/kWh");
-            } else {
-                console.warn("[AZURE] Calculated price out of range:", calculated);
+                // Also implicitly, if we are calculating, we might want to flag it? For now just use it.
             }
-        } else {
-            console.log("[AZURE] Cannot calculate price - no valid consumption found");
         }
     }
 
@@ -474,8 +445,7 @@ function parseAzureTables(tables) {
     consumption_annuo_kwh: null,
     consumption_period_kwh: null, // NEW: Try to find period consumption in table
     quota_fissa_mensile: null,
-    prezzo_unitario: null,
-    offerta: null as string | null
+    prezzo_unitario: null
   };
 
   if (!tables || tables.length === 0) return result;
@@ -511,16 +481,11 @@ function parseAzureTables(tables) {
       }
 
       // NEW: Energy Material Cost (Spesa per la materia energia)
-      // Look for "spesa" + "materia" + "energia" (A2A bills)
-      if ((fullRow.includes("spesa") && fullRow.includes("materia") && fullRow.includes("energia")) ||
-          (fullRow.includes("spesa") && fullRow.includes("energia")) ||
-          fullRow.includes("materia energia")) {
-           // Provide a tighter range for this sub-component
+      // Look for "spesa" + "materia" + "energia"
+      if (fullRow.includes("spesa") && fullRow.includes("materia") && fullRow.includes("energia")) {
+           // Provide a tighter range for this sub-component (e.g. 10 to 2000)
            const val = findValueInRow(cells, r, null, 1, 3000);
-           if (val && val > 10) {  // Must be meaningful amount
-               result.costo_materia_energia = val;
-               console.log('[AZURE-TABLE] Found energy material cost:', val, '€');
-           }
+           if (val) result.costo_materia_energia = val;
       }
       
       // Consumption
@@ -857,7 +822,6 @@ serve(async (req) => {
       f3_kwh: extractedData.bolletta_luce?.consumi_fasce?.f3 || null,
       // FIX: Add potenza data from extracted bolletta_luce
       potenza_kw: extractedData.bolletta_luce?.potenza_kw || null,
-      tariff_hint: extractedData.bolletta_luce?.offerta || extractedData.bolletta_gas?.offerta || null,
       raw_json: extractedData,
       quality_score: qualityScore,
       ocr_engine: ocrEngine

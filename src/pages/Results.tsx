@@ -332,13 +332,19 @@ const ResultsPage = () => {
         const providerName = ocrResult?.provider || ocrResult?.raw_json?.provider || ocrResult?.raw_json?.bolletta_luce?.provider || null;
         const currentOffer = ocrResult?.tariff_hint || ocrResult?.raw_json?.bolletta_luce?.offerta || null;
         
-        // NEW: Extract Unit Price and Fixed Fee
-        const extractedPriceKwh = targetData?.current?.details?.price_kwh || targetData?.current?.details?.price_smc || 0;
-        const extractedFixedMonthly = targetData?.current?.details?.fixed_fee_monthly || 0;
+        // NEW: Extract Unit Price and Fixed Fee with robust fallback chain
+        const extractedPriceKwh = targetData?.current?.details?.price_kwh || 
+                                 targetData?.current?.details?.price_smc ||
+                                 ocrResult?.raw_json?.bolletta_luce?.prezzo_unitario_kwh ||
+                                 ocrResult?.raw_json?.bolletta_gas?.prezzo_unitario_smc || 0;
+        const extractedFixedMonthly = targetData?.current?.details?.fixed_fee_monthly ||
+                                     ocrResult?.raw_json?.bolletta_luce?.quota_fissa_mensile ||
+                                     ocrResult?.raw_json?.bolletta_gas?.quota_fissa_mensile || 0;
         setCurrentPriceKwh(extractedPriceKwh);
         setCurrentFixedMonthly(extractedFixedMonthly);
         setCurrentOfferName(currentOffer);
         console.log('[🔍 DATA-CHECK] Final Provider:', providerName, 'Offer:', currentOffer);
+        console.log('[🔍 PRICE-CHECK] Price/kWh:', extractedPriceKwh, 'Fixed/month:', extractedFixedMonthly);
 
         
         switch (action) {
