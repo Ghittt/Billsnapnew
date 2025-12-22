@@ -52,3 +52,8 @@ supabase/migrations/2025121410*.sql
 
 # Scripts directory (if temporary)
 scripts/check-db-*.ts
+
+# Additional backup patterns
+*.gemini_backup
+*.old
+*.broken_backup
