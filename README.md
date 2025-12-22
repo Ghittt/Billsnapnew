@@ -181,3 +181,4 @@ To run from source:
 # Go >= 1.22
 go run . help
 ```
+# Deployed: 2025-12-23 00:22:28
