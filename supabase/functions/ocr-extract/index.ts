@@ -366,7 +366,136 @@ function parseAzureResult(result: any): any {
     output.tipo_fornitura = "gas";
   }
 
+  // --- MERGE TABLE DATA ---
+  try {
+    const tableData = parseAzureTables(tables);
+    console.log("[AZURE] Table Extraction Result:", JSON.stringify(tableData, null, 2));
+
+    if (!output.bolletta_luce.consumi_fasce.f1 && tableData.fasce.f1) output.bolletta_luce.consumi_fasce.f1 = tableData.fasce.f1;
+    if (!output.bolletta_luce.consumi_fasce.f2 && tableData.fasce.f2) output.bolletta_luce.consumi_fasce.f2 = tableData.fasce.f2;
+    if (!output.bolletta_luce.consumi_fasce.f3 && tableData.fasce.f3) output.bolletta_luce.consumi_fasce.f3 = tableData.fasce.f3;
+
+    if (!output.bolletta_luce.potenza_kw && tableData.potenza_kw) output.bolletta_luce.potenza_kw = tableData.potenza_kw;
+
+    if (tableData.total_cost && (!foundTotalCost || foundTotalCost < 5)) {
+        console.log("[AZURE] Using Total Cost from Tables:", tableData.total_cost);
+        if (output.bolletta_luce.presente && !output.bolletta_gas.presente) output.bolletta_luce.totale_periodo_euro = tableData.total_cost;
+        else if (output.bolletta_gas.presente && !output.bolletta_luce.presente) output.bolletta_gas.totale_periodo_euro = tableData.total_cost;
+        else if (output.bolletta_luce.presente && output.bolletta_gas.presente) {
+            output.bolletta_luce.totale_periodo_euro = tableData.total_cost * 0.6;
+            output.bolletta_gas.totale_periodo_euro = tableData.total_cost * 0.4;
+        }
+    }
+    
+    if (!output.bolletta_luce.consumo_annuo_kwh && tableData.consumption_annuo_kwh) {
+        output.bolletta_luce.consumo_annuo_kwh = tableData.consumption_annuo_kwh;
+        output.bolletta_luce.presente = true;
+    }
+
+    // NEW: Merge Price Info
+    if (tableData.quota_fissa_mensile) {
+        // Assume cost is likely for the active commodity
+        if (output.bolletta_luce.presente) output.bolletta_luce.quota_fissa_mensile = tableData.quota_fissa_mensile;
+        if (output.bolletta_gas.presente) output.bolletta_gas.quota_fissa_mensile = tableData.quota_fissa_mensile;
+    }
+    if (tableData.prezzo_unitario) {
+         if (output.bolletta_luce.presente) output.bolletta_luce.prezzo_unitario_kwh = tableData.prezzo_unitario;
+         if (output.bolletta_gas.presente) output.bolletta_gas.prezzo_unitario_smc = tableData.prezzo_unitario;
+    }
+  } catch (e) {
+    console.error("[AZURE] Table parsing error:", e);
+  }
+
   return output;
+}
+
+// ==================== TABLE PARSING UTILS ====================
+
+function parseAzureTables(tables) {
+  const result = {
+    fasce: { f1: null, f2: null, f3: null },
+    potenza_kw: null,
+    total_cost: null,
+    consumption_annuo_kwh: null,
+    consumption_period_kwh: null,
+    quota_fissa_mensile: null,
+    prezzo_unitario: null
+  };
+
+  if (!tables || tables.length === 0) return result;
+
+  for (const table of tables) {
+    const cells = table.cells;
+    const getCell = (r, c) => cells.find((cell) => cell.rowIndex === r && cell.columnIndex === c)?.content || "";
+
+    for (let r = 0; r < table.rowCount; r++) {
+      const labelData = getCell(r, 0).toLowerCase().trim() + " " + getCell(r, 1).toLowerCase().trim();
+      const fullRow = cells.filter((c) => c.rowIndex === r).map((c) => c.content).join(" ").toLowerCase();
+
+      // Fasce
+      if (/(^|\s)(f1|fascia 1|a1)(\s|$)/.test(labelData)) {
+         result.fasce.f1 = findValueInRow(cells, r, result.fasce.f1);
+      } else if (/(^|\s)(f2|fascia 2|a2)(\s|$)/.test(labelData)) {
+         result.fasce.f2 = findValueInRow(cells, r, result.fasce.f2);
+      } else if (/(^|\s)(f3|fascia 3|a3)(\s|$)/.test(labelData)) {
+         result.fasce.f3 = findValueInRow(cells, r, result.fasce.f3);
+      }
+      
+      // Potenza
+      if (fullRow.includes("potenza") && (fullRow.includes("impegnata") || fullRow.includes("contratt"))) {
+         const val = findValueInRow(cells, r, null);
+         if (val && val < 50) result.potenza_kw = val;
+      }
+
+      // Cost
+      if (fullRow.includes("totale") && (fullRow.includes("pagare") || fullRow.includes("bolletta") || fullRow.includes("fattura"))) {
+          const val = findValueInRow(cells, r, null);
+          if (val && val > 5) result.total_cost = val;
+      }
+      
+      // Consumption
+      if (fullRow.includes("consumo") && fullRow.includes("annuo")) {
+          const val = findValueInRow(cells, r, null);
+          if (val && val > 100) result.consumption_annuo_kwh = val;
+      }
+
+      // NEW: Quota Fissa
+      if (fullRow.includes("quota fissa") || fullRow.includes("costi fissi") || fullRow.includes("spesa fissa")) {
+          // Look for small values (e.g. 10-20 euro)
+          const val = findValueInRow(cells, r, null, 1, 30); 
+          if (val) result.quota_fissa_mensile = val; // Assuming monthly if low, or we'll logic it later
+      }
+
+      // NEW: Unit Price
+      if ((fullRow.includes("prezzo") || fullRow.includes("costo") || fullRow.includes("quota")) && (fullRow.includes("energia") || fullRow.includes("materia"))) {
+          // Look for very small values (e.g. 0.10 - 0.50)
+          const val = findValueInRow(cells, r, null, 0.01, 1.5);
+          if (val) result.prezzo_unitario = val;
+      }
+    }
+  }
+  return result;
+}
+
+function findValueInRow(cells, rowIndex, current, min = 0, max = 999999) {
+    if (current !== null) return current;
+    const rowCells = cells.filter((c) => c.rowIndex === rowIndex).sort((a, b) => a.columnIndex - b.columnIndex);
+    for (let i = 1; i < rowCells.length; i++) {
+        const content = rowCells[i].content || "";
+        // Clean: remove everything except digits, comma, dot. Handle '€' etc.
+        const clean = content.replace(/[^0-9,\.]/g, "").replace(",", ".");
+        const val = parseFloat(clean);
+        
+        if (!isNaN(val)) {
+             // Filter by range to avoid years (2023) or codes
+             if (val >= min && val <= max) {
+                // Heuristic: if looking for years, avoid "202x"
+                if (val > 2018 && val < 2030 && Number.isInteger(val) && max > 2000) continue; 
+                return val;
+             }
+        }
+    }
+    return null;
 }
 
 // ==================== GEMINI FALLBACK ====================

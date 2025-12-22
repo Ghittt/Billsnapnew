@@ -24,6 +24,8 @@ interface IntelligentAnalysisProps {
   currentProvider: string;
   currentOfferType?: string;
   currentPotenzaKw?: number;
+  currentPriceKwh?: number;
+  currentFixedMonthly?: number;
   bestOfferName: string;
   bestOfferProvider: string;
   bestOfferMonthly: number;
@@ -47,6 +49,8 @@ export const IntelligentAnalysis: React.FC<IntelligentAnalysisProps> = ({
   currentProvider,
   currentOfferType,
   currentPotenzaKw,
+  currentPriceKwh,
+  currentFixedMonthly,
   bestOfferName,
   bestOfferProvider,
   bestOfferMonthly,
@@ -168,6 +172,8 @@ export const IntelligentAnalysis: React.FC<IntelligentAnalysisProps> = ({
             currentMonthly={currentMonthly}
             currentAnnual={currentAnnual}
             currentPotenzaKw={currentPotenzaKw}
+            currentPriceKwh={currentPriceKwh}
+            currentFixedMonthly={currentFixedMonthly}
             bestOfferName={bestOfferName}
             bestOfferProvider={bestOfferProvider}
             bestOfferMonthly={bestOfferMonthly}

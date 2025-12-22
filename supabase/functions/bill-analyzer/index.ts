@@ -615,6 +615,12 @@ serve(async (req) => {
       costs: {
         total_eur_luce: ocr.bolletta_luce?.totale_periodo_euro || null,
         total_eur_gas: ocr.bolletta_gas?.totale_periodo_euro || null
+      },
+      details: {
+        unit_price_kwh: ocr.bolletta_luce?.prezzo_unitario_kwh || null,
+        fixed_fee_luce: ocr.bolletta_luce?.quota_fissa_mensile || null,
+        unit_price_smc: ocr.bolletta_gas?.prezzo_unitario_smc || null,
+        fixed_fee_gas: ocr.bolletta_gas?.quota_fissa_mensile || null
       }
     };
 
@@ -723,7 +729,11 @@ serve(async (req) => {
         offer_name: bill.offer_name_current,
         monthly_eur: monthly ? Math.round(monthly * 100) / 100 : null,
         annual_eur: annual ? Math.round(annual * 100) / 100 : null,
-        consumption_annual: { kwh: bill.consumption.kwh, smc: null }
+        consumption_annual: { kwh: bill.consumption.kwh, smc: null },
+        details: {
+          price_kwh: bill.details.unit_price_kwh,
+          fixed_fee_monthly: bill.details.fixed_fee_luce
+        }
       };
       
       const formatOffer = (o) => o ? {
@@ -848,7 +858,11 @@ serve(async (req) => {
         offer_name: bill.offer_name_current,
         monthly_eur: monthly ? Math.round(monthly * 100) / 100 : null,
         annual_eur: annual ? Math.round(annual * 100) / 100 : null,
-        consumption_annual: { kwh: null, smc: bill.consumption.smc }
+        consumption_annual: { kwh: null, smc: bill.consumption.smc },
+        details: {
+          price_smc: bill.details.unit_price_smc,
+          fixed_fee_monthly: bill.details.fixed_fee_gas
+        }
       };
       
       const formatOffer = (o) => o ? {

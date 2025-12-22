@@ -325,6 +325,10 @@ const ResultsPage = () => {
         console.log('[🔍 FASCE] Extracted:', {f1, f2, f3, potenzaKw});
         const providerName = ocrResult?.provider || ocrResult?.raw_json?.provider || ocrResult?.raw_json?.bolletta_luce?.provider || null;
         const currentOffer = ocrResult?.tariff_hint || ocrResult?.raw_json?.bolletta_luce?.offerta || null;
+        
+        // NEW: Extract Unit Price and Fixed Fee
+        const currentPriceKwh = targetData?.current?.details?.price_kwh || targetData?.current?.details?.price_smc || 0;
+        const currentFixedMonthly = targetData?.current?.details?.fixed_fee_monthly || 0;
         setCurrentOfferName(currentOffer);
         console.log('[🔍 DATA-CHECK] Final Provider:', providerName, 'Offer:', currentOffer);
 
@@ -951,6 +955,8 @@ const ResultsPage = () => {
                 currentAnnual={currentCost}
                 currentProvider={ocrData?.provider || 'provider attuale'}
                 currentOfferType={currentOfferName}
+                currentPriceKwh={currentPriceKwh}
+                currentFixedMonthly={currentFixedMonthly}
                 bestOfferName={bestOffer.plan_name}
                 bestOfferProvider={bestOffer.provider}
                 bestOfferMonthly={newMonthly}
