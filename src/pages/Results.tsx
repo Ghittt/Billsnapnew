@@ -331,8 +331,22 @@ const ResultsPage = () => {
         const currentOffer = ocrResult?.tariff_hint || ocrResult?.raw_json?.bolletta_luce?.offerta || null;
         
         // NEW: Extract Unit Price and Fixed Fee
-        const currentPriceKwh = targetData?.current?.details?.price_kwh || targetData?.current?.details?.price_smc || 0;
+        
+        
+        let currentPriceKwh = targetData?.current?.details?.price_kwh || targetData?.current?.details?.price_smc || 0;
         const currentFixedMonthly = targetData?.current?.details?.fixed_fee_monthly || 0;
+        
+        // FALLBACK: Calculate if missing
+        if (!currentPriceKwh || currentPriceKwh === 0) {
+            const annualCost = extractedCost || 0;
+            const annualCons = extractedConsumption || 0;
+            if (annualCost > 0 && annualCons > 0) {
+                 // Simple average price
+                 currentPriceKwh = annualCost / annualCons;
+                 console.log("[Results] Used Frontend Fallback Calculation:", currentPriceKwh);
+            }
+        }
+
         setCurrentOfferName(currentOffer);
         console.log('[🔍 DATA-CHECK] Final Provider:', providerName, 'Offer:', currentOffer);
 
@@ -996,7 +1010,7 @@ const ResultsPage = () => {
             </div>
           )}
 
-          <ReferralCard savingAmount={annualSaving} />
+          {/* ReferralCard removed as per user request */}
 
           {allOffers.length > 0 && (
             <MethodSection
