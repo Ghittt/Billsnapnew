@@ -303,25 +303,6 @@ function parseAzureResult(result: any): any {
     }
   }
 
-  // Offer name extraction
-  const offerPatterns = [
-    /offerta[\\s:]+([A-Za-z0-9\\s]+?)(?:\\n|\\r|$|\\.|,)/i,
-    /piano\\s+tariffario[\\s:]+([A-Za-z0-9\\s]+?)(?:\\n|\\r|$|\\.|,)/i,
-    /tariffa[\\s:]+([A-Za-z0-9\\s]+?)(?:\\n|\\r|$|\\.|,)/i,
-    /nome\\s+offerta[\\s:]+([A-Za-z0-9\\s]+?)(?:\\n|\\r|$|\\.|,)/i
-  ];
-  for (const pattern of offerPatterns) {
-    const match = content.match(pattern);
-    if (match && match[1] && match[1].trim().length > 2) {
-      const offerName = match[1].trim();
-      if (!offerName.match(/^(si|no|€|\\d+)$/i)) {
-        if (output.bolletta_luce.presente) output.bolletta_luce.offerta = offerName;
-        if (output.bolletta_gas.presente) output.bolletta_gas.offerta = offerName;
-        console.log('[AZURE] Found offer name:', offerName, 'from match:', match[0]);
-        break;
-      }
-    }
-  }
 
   // Fasce orarie extraction (F1, F2, F3)
   // Pattern: "F1: XXX kWh" or "Fascia F1: XXX" or "F1 XXX kwh"
