@@ -201,12 +201,16 @@ const ResultsPage = () => {
               presente: true,
               consumo_annuo_kwh: consumo,
               totale_periodo_euro: costo,
+              prezzo_unitario_kwh: ocrResult?.raw_json?.bolletta_luce?.prezzo_unitario_kwh || ocrResult?.bolletta_luce?.prezzo_unitario_kwh,
+              quota_fissa_mensile: ocrResult?.raw_json?.bolletta_luce?.quota_fissa_mensile || ocrResult?.bolletta_luce?.quota_fissa_mensile,
               periodo: { mesi: 12 }
             } : { presente: false },
             bolletta_gas: tipo === 'gas' ? {
               presente: true,
               consumo_annuo_smc: consumo,
               totale_periodo_euro: costo,
+              prezzo_unitario_smc: ocrResult?.raw_json?.bolletta_gas?.prezzo_unitario_smc || ocrResult?.bolletta_gas?.prezzo_unitario_smc,
+              quota_fissa_mensile: ocrResult?.raw_json?.bolletta_gas?.quota_fissa_mensile || ocrResult?.bolletta_gas?.quota_fissa_mensile,
               periodo: { mesi: 12 }
             } : { presente: false }
           },
@@ -1058,6 +1062,20 @@ const ResultsPage = () => {
         providerUrl={redirectData?.url || ''}
         onClose={() => setShowRedirectPopup(false)}
       />
+      {/* DEBUG PANEL - VISIBLE TO USER FOR DIAGNOSTICS */}
+      <div className="mt-8 p-4 bg-gray-100 border-2 border-red-300 rounded text-xs font-mono overflow-auto max-h-96">
+        <h3 className="font-bold text-red-600 mb-2">🛠️ DEBUG DATA (Invia screenshot di questo se vedi N/D)</h3>
+        <p><strong>Provider:</strong> {targetData?.current?.provider}</p>
+        <p><strong>Offer Name:</strong> {targetData?.current?.offer_name}</p>
+        <p><strong>Price/kWh:</strong> {targetData?.current?.details?.price_kwh ?? "NULL"}</p>
+        <p><strong>Fixed Fee:</strong> {targetData?.current?.details?.fixed_fee_monthly ?? "NULL"}</p>
+        <p><strong>Calculated Unit Price (Frontend):</strong> {currentPriceKwh ?? "NULL"}</p>
+        <details>
+           <summary className="cursor-pointer font-bold mt-2">📦 Raw JSON (Click to expand)</summary>
+           <pre>{JSON.stringify(targetData, null, 2)}</pre>
+        </details>
+      </div>
+
     </div>
   );
 };

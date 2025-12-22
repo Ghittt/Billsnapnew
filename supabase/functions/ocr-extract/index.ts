@@ -392,17 +392,42 @@ function parseAzureResult(result: any): any {
         output.bolletta_luce.presente = true;
     }
 
+    
     // NEW: Merge Price Info
     if (tableData.quota_fissa_mensile) {
-        // Assume cost is likely for the active commodity
         if (output.bolletta_luce.presente) output.bolletta_luce.quota_fissa_mensile = tableData.quota_fissa_mensile;
         if (output.bolletta_gas.presente) output.bolletta_gas.quota_fissa_mensile = tableData.quota_fissa_mensile;
     }
-    if (tableData.prezzo_unitario) {
-         if (output.bolletta_luce.presente) output.bolletta_luce.prezzo_unitario_kwh = tableData.prezzo_unitario;
-         if (output.bolletta_gas.presente) output.bolletta_gas.prezzo_unitario_smc = tableData.prezzo_unitario;
+    
+    // Explicit or Calculated Unit Price
+    let finalUnitPrice = tableData.prezzo_unitario;
+    
+    // Fallback Calculation: If explicit price is missing, calculate from Material Cost / Consumption
+    if (!finalUnitPrice && tableData.costo_materia_energia) {
+        // Use period consumption from table if found, otherwise fall back to what we found in text (output.bolletta_luce.consumo_periodo)
+        // Note: text extraction puts it in 'totale_periodo_kwh' usually? 
+        // Actually output structure is: output.bolletta_luce.consumo_periodo_kwh (from regex)
+        
+        // Let's rely on tableData.consumption_period_kwh first, then text extraction
+        const consumption = tableData.consumption_period_kwh || output.bolletta_luce.consumo_attivo_kwh || output.bolletta_luce.consumo_periodo_kwh;
+        
+        if (consumption && consumption > 0) {
+            const calculated = tableData.costo_materia_energia / consumption;
+            console.log("[AZURE] Calculated Effective Price:", calculated, "(Cost:", tableData.costo_materia_energia, "Cons:", consumption, ")");
+            
+            // Sanity check: price should be reasonable (e.g. 0.05 to 0.80)
+            if (calculated > 0.05 && calculated < 0.80) {
+                finalUnitPrice = calculated;
+                // Also implicitly, if we are calculating, we might want to flag it? For now just use it.
+            }
+        }
     }
-  } catch (e) {
+
+    if (finalUnitPrice) {
+         if (output.bolletta_luce.presente) output.bolletta_luce.prezzo_unitario_kwh = finalUnitPrice;
+         if (output.bolletta_gas.presente) output.bolletta_gas.prezzo_unitario_smc = finalUnitPrice;
+    }
+} catch (e) {
     console.error("[AZURE] Table parsing error:", e);
   }
 
@@ -415,9 +440,10 @@ function parseAzureTables(tables) {
   const result = {
     fasce: { f1: null, f2: null, f3: null },
     potenza_kw: null,
-    total_cost: null,
+    total_cost: null, // This is usually total bill
+    costo_materia_energia: null, // NEW: Specific energy cost
     consumption_annuo_kwh: null,
-    consumption_period_kwh: null,
+    consumption_period_kwh: null, // NEW: Try to find period consumption in table
     quota_fissa_mensile: null,
     prezzo_unitario: null
   };
@@ -429,7 +455,8 @@ function parseAzureTables(tables) {
     const getCell = (r, c) => cells.find((cell) => cell.rowIndex === r && cell.columnIndex === c)?.content || "";
 
     for (let r = 0; r < table.rowCount; r++) {
-      const labelData = getCell(r, 0).toLowerCase().trim() + " " + getCell(r, 1).toLowerCase().trim();
+      const labelCol = getCell(r, 0); 
+      const labelData = (labelCol + " " + getCell(r, 1) + " " + getCell(r, 2)).toLowerCase().replace(/\s+/g, " ").trim();
       const fullRow = cells.filter((c) => c.rowIndex === r).map((c) => c.content).join(" ").toLowerCase();
 
       // Fasce
@@ -447,55 +474,69 @@ function parseAzureTables(tables) {
          if (val && val < 50) result.potenza_kw = val;
       }
 
-      // Cost
+      // Total Cost (Bill Total)
       if (fullRow.includes("totale") && (fullRow.includes("pagare") || fullRow.includes("bolletta") || fullRow.includes("fattura"))) {
-          const val = findValueInRow(cells, r, null);
-          if (val && val > 5) result.total_cost = val;
+          const val = findValueInRow(cells, r, null, 10, 5000);
+          if (val) result.total_cost = val;
+      }
+
+      // NEW: Energy Material Cost (Spesa per la materia energia)
+      // Look for "spesa" + "materia" + "energia"
+      if (fullRow.includes("spesa") && fullRow.includes("materia") && fullRow.includes("energia")) {
+           // Provide a tighter range for this sub-component (e.g. 10 to 2000)
+           const val = findValueInRow(cells, r, null, 1, 3000);
+           if (val) result.costo_materia_energia = val;
       }
       
       // Consumption
       if (fullRow.includes("consumo") && fullRow.includes("annuo")) {
-          const val = findValueInRow(cells, r, null);
-          if (val && val > 100) result.consumption_annuo_kwh = val;
+          const val = findValueInRow(cells, r, null, 100, 20000);
+          if (val) result.consumption_annuo_kwh = val;
+      }
+      // NEW: Period Consumption in table (e.g. "Totale energia attiva", "Consumo rilevato")
+      // If we see "consumo" but NOT "annuo", it might be period consumption
+      if (fullRow.includes("consumo") && !fullRow.includes("annuo") && !fullRow.includes("stimato")) {
+           // Look for likely period consumption values (e.g. 50 - 2000)
+           const val = findValueInRow(cells, r, null, 10, 5000);
+           // Only set if we haven't found it yet, or overwrite if it looks more 'real' (heuristic needed? for now just take it)
+           if (val) result.consumption_period_kwh = val;
       }
 
-      // NEW: Quota Fissa
-      if (fullRow.includes("quota fissa") || fullRow.includes("costi fissi") || fullRow.includes("spesa fissa")) {
-          // Look for small values (e.g. 10-20 euro)
+
+      // Quota Fissa
+      const fixedKeywords = ["quota fissa", "costi fissi", "spesa fissa", "commercializzazione", "vendita", "pcv", "quota costante"];
+      if (fixedKeywords.some(k => fullRow.includes(k))) {
           const val = findValueInRow(cells, r, null, 1, 30); 
-          if (val) result.quota_fissa_mensile = val; // Assuming monthly if low, or we'll logic it later
+          if (val) result.quota_fissa_mensile = val; 
       }
 
-      // NEW: Unit Price
-      if ((fullRow.includes("prezzo") || fullRow.includes("costo") || fullRow.includes("quota")) && (fullRow.includes("energia") || fullRow.includes("materia"))) {
-          // Look for very small values (e.g. 0.10 - 0.50)
-          const val = findValueInRow(cells, r, null, 0.01, 1.5);
+      // Unit Price extraction (Explicit)
+      const unitKeywords = ["prezzo", "costo", "quota", "materia", "corrispettivo"];
+      const energyKeywords = ["energia", "materia", "kwh", "smc", "gas", "componente"];
+      
+      const hasUnit = unitKeywords.some(k => fullRow.includes(k));
+      const hasEnergy = energyKeywords.some(k => fullRow.includes(k));
+
+      if ((hasUnit && hasEnergy) || fullRow.includes("euro/kwh") || fullRow.includes("€/kwh") || fullRow.includes("€/smc")) {
+          let val = findValueInRow(cells, r, null, 0.001, 1.5);
+          
+          if (!val) {
+             const col0Text = labelCol; 
+             const priceRegex = /([0-9]+[.,][0-9]{2,6})\s*(?:€|euro|curr)/i;
+             const match = col0Text.match(priceRegex);
+             if (match) {
+                 const clean = match[1].replace(",", ".");
+                 const parsed = parseFloat(clean);
+                 if (!isNaN(parsed) && parsed > 0.001 && parsed < 1.5) {
+                     val = parsed;
+                 }
+             }
+          }
           if (val) result.prezzo_unitario = val;
       }
     }
   }
   return result;
-}
-
-function findValueInRow(cells, rowIndex, current, min = 0, max = 999999) {
-    if (current !== null) return current;
-    const rowCells = cells.filter((c) => c.rowIndex === rowIndex).sort((a, b) => a.columnIndex - b.columnIndex);
-    for (let i = 1; i < rowCells.length; i++) {
-        const content = rowCells[i].content || "";
-        // Clean: remove everything except digits, comma, dot. Handle '€' etc.
-        const clean = content.replace(/[^0-9,\.]/g, "").replace(",", ".");
-        const val = parseFloat(clean);
-        
-        if (!isNaN(val)) {
-             // Filter by range to avoid years (2023) or codes
-             if (val >= min && val <= max) {
-                // Heuristic: if looking for years, avoid "202x"
-                if (val > 2018 && val < 2030 && Number.isInteger(val) && max > 2000) continue; 
-                return val;
-             }
-        }
-    }
-    return null;
 }
 
 // ==================== GEMINI FALLBACK ====================
